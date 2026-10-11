@@ -299,6 +299,7 @@
           <div class="row" style="margin-top: 0.6rem">
             <button class="brass" id="advance" type="button">Run the season</button>
             <span class="hint">Entry <span id="entry-fee">40</span> ₲ per runner · four places paid</span>
+            <span class="hint" id="due"></span>
           </div>
         </section>
 
@@ -332,6 +333,15 @@
           </p>
           <div id="covering"></div>
           <div class="care" id="care"></div>
+        </section>
+
+        <section class="panel" data-when="breeding">
+          <h2>In foal · due next season</h2>
+          <p class="hint">
+            A mare in foal cannot be covered again. The foal arrives when the season turns,
+            so running the season is what brings it into the yard.
+          </p>
+          <div class="cards" id="foaling"></div>
         </section>
 
         <section class="panel" data-when="breeding">
@@ -573,6 +583,14 @@ const CARE_CHOICES = ["plain", "prepared", "studcare"];
 const CARE_COST = { plain: 0, prepared: 150, studcare: 450 };
 const CARE_CATCH = { plain: 0, prepared: 0.06, studcare: 0.14 };
 const CARE_VALUE = { plain: 0, prepared: 0.03, studcare: 0.08 };
+/** One season between the covering and the foal, so the payoff is waited for. */
+const GESTATION_SEASONS = 1;
+/**
+ * The breeder's premium, paid when a foal is registered. A real thing in bloodstock,
+ * and here it is the compensation for the wait: a covering no longer pays out the
+ * season it is made, so the season it does pay out in pays a little more.
+ */
+const BREEDER_PREMIUM = 240;
 const START_HORSES = 4;
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
@@ -916,7 +934,7 @@ function foalReport(state, foal, dam, sire, care) {
   const next = lines[beaten] ?? null;
   const ranked = state.horses.filter((horse) => inPlay(horse)).sort((a, b) => b.value - a.value);
   return {
-    ok: true,
+    event: "born",
     id: foal.id,
     name: foal.name,
     sex: foal.sex,
@@ -939,6 +957,7 @@ function foalReport(state, foal, dam, sire, care) {
     place: ranked.findIndex((horse) => horse.id === foal.id) + 1,
     field: ranked.length,
     traits: traitsOf(foal.genome),
+    stableId: foal.owner,
   };
 }
 
@@ -1038,6 +1057,7 @@ function setup(players) {
     owner: players[0] ?? null,
     players: [...players],
     unowned: [],
+    foaling: [],
   };
 
   players.forEach((playerId, index) => {
@@ -1118,6 +1138,9 @@ function validateAction(state, playerId, action) {
     if (mare.retired) return { ok: false, error: "that mare is retired" };
     if (mare.age > MARE_MAX_AGE) return { ok: false, error: "that mare is past breeding age" };
     if (mare.foals >= MARE_CAREER_FOALS) return { ok: false, error: "that mare has finished her career" };
+    if ((state.foaling ?? []).some((row) => row.mareId === mare.id)) {
+      return { ok: false, error: `${mare.name} is already in foal` };
+    }
     if (!straw) return { ok: false, error: "you do not hold that straw" };
     const sire = horseById(state, straw.sire);
     if (!sire) return { ok: false, error: "that straw has no sire" };
@@ -1295,7 +1318,7 @@ function applyAction(state, playerId, action) {
     );
     if (rollValue(next) > liveRate) {
       next.lastFoal = {
-        ok: false,
+        event: "miss",
         damId: mare.id,
         damName: mare.name,
         sireId: sire.id,
@@ -1306,26 +1329,33 @@ function applyAction(state, playerId, action) {
       log(next, `No foal from ${mare.name} this season.`, "breeding");
       return next;
     }
-    const genome = {};
-    for (const locus of LOCI) {
-      genome[locus] = [
-        sire.genome[locus][rollInt(next, 2)],
-        mare.genome[locus][rollInt(next, 2)],
-      ];
-    }
-    const lineage = rollValue(next) < 0.5 ? sire.lineage : mare.lineage;
-    const sex = rollValue(next) < 0.5 ? "M" : "F";
-    const foal = makeHorse(next, genome, lineage, sex, 0, next.season, vigourFor(sire, mare), sire.id, mare.id);
-    foal.care = care;
-    foal.owner = stable.id;
-    next.horses.push(foal);
-    stable.horses.push(foal.id);
-    log(next, `${foal.name} foaled by ${mare.name} out of ${sire.name}.`, "breeding");
-    scorePopulation(next);
-    const report = foalReport(next, foal, mare, sire, care);
-    report.personalBest = report.value > (stable.bestFoalValue ?? 0);
-    if (report.personalBest) stable.bestFoalValue = report.value;
-    next.lastFoal = report;
+    // She is in foal. The covering is spent and the wait begins: the foal is not
+    // built yet, so the payoff is something the player waits a season for.
+    const pregnancy = {
+      id: `${mare.id}@${next.season}`,
+      mareId: mare.id,
+      sireId: sire.id,
+      stableId: stable.id,
+      care,
+      vintage: straw.vintage,
+      conceived: next.season,
+      dueSeason: next.season + GESTATION_SEASONS,
+    };
+    next.foaling = [...(next.foaling ?? []), pregnancy];
+    next.lastFoal = {
+      event: "expecting",
+      id: pregnancy.id,
+      damId: mare.id,
+      damName: mare.name,
+      sireId: sire.id,
+      sireName: sire.name,
+      care,
+      conceived: pregnancy.conceived,
+      dueSeason: pregnancy.dueSeason,
+      chance: round(liveRate, 3),
+      stableId: stable.id,
+    };
+    log(next, `${mare.name} is in foal to ${sire.name} — due next season.`, "breeding");
     return next;
   }
 
@@ -1812,6 +1842,53 @@ function runSeason(state) {
   state.wants = survivingWants;
 
   log(state, `Season ${state.season} opens. Condition: ${state.condition}.`, "season");
+  // The wait ends here. Foals due this season arrive as the new one opens, and the
+  // genome is sampled now rather than at the covering: nothing was settled in
+  // advance, so a save written while she was in foal still produces a real foal.
+  const due = (state.foaling ?? []).filter((row) => row.dueSeason <= state.season);
+  if (due.length) {
+    const created = [];
+    for (const row of due) {
+      const mare = horseById(state, row.mareId);
+      const sire = horseById(state, row.sireId);
+      const owner = state.stables.find((entry) => entry.id === row.stableId);
+      if (!mare || !sire || !owner) continue;
+      const genome = {};
+      for (const locus of LOCI) {
+        genome[locus] = [
+          sire.genome[locus][rollInt(state, 2)],
+          mare.genome[locus][rollInt(state, 2)],
+        ];
+      }
+      const lineage = rollValue(state) < 0.5 ? sire.lineage : mare.lineage;
+      const sex = rollValue(state) < 0.5 ? "M" : "F";
+      const foal = makeHorse(state, genome, lineage, sex, 0, state.season, vigourFor(sire, mare), sire.id, mare.id);
+      foal.care = row.care;
+      foal.owner = owner.id;
+      state.horses.push(foal);
+      owner.horses.push(foal.id);
+      owner.guineas += BREEDER_PREMIUM;
+      state.ledger = [
+        { season: state.season, text: `Breeder's premium for ${foal.name}`, amount: BREEDER_PREMIUM },
+        ...state.ledger,
+      ].slice(0, 10);
+      log(state, `The stud book pays a breeder's premium of ${BREEDER_PREMIUM} GNS for ${foal.name}.`, "breeding");
+      log(state, `${foal.name} foaled by ${mare.name} out of ${sire.name}.`, "breeding");
+      created.push({ foal, mare, sire, care: row.care });
+    }
+    scorePopulation(state);
+    const reports = created
+      .map((entry) => foalReport(state, entry.foal, entry.mare, entry.sire, entry.care))
+      .sort((a, b) => b.value - a.value);
+    for (const report of reports) {
+      const owner = state.stables.find((entry) => entry.id === report.stableId);
+      report.personalBest = report.value > (owner?.bestFoalValue ?? 0);
+      if (owner && report.personalBest) owner.bestFoalValue = report.value;
+    }
+    state.lastFoals = reports;
+    if (reports.length) state.lastFoal = reports[0];
+    state.foaling = (state.foaling ?? []).filter((row) => !due.includes(row));
+  }
   state.turn = (state.turn ?? 0) + 1;
   return state;
 }
@@ -1977,6 +2054,17 @@ function viewFor(state, playerId) {
         push: round(paceProfile(horse, state.condition, "push").shift, 2),
         hold: round(paceProfile(horse, state.condition, "hold").shift, 2),
       },
+      inFoal: (() => {
+        const row = (state.foaling ?? []).find((entry) => entry.mareId === horse.id);
+        if (!row) return null;
+        const sire = horseById(state, row.sireId);
+        return {
+          dueSeason: row.dueSeason,
+          seasonsLeft: Math.max(0, row.dueSeason - state.season),
+          sireName: sire ? sire.name : "unknown",
+          care: row.care,
+        };
+      })(),
       value: horse.value,
       band: valueBand(horse, field),
       fLabel: inbreedingLabel(horse.f),
@@ -2151,6 +2239,22 @@ function viewFor(state, playerId) {
       value: CARE_VALUE[care],
     })),
     lastFoal: state.lastFoal ?? null,
+    lastFoals: state.lastFoals ?? (state.lastFoal ? [state.lastFoal] : []),
+    foaling: (state.foaling ?? []).map((row) => {
+      const mare = horseById(state, row.mareId);
+      const sire = horseById(state, row.sireId);
+      return {
+        id: row.id,
+        mareId: row.mareId,
+        mareName: mare ? mare.name : "unknown",
+        sireName: sire ? sire.name : "unknown",
+        care: row.care,
+        conceived: row.conceived,
+        dueSeason: row.dueSeason,
+        seasonsLeft: Math.max(0, row.dueSeason - state.season),
+      };
+    }),
+    dueNextSeason: (state.foaling ?? []).filter((row) => row.dueSeason <= state.season + GESTATION_SEASONS).length,
     entryFee: ENTRY_FEE,
     servicesPerSeason: SERVICES_PER_SEASON,
     mareCareer: MARE_CAREER_FOALS,
@@ -2560,6 +2664,33 @@ function chime(tierIndex, ok) {
   }
 }
 
+/** A soft settling motif for a covering that caught: the wait, not the win. */
+function settle() {
+  if (!soundOn) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audio = audio || new Ctx();
+    const now = audio.currentTime;
+    const gain = audio.createGain();
+    gain.connect(audio.destination);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.09, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
+    [0, 7].forEach((semi, index) => {
+      const osc = audio.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = 261.63 * 2 ** (semi / 12);
+      osc.connect(gain);
+      const at = now + index * 0.16;
+      osc.start(at);
+      osc.stop(at + 0.7);
+    });
+  } catch {
+    /* sound is a nicety */
+  }
+}
+
 function kvRow(label, value) {
   const row = document.createElement("div");
   const left = document.createElement("span");
@@ -2597,9 +2728,46 @@ function openReveal(foal, v) {
   box.innerHTML = "";
   box.hidden = false;
 
-  const tierIndex = foal.ok ? Math.max(0, TIERS.indexOf(foal.tier)) : -1;
+  const event = foal.event ?? (foal.ok ? "born" : "miss");
+  const tierIndex = event === "born" ? Math.max(0, TIERS.indexOf(foal.tier)) : -1;
   const card = document.createElement("div");
   card.className = "card";
+
+  // The conception: the payoff is deferred, so this card is deliberately quiet.
+  if (event === "expecting") {
+    const waitStamp = document.createElement("span");
+    waitStamp.className = "stamp";
+    waitStamp.textContent = "in foal";
+    card.append(waitStamp);
+    const waitHead = document.createElement("h3");
+    waitHead.textContent = "She is in foal";
+    card.append(waitHead);
+    const waitSub = document.createElement("p");
+    waitSub.className = "hint";
+    waitSub.textContent = `${foal.damName} caught to ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain"} care — the chance was ${Math.round((foal.chance ?? 0) * 100)}%.`;
+    card.append(waitSub);
+    const waitLines = document.createElement("div");
+    waitLines.className = "lines";
+    waitLines.append(
+      kvRow("due", "next season"),
+      kvRow("what now", "run the season to bring the foal into the yard"),
+    );
+    card.append(waitLines);
+    const waitClose = document.createElement("div");
+    waitClose.className = "row";
+    waitClose.style.marginTop = "0.7rem";
+    const waitButton = document.createElement("button");
+    waitButton.className = "brass";
+    waitButton.textContent = "wait for the season";
+    waitButton.addEventListener("click", () => {
+      box.hidden = true;
+    });
+    waitClose.append(waitButton);
+    card.append(waitClose);
+    box.append(card);
+    settle();
+    return;
+  }
 
   if (tierIndex >= 2) {
     const burst = document.createElement("div");
@@ -2617,22 +2785,22 @@ function openReveal(foal, v) {
   }
 
   const stamp = document.createElement("span");
-  stamp.className = "stamp" + (foal.ok ? (tierIndex >= 2 ? " high" : "") : " miss");
-  stamp.textContent = foal.ok ? foal.tier : "no foal";
+  stamp.className = "stamp" + (event === "born" ? (tierIndex >= 2 ? " high" : "") : " miss");
+  stamp.textContent = event === "born" ? foal.tier : "no foal";
   card.append(stamp);
 
   const heading = document.createElement("h3");
-  heading.textContent = foal.ok ? (foal.sex === "M" ? "A colt is born" : "A filly is born") : "The covering missed";
+  heading.textContent = event === "born" ? (foal.sex === "M" ? "A colt is born" : "A filly is born") : "The covering missed";
   card.append(heading);
 
   const sub = document.createElement("p");
   sub.className = "hint";
-  sub.textContent = foal.ok
+  sub.textContent = event === "born"
     ? `${foal.damName} out of ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain"} care.`
     : `${foal.damName} was covered by ${foal.sireName} and did not catch — the chance was ${Math.round((foal.chance ?? 0) * 100)}%. The straw and the care are spent either way.`;
   card.append(sub);
 
-  if (foal.ok) {
+  if (event === "born") {
     const line = document.createElement("div");
     line.className = "foal";
     const mine = v.horses.find((horse) => horse.id === foal.id);
@@ -2718,7 +2886,7 @@ function openReveal(foal, v) {
   closeRow.style.marginTop = "0.6rem";
   const close = document.createElement("button");
   close.className = "tiny";
-  close.textContent = foal.ok ? "back to the yard" : "try again";
+  close.textContent = event === "born" ? "back to the yard" : "try again";
   close.addEventListener("click", () => {
     box.hidden = true;
   });
@@ -2733,7 +2901,7 @@ function openReveal(foal, v) {
 function maybeReveal(v) {
   const foal = v.lastFoal;
   if (!foal) return;
-  const stamp = `${foal.ok ? "ok" : "miss"}:${foal.id ?? foal.damId}:${foal.bornSeason ?? ""}`;
+  const stamp = `${foal.event ?? (foal.ok ? "born" : "miss")}:${foal.id ?? foal.damId}:${foal.bornSeason ?? foal.dueSeason ?? ""}`;
   if (stamp === shownFoal) return;
   shownFoal = stamp;
   writeStore(FOAL_KEY, stamp);
@@ -2784,6 +2952,44 @@ function renderCovering(v) {
   care.append(note);
 }
 
+/** Her in foal, and how long the wait is: the season button ends it. */
+function renderFoaling(v) {
+  const due = el("due");
+  if (due) {
+    due.textContent = v.dueNextSeason
+      ? `${nf(v.dueNextSeason)} foal${v.dueNextSeason === 1 ? "" : "s"} due when the season turns.`
+      : "";
+  }
+  const list = el("foaling");
+  if (!list) return;
+  list.innerHTML = "";
+  const rows = v.foaling ?? [];
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No mares in foal. Pick a covering and breed a mare above.";
+    list.append(empty);
+    return;
+  }
+  for (const row of rows) {
+    const card = document.createElement("div");
+    card.className = "lot mine";
+    const head = document.createElement("div");
+    head.className = "name";
+    head.textContent = row.mareName;
+    card.append(head);
+    const meta = document.createElement("div");
+    meta.className = "kv";
+    meta.innerHTML = `<span>in foal to ${row.sireName}</span><b>due season ${nf(row.dueSeason)}</b>`;
+    card.append(meta);
+    const when = document.createElement("div");
+    when.className = "kv";
+    when.innerHTML = `<span>care</span><b>${CARE_WORDS[row.care] ?? row.care}</b>`;
+    card.append(when);
+    list.append(card);
+  }
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -2816,6 +3022,7 @@ function draw() {
   if (document.body.dataset.screen !== screen) showScreen(screen);
   if (el("sound")) el("sound").textContent = `sound: ${soundOn ? "on" : "off"}`;
   renderCovering(v);
+  renderFoaling(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
@@ -2837,7 +3044,15 @@ function draw() {
     nameSpan.textContent = horse.name;
     nameline.append(nameSpan);
     name.append(nameline);
-    if (horse.pairing) {
+    if (horse.inFoal) {
+      const dueLine = document.createElement("div");
+      dueLine.className = "pairing";
+      dueLine.textContent = `in foal to ${horse.inFoal.sireName} — due ${
+        horse.inFoal.seasonsLeft <= 1 ? "next season" : `in ${horse.inFoal.seasonsLeft} seasons`
+      }`;
+      name.append(dueLine);
+    }
+    if (horse.pairing && !horse.inFoal) {
       const pair = document.createElement("div");
       const risky = horse.pairing.sameLineage || Math.max(horse.pairing.sireF, horse.pairing.damF) > 0.2;
       pair.className = "pairing" + (risky ? " risk" : "");
@@ -2910,7 +3125,7 @@ function draw() {
       const breed = document.createElement("button");
       breed.className = "tiny good";
       breed.textContent = "breed";
-      breed.disabled = horse.sex !== "F" || !selectedStraw;
+      breed.disabled = horse.sex !== "F" || !selectedStraw || Boolean(horse.inFoal);
       breed.addEventListener("click", () => {
         if (!selectedStraw) return toast("pick a covering first", true);
         act({ type: "breed", mareId: horse.id, strawId: selectedStraw, care: careChoice });
