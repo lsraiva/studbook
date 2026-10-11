@@ -794,6 +794,30 @@ function validateAction(state, playerId, action) {
     return { ok: true };
   }
 
+  if (type === "listHorse") {
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (horse.retired) return { ok: false, error: "that horse is retired" };
+    if (stable.horses.length <= 1) return { ok: false, error: "you cannot consign your last horse" };
+    if (!Number.isFinite(action.price) || action.price < 25) {
+      return { ok: false, error: "ask at least 25 GNS" };
+    }
+    return { ok: true };
+  }
+
+  if (type === "unlistHorse") {
+    const lot = state.listings.find((entry) => entry.id === action.listingId && entry.kind === "horse");
+    if (!lot || lot.seller !== stable.id) return { ok: false, error: "not your consignment" };
+    return { ok: true };
+  }
+
+  if (type === "buyHorse") {
+    const lot = state.listings.find((entry) => entry.id === action.listingId && entry.kind === "horse");
+    if (!lot) return { ok: false, error: "that lot is gone" };
+    if (lot.seller === stable.id) return { ok: false, error: "that is your own lot" };
+    if (stable.guineas < lot.price) return { ok: false, error: "not enough guineas" };
+    return { ok: true };
+  }
   if (type === "sell") {
     const horse = horseById(state, action.horseId);
     if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
@@ -930,6 +954,60 @@ function applyAction(state, playerId, action) {
 
   if (action.type === "cancelWanted") {
     next.wants = next.wants.filter((want) => want.id !== action.wantId);
+    return next;
+  }
+
+  if (action.type === "listHorse") {
+    const horse = horseById(next, action.horseId);
+    const price = Math.round(action.price);
+    stable.horses = stable.horses.filter((id) => id !== horse.id);
+    horse.owner = null;
+    horse.listed = true;
+    next.listings.push({
+      id: `l${next.nextId++}`,
+      kind: "horse",
+      seller: stable.id,
+      horseId: horse.id,
+      price,
+      season: next.season,
+    });
+    log(next, `${stable.name} consigns ${horse.name} at ${price} GNS.`, "market");
+    scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "unlistHorse") {
+    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
+    const lot = next.listings.splice(index, 1)[0];
+    const horse = horseById(next, lot.horseId);
+    if (horse) {
+      horse.owner = stable.id;
+      horse.listed = false;
+      stable.horses.push(horse.id);
+    }
+    scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "buyHorse") {
+    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
+    const lot = next.listings.splice(index, 1)[0];
+    const horse = horseById(next, lot.horseId);
+    const seller = next.stables.find((entry) => entry.id === lot.seller);
+    const rake = Math.round(lot.price * MARKET_RAKE);
+    stable.guineas -= lot.price;
+    if (seller) seller.guineas += lot.price - rake;
+    if (horse) {
+      horse.owner = stable.id;
+      horse.listed = false;
+      stable.horses.push(horse.id);
+    }
+    next.ledger = [
+      { season: next.season, text: `Bought ${horse ? horse.name : "a horse"}`, amount: -lot.price },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(next, `${stable.name} bought ${horse ? horse.name : "a lot"} for ${lot.price} GNS.`, "market");
+    scorePopulation(next);
     return next;
   }
 
@@ -1086,13 +1164,29 @@ function runSeason(state) {
     let active = stable.horses
       .map((id) => horseById(state, id))
       .filter((horse) => horse && !horse.retired);
+    let consigned = 0;
     while (active.length > AI_ACTIVE_CAP) {
       const weakest = active.slice().sort((a, b) => a.value - b.value)[0];
-      stable.guineas += Math.round(suggestedHorsePrice(weakest) * HOUSE_HORSE_FLOOR);
       stable.horses = stable.horses.filter((id) => id !== weakest.id);
-      weakest.owner = null;
-      weakest.sold = true;
       active = active.filter((horse) => horse.id !== weakest.id);
+      if (consigned < 2 && weakest.value >= 4) {
+        // consign rather than dump: this is what builds a used market
+        weakest.owner = null;
+        weakest.listed = true;
+        state.listings.push({
+          id: `l${state.nextId++}`,
+          kind: "horse",
+          seller: stable.id,
+          horseId: weakest.id,
+          price: Math.round(suggestedHorsePrice(weakest) * 0.9),
+          season: state.season,
+        });
+        consigned += 1;
+      } else {
+        stable.guineas += Math.round(suggestedHorsePrice(weakest) * HOUSE_HORSE_FLOOR);
+        weakest.owner = null;
+        weakest.sold = true;
+      }
     }
   }
 
@@ -1110,7 +1204,21 @@ function runSeason(state) {
   }
 
   nextSeason(state);
+  // A straw lot simply expires. A consigned HORSE cannot be left ownerless, so the
+  // house buys it in at the floor — the auction's own answer to a lot nobody wanted.
+  const expired = state.listings.filter((listing) => state.season - listing.season >= 3);
   state.listings = state.listings.filter((listing) => state.season - listing.season < 3);
+  for (const listing of expired) {
+    if (listing.kind !== "horse") continue;
+    const horse = horseById(state, listing.horseId);
+    if (!horse) continue;
+    const seller = state.stables.find((entry) => entry.id === listing.seller);
+    const floor = Math.round(suggestedHorsePrice(horse) * HOUSE_HORSE_FLOOR);
+    if (seller) seller.guineas += floor;
+    horse.listed = false;
+    horse.sold = true;
+    log(state, `${horse.name} was bought in at the house floor for ${floor} GNS.`, "market");
+  }
   scorePopulation(state);
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) aiListStraws(state, stable);
@@ -1232,6 +1340,28 @@ function aiPrepareSeason(state, stable) {
     if (seller) seller.guineas += wanted.listing.price - rake;
     stable.straws.push({ ...wanted.listing.straw, id: `s${state.nextStraw++}` });
   }
+
+  // Rivals also buy ready-made horses when one beats their own stock.
+  const herd = owned.filter((horse) => !horse.retired).length;
+  if (herd < AI_ACTIVE_CAP) {
+    const budget = stable.guineas - 250;
+    const candidate = state.listings
+      .filter((listing) => listing.kind === "horse" && listing.seller !== stable.id && listing.price <= budget)
+      .map((listing) => ({ listing, horse: horseById(state, listing.horseId) }))
+      .filter((entry) => entry.horse && entry.horse.value >= bestOwn * 0.9)
+      .sort((a, b) => b.horse.value / b.listing.price - a.horse.value / a.listing.price)[0];
+    if (candidate) {
+      const index = state.listings.findIndex((entry) => entry.id === candidate.listing.id);
+      state.listings.splice(index, 1);
+      const seller = state.stables.find((entry) => entry.id === candidate.listing.seller);
+      const rake = Math.round(candidate.listing.price * MARKET_RAKE);
+      stable.guineas -= candidate.listing.price;
+      if (seller) seller.guineas += candidate.listing.price - rake;
+      candidate.horse.owner = stable.id;
+      candidate.horse.listed = false;
+      stable.horses.push(candidate.horse.id);
+    }
+  }
 }
 
 function aiListStraws(state, stable) {
@@ -1295,6 +1425,7 @@ function viewFor(state, playerId) {
       earnings: horse.earnings,
       foals: horse.foals,
       upkeep: horse.upkeep,
+      suggestedPrice: suggestedHorsePrice(horse),
       traits: traitsOf(horse.genome),
       conditions: horse.conditions,
       owner: horse.owner,
@@ -1339,6 +1470,25 @@ function viewFor(state, playerId) {
         })
       : [],
     listings: state.listings.map((listing) => {
+      if (listing.kind === "horse") {
+        const consigned = horseById(state, listing.horseId);
+        return {
+          id: listing.id,
+          kind: "horse",
+          seller: listing.seller,
+          sellerName: state.stables.find((entry) => entry.id === listing.seller)?.name ?? "unknown",
+          price: listing.price,
+          age: state.season - listing.season,
+          mine: Boolean(stable && listing.seller === stable.id),
+          horseId: listing.horseId,
+          horseName: consigned ? consigned.name : "withdrawn",
+          horseValue: consigned ? consigned.value : 0,
+          horseSex: consigned ? consigned.sex : null,
+          horseAge: consigned ? consigned.age : null,
+          horseStakes: consigned ? consigned.stakes : false,
+          horseTraits: consigned ? traitsOf(consigned.genome) : null,
+        };
+      }
       const sire = horseById(state, listing.sire);
       return {
         id: listing.id,
@@ -1773,6 +1923,19 @@ function draw() {
       sell.textContent = "sell";
       sell.addEventListener("click", () => act({ type: "sell", horseId: horse.id }));
       row.append(sell);
+
+      const consign = document.createElement("button");
+      consign.className = "tiny";
+      consign.textContent = "consign";
+      consign.disabled = v.horses.length <= 1;
+      consign.addEventListener("click", () =>
+        act({
+          type: "listHorse",
+          horseId: horse.id,
+          price: Math.max(25, horse.suggestedPrice ?? 100),
+        }),
+      );
+      row.append(consign);
     }
     buttons.append(row);
 
@@ -1848,20 +2011,24 @@ function draw() {
   for (const lot of v.listings.slice(0, 30)) {
     const card = document.createElement("div");
     card.className = "lot" + (lot.mine ? " mine" : "");
+    const isHorse = lot.kind === "horse";
     const head = document.createElement("div");
     head.className = "name";
-    head.textContent = lot.sireName;
+    head.textContent = isHorse ? lot.horseName : lot.sireName;
     card.append(head);
     const meta = document.createElement("div");
     meta.className = "kv";
-    meta.innerHTML = `<span>sire value</span><b>${nf(lot.sireValue, 2)}</b>`;
+    meta.innerHTML = isHorse
+      ? `<span>${lot.horseSex === "M" ? "colt" : "filly"} · age ${lot.horseAge}</span><b>${nf(lot.horseValue, 2)}</b>`
+      : `<span>sire value</span><b>${nf(lot.sireValue, 2)}</b>`;
     card.append(meta);
     const meta2 = document.createElement("div");
     meta2.className = "kv";
-    meta2.innerHTML = `<span>${lot.sellerName} · v${lot.vintage}${lot.age >= 1 ? " · clearance" : ""}</span><b>${nf(lot.price)} ₲</b>`;
+    meta2.innerHTML = `<span>${lot.sellerName} · ${isHorse ? "horse lot" : "v" + lot.vintage}${lot.age >= 1 ? " · clearance" : ""}</span><b>${nf(lot.price)} ₲</b>`;
     card.append(meta2);
-    if (lot.sireTraits) card.append(traitBars(lot.sireTraits));
-    if (lot.sireGenotype) {
+    if (isHorse && lot.horseTraits) card.append(traitBars(lot.horseTraits));
+    if (!isHorse && lot.sireTraits) card.append(traitBars(lot.sireTraits));
+    if (!isHorse && lot.sireGenotype) {
       const geno = document.createElement("div");
       geno.className = "hint";
       geno.textContent = Object.entries(lot.sireGenotype)
@@ -1880,11 +2047,13 @@ function draw() {
     } else {
       const buy = document.createElement("button");
       buy.className = "tiny brass";
-      buy.textContent = `buy ${nf(lot.price)}₲`;
+      buy.textContent = lot.kind === "horse" ? `buy horse ${nf(lot.price)}₲` : `buy ${nf(lot.price)}₲`;
       buy.disabled = v.stable.guineas < lot.price;
-      buy.addEventListener("click", () => act({ type: "buyStraw", listingId: lot.id }));
+      buy.addEventListener("click", () =>
+        act({ type: lot.kind === "horse" ? "buyHorse" : "buyStraw", listingId: lot.id }),
+      );
       row.append(buy);
-      if (!lot.sireGenotype) {
+      if (lot.kind !== "horse" && !lot.sireGenotype) {
         const certify = document.createElement("button");
         certify.className = "tiny";
         certify.textContent = "certify";
