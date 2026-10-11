@@ -2143,12 +2143,14 @@ function connect() {
     retry = 0;
     net("live", "ring open");
     setStatus("ring open — reading the catalogue…");
-    send({ type: "join", playerId: playerId() });
+    // The flag is set BEFORE joining. On the standalone the whole room is local and
+    // answers the join synchronously, so a state can land inside the send below —
+    // arming the start-over afterwards meant the link never fired there.
     if (WANTS_RESET && !resetSent) {
-      // acted on once the first state lands, so it cannot overtake the join
       resetSent = true;
       pendingStart = true;
     }
+    send({ type: "join", playerId: playerId() });
   });
   socket.addEventListener("message", (event) => {
     if (event.data === PONG) return;
