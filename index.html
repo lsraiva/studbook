@@ -583,7 +583,7 @@ function makeFounder(state, lineageId, sex, age) {
   return makeHorse(state, genome, lineageId, sex, age, 0);
 }
 
-function makeHorse(state, genome, lineageId, sex, age, bornSeason, vigour = 0) {
+function makeHorse(state, genome, lineageId, sex, age, bornSeason, vigour = 0, sire = null, dam = null) {
   const id = `h${state.nextId++}`;
   return {
     id,
@@ -594,6 +594,8 @@ function makeHorse(state, genome, lineageId, sex, age, bornSeason, vigour = 0) {
     age,
     bornSeason,
     vigour,
+    sire,
+    dam,
     retired: false,
     starts: 0,
     wins: 0,
@@ -877,7 +879,7 @@ function applyAction(state, playerId, action) {
     }
     const lineage = rollValue(next) < 0.5 ? sire.lineage : mare.lineage;
     const sex = rollValue(next) < 0.5 ? "M" : "F";
-    const foal = makeHorse(next, genome, lineage, sex, 0, next.season, vigourFor(sire, mare));
+    const foal = makeHorse(next, genome, lineage, sex, 0, next.season, vigourFor(sire, mare), sire.id, mare.id);
     foal.owner = stable.id;
     next.horses.push(foal);
     stable.horses.push(foal.id);
@@ -1309,7 +1311,7 @@ function aiPrepareSeason(state, stable) {
     }
     const lineage = rollValue(state) < 0.5 ? sire.lineage : mare.lineage;
     const sex = rollValue(state) < 0.5 ? "M" : "F";
-    const foal = makeHorse(state, genome, lineage, sex, 0, state.season, vigourFor(sire, mare));
+    const foal = makeHorse(state, genome, lineage, sex, 0, state.season, vigourFor(sire, mare), sire.id, mare.id);
     foal.owner = stable.id;
     state.horses.push(foal);
     stable.horses.push(foal.id);
@@ -1414,6 +1416,8 @@ function viewFor(state, playerId) {
       sex: horse.sex,
       age: horse.age,
       lineage: horse.lineage,
+      sire: horse.sire ?? null,
+      dam: horse.dam ?? null,
       retired: horse.retired,
       value: horse.value,
       genetic: horse.genetic,
