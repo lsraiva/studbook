@@ -362,6 +362,15 @@
         </section>
 
         <section class="panel" data-when="ledger">
+          <h2>Account</h2>
+          <p class="hint">
+            This save lives in your browser, and in the room on the hosted build. Starting
+            over reseeds the game from season one with the standard bank.
+          </p>
+          <div class="cards" id="account"></div>
+        </section>
+
+        <section class="panel" data-when="ledger">
           <h2>Standings</h2>
           <table>
             <thead><tr><th>Horse</th><th>Stable</th><th>Value</th></tr></thead>
@@ -507,6 +516,12 @@ const HOUSE_HORSE_FLOOR = 0.5; // the house always takes a horse at half apprais
 const MARKET_RAKE = 0.05;
 const CERTIFY_COST = 60;
 const START_BANK = 2000;
+/**
+ * Testing funds. Not part of the tuned economy and never earned — a button for
+ * replaying the early game without grinding back to it. Every use is logged, so
+ * it can never hide inside a real balance.
+ */
+const TEST_GRANT = 10000;
 const START_HORSES = 4;
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
@@ -1072,6 +1087,8 @@ function validateAction(state, playerId, action) {
     if (stable.guineas < lot.price) return { ok: false, error: "not enough guineas" };
     return { ok: true };
   }
+  if (type === "testGrant") return { ok: true };
+
   if (type === "setTactic") {
     const horse = horseById(state, action.horseId);
     if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
@@ -1279,6 +1296,12 @@ function applyAction(state, playerId, action) {
     ].slice(0, 10);
     log(next, `${stable.name} bought ${horse ? horse.name : "a lot"} for ${lot.price} GNS.`, "market");
     scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "testGrant") {
+    stable.guineas += TEST_GRANT;
+    log(next, `Testing funds added: ${TEST_GRANT} GNS, a testing tool rather than an earning.`, "market");
     return next;
   }
 
@@ -1939,6 +1962,7 @@ function viewFor(state, playerId) {
     ledger: state.ledger,
     retirements: population.filter((horse) => horse.retired).length,
     certifyCost: CERTIFY_COST,
+    testGrant: TEST_GRANT,
     entryFee: ENTRY_FEE,
     servicesPerSeason: SERVICES_PER_SEASON,
     mareCareer: MARE_CAREER_FOALS,
@@ -2040,6 +2064,9 @@ class LocalSocket {
 
 // ── net (keep) ─────────────────────────────────────────────────────────────
 const room = new URLSearchParams(location.search).get("room") || "main";
+/** A link that starts a fresh game: ?reset=1 is consumed once, then stripped. */
+const WANTS_RESET = new URLSearchParams(location.search).get("reset") === "1";
+let resetSent = false;
 
 /**
  * Storage can THROW, not just fail: in-app browsers (Instagram, TikTok, Facebook
@@ -2088,6 +2115,15 @@ function connect() {
     net("live", "ring open");
     setStatus("ring open — reading the catalogue…");
     send({ type: "join", playerId: playerId() });
+    if (WANTS_RESET && !resetSent) {
+      resetSent = true;
+      send({ type: "reset" });
+      // strip it, so a reload does not wipe the run again
+      const url = new URL(location.href);
+      url.searchParams.delete("reset");
+      history.replaceState(null, "", url);
+      toast("starting over from season one");
+    }
   });
   socket.addEventListener("message", (event) => {
     if (event.data === PONG) return;
@@ -2734,6 +2770,54 @@ function draw() {
       }
       playReplay(replay, false);
     }
+  }
+
+  // the account panel: what this save is, and the tools for starting it again
+  const account = el("account");
+  if (account) {
+    account.innerHTML = "";
+    const facts = document.createElement("div");
+    facts.className = "lot mine";
+    facts.innerHTML =
+      `<div class="name">Your stable</div>` +
+      `<div class="kv"><span>guineas</span><b>₲ ${nf(v.stable.guineas)}</b></div>` +
+      `<div class="kv"><span>season</span><b>${nf(v.season)}</b></div>` +
+      `<div class="kv"><span>horses</span><b>${nf(v.horses.length)}</b></div>` +
+      `<div class="kv"><span>forced sales</span><b>${nf(v.stable.forcedSales)}</b></div>`;
+    account.append(facts);
+
+    const tools = document.createElement("div");
+    tools.className = "lot";
+    const head = document.createElement("div");
+    head.className = "name";
+    head.textContent = "Testing tools";
+    tools.append(head);
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent =
+      "For replaying the opening. Funds are a testing grant rather than an earning, and every use is written into the week, so they cannot hide inside a real balance.";
+    tools.append(hint);
+    const row = document.createElement("div");
+    row.className = "row";
+    const restart = document.createElement("button");
+    restart.className = "tiny bad";
+    restart.textContent = "start over";
+    restart.addEventListener("click", () => {
+      if (!confirm("Start the whole game again from season one? This save is replaced.")) return;
+      selectedStraw = null;
+      selectedHorse = null;
+      playedSeason = null;
+      send({ type: "reset" });
+      toast("starting over from season one");
+    });
+    row.append(restart);
+    const grant = document.createElement("button");
+    grant.className = "tiny brass";
+    grant.textContent = `add ${nf(v.testGrant)} ₲`;
+    grant.addEventListener("click", () => act({ type: "testGrant" }));
+    row.append(grant);
+    tools.append(row);
+    account.append(tools);
   }
 
   // standings
