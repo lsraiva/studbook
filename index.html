@@ -522,6 +522,9 @@ const START_BANK = 2000;
  * it can never hide inside a real balance.
  */
 const TEST_GRANT = 10000;
+/** The starting banks a testing run may choose between: standard, testing, big. */
+const BIG_GRANT = 50000;
+const BANK_CHOICES = [START_BANK, TEST_GRANT, BIG_GRANT];
 const START_HORSES = 4;
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
@@ -1087,7 +1090,17 @@ function validateAction(state, playerId, action) {
     if (stable.guineas < lot.price) return { ok: false, error: "not enough guineas" };
     return { ok: true };
   }
-  if (type === "testGrant") return { ok: true };
+  if (type === "testGrant") {
+    return BANK_CHOICES.includes(action.amount)
+      ? { ok: true }
+      : { ok: false, error: "unknown testing amount" };
+  }
+
+  if (type === "startOver") {
+    return BANK_CHOICES.includes(action.bank)
+      ? { ok: true }
+      : { ok: false, error: "unknown starting bank" };
+  }
 
   if (type === "setTactic") {
     const horse = horseById(state, action.horseId);
@@ -1300,9 +1313,24 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "testGrant") {
-    stable.guineas += TEST_GRANT;
-    log(next, `Testing funds added: ${TEST_GRANT} GNS, a testing tool rather than an earning.`, "market");
+    stable.guineas += action.amount;
+    log(next, `Testing funds added: ${action.amount} GNS, a testing tool rather than an earning.`, "market");
     return next;
+  }
+
+  if (action.type === "startOver") {
+    // A whole new world for the same seats, on the chosen testing bank. One action
+    // rather than reset-then-top-up, so it can never land half-applied.
+    const players = state.players && state.players.length ? state.players : [playerId];
+    const fresh = setup(players);
+    const mine = stableOf(fresh, playerId);
+    if (mine) mine.guineas = action.bank;
+    log(
+      fresh,
+      `Started over from season 1 with a testing bank of ${action.bank} GNS, a testing tool rather than an earning.`,
+      "season",
+    );
+    return fresh;
   }
 
   if (action.type === "setTactic") {
@@ -1963,6 +1991,7 @@ function viewFor(state, playerId) {
     retirements: population.filter((horse) => horse.retired).length,
     certifyCost: CERTIFY_COST,
     testGrant: TEST_GRANT,
+    bankChoices: BANK_CHOICES,
     entryFee: ENTRY_FEE,
     servicesPerSeason: SERVICES_PER_SEASON,
     mareCareer: MARE_CAREER_FOALS,
@@ -2116,13 +2145,9 @@ function connect() {
     setStatus("ring open — reading the catalogue…");
     send({ type: "join", playerId: playerId() });
     if (WANTS_RESET && !resetSent) {
+      // acted on once the first state lands, so it cannot overtake the join
       resetSent = true;
-      send({ type: "reset" });
-      // strip it, so a reload does not wipe the run again
-      const url = new URL(location.href);
-      url.searchParams.delete("reset");
-      history.replaceState(null, "", url);
-      toast("starting over from season one");
+      pendingStart = true;
     }
   });
   socket.addEventListener("message", (event) => {
@@ -2187,6 +2212,20 @@ function showScreen(name) {
 
 window.addEventListener("hashchange", () => showScreen(screenFromHash()));
 
+/**
+ * The testing bank this browser prefers for a fresh run. Kept with the guarded
+ * storage helpers: a webview that refuses storage still plays, it just forgets.
+ */
+const BANK_KEY = "hf:studbook:bank";
+let bankChoice = Number(readStore(BANK_KEY)) || 0;
+let pendingStart = false;
+
+/** The remembered bank if the game still offers it, else the standard one. */
+function bankFor(v) {
+  const choices = Array.isArray(v.bankChoices) && v.bankChoices.length ? v.bankChoices : [2000];
+  return choices.includes(bankChoice) ? bankChoice : choices[0];
+}
+
 /** Lineage coat colours, so a stable reads as a set of animals rather than rows. */
 const COATS = {
   L1: "#b5651d", L2: "#5a4632", L3: "#8c6239", L4: "#cfbe9c",
@@ -2240,6 +2279,15 @@ function onState(msg) {
   view = msg.view;
   seats = msg.seats ?? [];
   me = msg.you;
+  // a ?reset=1 link: join is processed by now, so start the run on the chosen bank
+  if (pendingStart && view && view.stable) {
+    pendingStart = false;
+    act({ type: "startOver", bank: bankFor(view) });
+    const url = new URL(location.href);
+    url.searchParams.delete("reset");
+    history.replaceState(null, "", url);
+    toast("starting over from season one");
+  }
   const seated = seats.includes(me);
   if (!seated) setStatus("this tab is a spectator — the seat is held elsewhere");
   if (seated && view && !view.stable && !askedSeat) {
@@ -2795,26 +2843,44 @@ function draw() {
     const hint = document.createElement("p");
     hint.className = "hint";
     hint.textContent =
-      "For replaying the opening. Funds are a testing grant rather than an earning, and every use is written into the week, so they cannot hide inside a real balance.";
+      "For replaying the opening. Pick the bank you want to start on, then start over. Funds are a testing grant rather than an earning, and every use is written into the week, so they cannot hide inside a real balance.";
     tools.append(hint);
+    if (!v.bankChoices.includes(bankChoice)) bankChoice = v.bankChoices[0];
+    const labels = ["standard", "testing", "big"];
+    const pickRow = document.createElement("div");
+    pickRow.className = "tactic";
+    v.bankChoices.forEach((choice, index) => {
+      const button = document.createElement("button");
+      button.className = "tiny" + (choice === bankChoice ? " brass" : "");
+      button.setAttribute("aria-pressed", String(choice === bankChoice));
+      button.textContent = `${labels[index] ?? ""} ${nf(choice)} ₲`.trim();
+      button.addEventListener("click", () => {
+        bankChoice = choice;
+        writeStore(BANK_KEY, String(choice));
+        draw();
+      });
+      pickRow.append(button);
+    });
+    tools.append(pickRow);
+
     const row = document.createElement("div");
     row.className = "row";
     const restart = document.createElement("button");
     restart.className = "tiny bad";
-    restart.textContent = "start over";
+    restart.textContent = `start over · ${nf(bankChoice)} ₲`;
     restart.addEventListener("click", () => {
-      if (!confirm("Start the whole game again from season one? This save is replaced.")) return;
+      if (!confirm(`Start the whole game again from season one with ${nf(bankChoice)} ₲? This save is replaced.`)) return;
       selectedStraw = null;
       selectedHorse = null;
       playedSeason = null;
-      send({ type: "reset" });
-      toast("starting over from season one");
+      act({ type: "startOver", bank: bankChoice });
+      toast(`starting over with ${nf(bankChoice)} ₲`);
     });
     row.append(restart);
     const grant = document.createElement("button");
     grant.className = "tiny brass";
-    grant.textContent = `add ${nf(v.testGrant)} ₲`;
-    grant.addEventListener("click", () => act({ type: "testGrant" }));
+    grant.textContent = `add ${nf(bankChoice)} ₲`;
+    grant.addEventListener("click", () => act({ type: "testGrant", amount: bankChoice }));
     row.append(grant);
     tools.append(row);
     account.append(tools);
