@@ -176,6 +176,32 @@
       .lane .runner svg { width: 2rem; height: 1.2rem; }
       .lane.mine { color: var(--cream); font-weight: 700; }
       .lane.mine .rail { box-shadow: inset 0 0 0 1px rgba(214, 178, 110, 0.45); }
+      /* the breeding moment: a decision, then an overlay that reads the foal out */
+      .care { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: stretch; }
+      .care .pick { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.4rem 0.6rem; background: var(--panel); font-size: 0.76rem; color: var(--dim); cursor: pointer; text-align: left; }
+      .care .pick[aria-pressed="true"] { border-color: var(--brass); background: #2a2350; color: var(--cream); }
+      .care .pick b { display: block; color: var(--cream); font-size: 0.84rem; }
+      .reveal { position: fixed; inset: 0; z-index: 40; background: rgba(8, 6, 20, 0.84); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+      .reveal[hidden] { display: none; }
+      .reveal .card { position: relative; width: min(540px, 100%); max-height: 92vh; overflow-y: auto; background: linear-gradient(180deg, #1b1732, #131020); border: 1px solid var(--line); border-radius: 1rem; padding: 1.1rem 1.2rem 1.2rem; box-shadow: 0 26px 70px rgba(0, 0, 0, 0.65); }
+      .reveal .stamp { display: inline-block; border: 1px solid var(--brass); color: var(--brass); border-radius: 999px; padding: 0.15rem 0.65rem; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase; }
+      .reveal .stamp.high { background: var(--brass); color: #16122a; }
+      .reveal .stamp.miss { border-color: #6b5a7a; color: #9a8fb0; }
+      .reveal h3 { margin: 0.5rem 0 0.15rem; font-size: 1.22rem; }
+      .reveal .foal { display: flex; gap: 0.8rem; align-items: center; margin: 0.5rem 0 0.2rem; }
+      .reveal .foal svg { width: 5.2rem; height: 3.2rem; }
+      .reveal .big { font-size: 1.7rem; font-weight: 700; color: var(--cream); }
+      .reveal .lines { display: grid; gap: 0.28rem; margin: 0.65rem 0 0; font-size: 0.83rem; }
+      .reveal .lines > div { display: flex; justify-content: space-between; gap: 0.7rem; }
+      .reveal .lines .k { color: var(--dim); }
+      .reveal .meter { position: relative; height: 0.45rem; background: rgba(255, 255, 255, 0.07); border-radius: 999px; margin-top: 0.55rem; overflow: hidden; }
+      .reveal .meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--violet), var(--brass)); transition: width 0.9s ease; }
+      .reveal .traits-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.25rem; }
+      .reveal .trait i { transition: width 0.5s ease; }
+      .reveal input { font: inherit; padding: 0.4rem 0.55rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #0f0d1c; color: var(--cream); }
+      .burst { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+      .burst i { position: absolute; width: 0.45rem; height: 0.45rem; border-radius: 2px; background: var(--brass); opacity: 0; animation: pop 0.95s ease-out forwards; }
+      @keyframes pop { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(240deg); } }
     </style>
   </head>
   <body>
@@ -219,6 +245,7 @@
       <span class="pill">season <b id="season">1</b></span>
       <span class="pill" id="condition-pill">going: <b id="condition">—</b></span>
       <span class="pill hide-sm">field <b id="field-mean">0</b> avg · elite cut <b id="field-cut">0</b> · <b id="field-stakes">0</b> stakes</span>
+      <button class="pill" id="sound" type="button">sound: on</button>
       <span class="pill"><span class="dot" id="net"></span><span id="nettext">linking…</span></span>
     </header>
 
@@ -295,6 +322,16 @@
             elite sire's stock is finite. Pick a straw, then breed a mare to it.
           </p>
           <div class="cards" id="straws"></div>
+        </section>
+
+        <section class="panel" data-when="breeding">
+          <h2>The covering</h2>
+          <p class="hint">
+            What you put in before a foal exists. Better care catches more often and lifts
+            the foal's value, and the money is spent whether or not a foal arrives.
+          </p>
+          <div id="covering"></div>
+          <div class="care" id="care"></div>
         </section>
 
         <section class="panel" data-when="breeding">
@@ -422,6 +459,8 @@
       here is a real horse or a real currency.
     </p>
 
+    <div id="reveal" class="reveal" hidden aria-live="polite"></div>
+
     <div id="toasts" aria-live="polite"></div>
     <script type="module">
 /**
@@ -525,6 +564,15 @@ const TEST_GRANT = 10000;
 /** The starting banks a testing run may choose between: standard, testing, big. */
 const BIG_GRANT = 50000;
 const BANK_CHOICES = [START_BANK, TEST_GRANT, BIG_GRANT];
+/**
+ * Breeding care: what goes into a covering before a foal exists. A real decision
+ * with a real price — better care catches more often and lifts the foal's value,
+ * and the money is spent whether or not a foal arrives.
+ */
+const CARE_CHOICES = ["plain", "prepared", "studcare"];
+const CARE_COST = { plain: 0, prepared: 150, studcare: 450 };
+const CARE_CATCH = { plain: 0, prepared: 0.06, studcare: 0.14 };
+const CARE_VALUE = { plain: 0, prepared: 0.03, studcare: 0.08 };
 const START_HORSES = 4;
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
@@ -686,7 +734,10 @@ function scorePopulation(state) {
     const observed = heterozygosity(horse.genome);
     horse.f = expectedHeterozygosity > 0 ? round(Math.max(0, Math.min(1, 1 - observed / expectedHeterozygosity)), 4) : 0;
     const vigour = horse.vigour ?? 0;
-    horse.value = round(horse.genetic * (1 - INBREED_VALUE_PENALTY * horse.f) * (1 + vigour), 3);
+    horse.value = round(
+      horse.genetic * (1 - INBREED_VALUE_PENALTY * horse.f) * (1 + vigour) * (1 + (CARE_VALUE[horse.care] ?? 0)),
+      3,
+    );
     horse.conditions = conditionScores(horse.genome);
     horse.upkeep = upkeepFor(horse);
   }
@@ -837,6 +888,60 @@ function conditionNote(condition) {
   return `A ${condition} rewards ${top.join(" and ")}; it punishes a horse short of ${weak}.`;
 }
 
+/** The value line each tier sits on, read off the living field. */
+function tierLines(state) {
+  const ranked = state.horses
+    .filter((horse) => inPlay(horse))
+    .sort((a, b) => b.value - a.value)
+    .map((horse) => horse.value);
+  const at = (share) =>
+    ranked[Math.min(ranked.length - 1, Math.max(0, Math.ceil(ranked.length * share) - 1))] ?? 0;
+  return [
+    { name: "promising", value: round(at(0.5), 3) },
+    { name: "excellent", value: round(at(0.2), 3) },
+    { name: "exceptional", value: round(at(0.05), 3) },
+    { name: "stakes class", value: round(at(STAKES_SHARE), 3) },
+  ];
+}
+
+/**
+ * What to tell the player about the foal they just bred. Every line is read off
+ * the state — where the foal really sits in the field, and how far it really fell
+ * short of the next tier — so the moment is a read, not a decoration.
+ */
+function foalReport(state, foal, dam, sire, care) {
+  const field = fieldStats(state);
+  const lines = tierLines(state);
+  const beaten = lines.filter((line) => foal.value >= line.value).length;
+  const next = lines[beaten] ?? null;
+  const ranked = state.horses.filter((horse) => inPlay(horse)).sort((a, b) => b.value - a.value);
+  return {
+    ok: true,
+    id: foal.id,
+    name: foal.name,
+    sex: foal.sex,
+    bornSeason: foal.bornSeason,
+    damId: dam.id,
+    damName: dam.name,
+    sireId: sire.id,
+    sireName: sire.name,
+    care,
+    value: foal.value,
+    f: foal.f,
+    fLabel: inbreedingLabel(foal.f),
+    band: valueBand(foal, field),
+    damValue: dam.value,
+    improvement: round(foal.value - dam.value, 3),
+    tier: beaten ? lines[beaten - 1].name : "ordinary",
+    nextTier: next ? next.name : null,
+    nearMiss: next ? round(next.value - foal.value, 3) : null,
+    stakes: Boolean(foal.stakes),
+    place: ranked.findIndex((horse) => horse.id === foal.id) + 1,
+    field: ranked.length,
+    traits: traitsOf(foal.genome),
+  };
+}
+
 function log(state, text, kind = "market") {
   state.log = [{ season: state.season, text, kind }, ...state.log].slice(0, LOG_MAX);
 }
@@ -887,6 +992,7 @@ function freshStable(state, stableId, name, playerId) {
     entries: [],
     selectedStraw: null,
     tactics: {},
+    bestFoalValue: 0,
     forcedSales: 0,
   };
 }
@@ -1016,6 +1122,8 @@ function validateAction(state, playerId, action) {
     const sire = horseById(state, straw.sire);
     if (!sire) return { ok: false, error: "that straw has no sire" };
     if (stable.guineas < 0) return { ok: false, error: "settle your debts first" };
+    const care = CARE_CHOICES.includes(action.care) ? action.care : "plain";
+    if (stable.guineas < CARE_COST[care]) return { ok: false, error: "not enough guineas for that care" };
     return { ok: true };
   }
 
@@ -1090,6 +1198,14 @@ function validateAction(state, playerId, action) {
     if (stable.guineas < lot.price) return { ok: false, error: "not enough guineas" };
     return { ok: true };
   }
+  if (type === "nameHorse") {
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    const name = String(action.name ?? "").trim();
+    if (name.length < 2 || name.length > 24) return { ok: false, error: "a name is 2 to 24 characters" };
+    return { ok: true };
+  }
+
   if (type === "testGrant") {
     return BANK_CHOICES.includes(action.amount)
       ? { ok: true }
@@ -1160,12 +1276,33 @@ function applyAction(state, playerId, action) {
     const strawIndex = stable.straws.findIndex((entry) => entry.id === action.strawId);
     const straw = stable.straws[strawIndex];
     const sire = horseById(next, straw.sire);
+    const care = CARE_CHOICES.includes(action.care) ? action.care : "plain";
+    const careCost = CARE_COST[care];
+    stable.guineas -= careCost;
+    if (careCost) {
+      next.ledger = [
+        { season: next.season, text: `Breeding care (${care})`, amount: -careCost },
+        ...next.ledger,
+      ].slice(0, 10);
+    }
     stable.straws.splice(strawIndex, 1);
     mare.foals += 1;
     log(next, `${mare.name} covered by ${sire.name} (vintage ${straw.vintage}).`, "breeding");
 
-    const liveRate = Math.max(0.35, BASE_LIVE_RATE - INBREED_FERTILITY * ((sire.f + mare.f) / 2));
+    const liveRate = Math.min(
+      0.99,
+      Math.max(0.35, BASE_LIVE_RATE - INBREED_FERTILITY * ((sire.f + mare.f) / 2)) + CARE_CATCH[care],
+    );
     if (rollValue(next) > liveRate) {
+      next.lastFoal = {
+        ok: false,
+        damId: mare.id,
+        damName: mare.name,
+        sireId: sire.id,
+        sireName: sire.name,
+        care,
+        chance: round(liveRate, 3),
+      };
       log(next, `No foal from ${mare.name} this season.`, "breeding");
       return next;
     }
@@ -1179,11 +1316,16 @@ function applyAction(state, playerId, action) {
     const lineage = rollValue(next) < 0.5 ? sire.lineage : mare.lineage;
     const sex = rollValue(next) < 0.5 ? "M" : "F";
     const foal = makeHorse(next, genome, lineage, sex, 0, next.season, vigourFor(sire, mare), sire.id, mare.id);
+    foal.care = care;
     foal.owner = stable.id;
     next.horses.push(foal);
     stable.horses.push(foal.id);
     log(next, `${foal.name} foaled by ${mare.name} out of ${sire.name}.`, "breeding");
     scorePopulation(next);
+    const report = foalReport(next, foal, mare, sire, care);
+    report.personalBest = report.value > (stable.bestFoalValue ?? 0);
+    if (report.personalBest) stable.bestFoalValue = report.value;
+    next.lastFoal = report;
     return next;
   }
 
@@ -1309,6 +1451,15 @@ function applyAction(state, playerId, action) {
     ].slice(0, 10);
     log(next, `${stable.name} bought ${horse ? horse.name : "a lot"} for ${lot.price} GNS.`, "market");
     scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "nameHorse") {
+    const horse = horseById(next, action.horseId);
+    const was = horse.name;
+    horse.name = String(action.name ?? "").trim().slice(0, 24);
+    if (next.lastFoal && next.lastFoal.id === horse.id) next.lastFoal.name = horse.name;
+    log(next, `${was} is named ${horse.name}.`, "breeding");
     return next;
   }
 
@@ -1881,6 +2032,7 @@ function viewFor(state, playerId) {
           forcedSales: stable.forcedSales,
           entries: stable.entries,
           tactics: stable.tactics ?? {},
+          bestFoalValue: stable.bestFoalValue ?? 0,
         }
       : null,
     horses: stable ? stable.horses.map((id) => horseById(state, id)).filter(Boolean).map(horseView) : [],
@@ -1992,6 +2144,13 @@ function viewFor(state, playerId) {
     certifyCost: CERTIFY_COST,
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
+    careChoices: CARE_CHOICES.map((care) => ({
+      care,
+      cost: CARE_COST[care],
+      catch: CARE_CATCH[care],
+      value: CARE_VALUE[care],
+    })),
+    lastFoal: state.lastFoal ?? null,
     entryFee: ENTRY_FEE,
     servicesPerSeason: SERVICES_PER_SEASON,
     mareCareer: MARE_CAREER_FOALS,
@@ -2228,6 +2387,20 @@ function bankFor(v) {
   return choices.includes(bankChoice) ? bankChoice : choices[0];
 }
 
+/**
+ * The breeding moment: the care choice, the sound, and the reveal. Everything here
+ * reads what the rules already decided — nothing invents an outcome.
+ */
+const SOUND_KEY = "hf:studbook:sound";
+const CARE_KEY = "hf:studbook:care";
+const FOAL_KEY = "hf:studbook:foalSeen";
+let soundOn = readStore(SOUND_KEY) !== "off";
+let careChoice = readStore(CARE_KEY) || "plain";
+let shownFoal = readStore(FOAL_KEY) || "";
+let revealTimers = [];
+let audio = null;
+const TIERS = ["ordinary", "promising", "excellent", "exceptional", "stakes class"];
+const CARE_WORDS = { plain: "plain", prepared: "prepared", studcare: "stud care" };
 /** Lineage coat colours, so a stable reads as a set of animals rather than rows. */
 const COATS = {
   L1: "#b5651d", L2: "#5a4632", L3: "#8c6239", L4: "#cfbe9c",
@@ -2358,6 +2531,259 @@ function playReplay(replay, force) {
   replayTimer = setInterval(paint, 700);
 }
 
+/** A short synthesised flourish, bigger for a better foal. No assets, no samples. */
+function chime(tierIndex, ok) {
+  if (!soundOn) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audio = audio || new Ctx();
+    const now = audio.currentTime;
+    const gain = audio.createGain();
+    gain.connect(audio.destination);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(ok ? 0.15 + tierIndex * 0.02 : 0.08, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (ok ? 1.2 : 0.5));
+    const notes = ok ? [0, 4, 7, 12, 19].slice(0, 2 + Math.max(0, tierIndex)) : [0, -3];
+    const base = ok ? 349.23 * (1 + tierIndex * 0.05) : 174.61;
+    notes.forEach((semi, index) => {
+      const osc = audio.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = base * 2 ** (semi / 12);
+      osc.connect(gain);
+      const at = now + index * 0.1;
+      osc.start(at);
+      osc.stop(at + 0.5);
+    });
+  } catch {
+    /* sound is a nicety: if it cannot play, the moment still happens */
+  }
+}
+
+function kvRow(label, value) {
+  const row = document.createElement("div");
+  const left = document.createElement("span");
+  left.className = "k";
+  left.textContent = label;
+  const right = document.createElement("span");
+  right.textContent = value;
+  row.append(left, right);
+  return row;
+}
+
+/** Trait bars that start empty, so they can be filled one at a time. */
+function revealTraits(traits) {
+  const wrap = document.createElement("div");
+  wrap.className = "traits traits-grid";
+  const bars = [];
+  for (const key of ["speed", "stamina", "accel", "recovery", "temperament", "soundness"]) {
+    const cell = document.createElement("div");
+    cell.className = "trait";
+    cell.title = `${key}: ${traits ? traits[key] : "?"}`;
+    const fill = document.createElement("i");
+    fill.style.width = "0%";
+    cell.append(fill);
+    wrap.append(cell);
+    bars.push({ fill, width: Math.min(100, ((traits ? traits[key] : 0) / 12) * 100) });
+  }
+  return { wrap, bars };
+}
+
+function openReveal(foal, v) {
+  const box = el("reveal");
+  if (!box) return;
+  for (const timer of revealTimers) clearTimeout(timer);
+  revealTimers = [];
+  box.innerHTML = "";
+  box.hidden = false;
+
+  const tierIndex = foal.ok ? Math.max(0, TIERS.indexOf(foal.tier)) : -1;
+  const card = document.createElement("div");
+  card.className = "card";
+
+  if (tierIndex >= 2) {
+    const burst = document.createElement("div");
+    burst.className = "burst";
+    for (let i = 0; i < 20; i += 1) {
+      const bit = document.createElement("i");
+      bit.style.left = `${8 + Math.random() * 84}%`;
+      bit.style.top = `${18 + Math.random() * 45}%`;
+      bit.style.setProperty("--dx", `${(Math.random() - 0.5) * 240}px`);
+      bit.style.setProperty("--dy", `${90 + Math.random() * 170}px`);
+      bit.style.animationDelay = `${i * 35}ms`;
+      burst.append(bit);
+    }
+    card.append(burst);
+  }
+
+  const stamp = document.createElement("span");
+  stamp.className = "stamp" + (foal.ok ? (tierIndex >= 2 ? " high" : "") : " miss");
+  stamp.textContent = foal.ok ? foal.tier : "no foal";
+  card.append(stamp);
+
+  const heading = document.createElement("h3");
+  heading.textContent = foal.ok ? (foal.sex === "M" ? "A colt is born" : "A filly is born") : "The covering missed";
+  card.append(heading);
+
+  const sub = document.createElement("p");
+  sub.className = "hint";
+  sub.textContent = foal.ok
+    ? `${foal.damName} out of ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain"} care.`
+    : `${foal.damName} was covered by ${foal.sireName} and did not catch — the chance was ${Math.round((foal.chance ?? 0) * 100)}%. The straw and the care are spent either way.`;
+  card.append(sub);
+
+  if (foal.ok) {
+    const line = document.createElement("div");
+    line.className = "foal";
+    const mine = v.horses.find((horse) => horse.id === foal.id);
+    line.append(horseArt(mine ? mine.lineage : null));
+    const big = document.createElement("div");
+    big.className = "big";
+    big.textContent = "0.00";
+    line.append(big);
+    card.append(line);
+
+    const traits = revealTraits(foal.traits);
+    card.append(traits.wrap);
+    traits.bars.forEach((bar, index) => {
+      revealTimers.push(
+        setTimeout(() => {
+          bar.fill.style.width = `${bar.width}%`;
+        }, 260 + index * 120),
+      );
+    });
+
+    const lines = document.createElement("div");
+    lines.className = "lines";
+    lines.append(
+      kvRow("against her dam", `${nf(foal.damValue, 2)} → ${nf(foal.value, 2)} (${foal.improvement >= 0 ? "+" : ""}${nf(foal.improvement, 2)})`),
+      kvRow("the field", `${nf(foal.place)} of ${nf(foal.field)} living horses`),
+      kvRow("inbreeding", `${nf(foal.f, 3)} · ${foal.fLabel}`),
+      kvRow("care", CARE_WORDS[foal.care] ?? "plain"),
+    );
+    if (foal.personalBest) lines.append(kvRow("your yard", "best foal you have bred"));
+    card.append(lines);
+
+    if (foal.nextTier) {
+      const meter = document.createElement("div");
+      meter.className = "meter";
+      const fill = document.createElement("i");
+      meter.append(fill);
+      card.append(meter);
+      const near = document.createElement("p");
+      near.className = "hint";
+      near.textContent = `${nf(foal.nearMiss, 2)} short of ${foal.nextTier}`;
+      card.append(near);
+      revealTimers.push(
+        setTimeout(() => {
+          fill.style.width = `${Math.max(6, Math.min(100, (foal.value / (foal.value + foal.nearMiss)) * 100))}%`;
+        }, 520),
+      );
+    } else {
+      const top = document.createElement("p");
+      top.className = "hint";
+      top.textContent = "Nothing in the catalogue is above this foal.";
+      card.append(top);
+    }
+
+    const start = performance.now();
+    const count = (now) => {
+      const t = Math.min(1, (now - start) / 900);
+      big.textContent = nf(foal.value * t, 2);
+      if (t < 1) requestAnimationFrame(count);
+    };
+    requestAnimationFrame(count);
+
+    const nameRow = document.createElement("div");
+    nameRow.className = "row";
+    nameRow.style.marginTop = "0.7rem";
+    const input = document.createElement("input");
+    input.value = foal.name;
+    input.maxLength = 24;
+    input.setAttribute("aria-label", "Name the foal");
+    nameRow.append(input);
+    const keep = document.createElement("button");
+    keep.className = "brass";
+    keep.textContent = "keep the name";
+    keep.addEventListener("click", () => {
+      act({ type: "nameHorse", horseId: foal.id, name: input.value });
+      toast("named");
+    });
+    nameRow.append(keep);
+    card.append(nameRow);
+  }
+
+  const closeRow = document.createElement("div");
+  closeRow.className = "row";
+  closeRow.style.marginTop = "0.6rem";
+  const close = document.createElement("button");
+  close.className = "tiny";
+  close.textContent = foal.ok ? "back to the yard" : "try again";
+  close.addEventListener("click", () => {
+    box.hidden = true;
+  });
+  closeRow.append(close);
+  card.append(closeRow);
+
+  box.append(card);
+  chime(Math.max(0, tierIndex), foal.ok);
+}
+
+/** Show the moment once per foal, not on every redraw. */
+function maybeReveal(v) {
+  const foal = v.lastFoal;
+  if (!foal) return;
+  const stamp = `${foal.ok ? "ok" : "miss"}:${foal.id ?? foal.damId}:${foal.bornSeason ?? ""}`;
+  if (stamp === shownFoal) return;
+  shownFoal = stamp;
+  writeStore(FOAL_KEY, stamp);
+  openReveal(foal, v);
+}
+
+/** The covering in hand and what goes into it, so the decision happens here. */
+function renderCovering(v) {
+  const covering = el("covering");
+  const care = el("care");
+  if (!covering || !care) return;
+  covering.innerHTML = "";
+  care.innerHTML = "";
+  const straw = v.straws.find((entry) => entry.id === v.selectedStraw) ?? null;
+  const line = document.createElement("div");
+  line.className = "kv";
+  line.innerHTML = straw
+    ? `<span>${straw.sireName} · vintage ${straw.vintage}</span><b>sire value ${nf(straw.sireValue, 2)}</b>`
+    : `<span>no covering selected</span><b>pick one above</b>`;
+  covering.append(line);
+
+  const chosen = (v.careChoices ?? []).find((entry) => entry.care === careChoice) ?? (v.careChoices ?? [])[0];
+  for (const choice of v.careChoices ?? []) {
+    const button = document.createElement("button");
+    button.className = "pick";
+    button.setAttribute("aria-pressed", String(choice.care === careChoice));
+    const title = document.createElement("b");
+    title.textContent = `${CARE_WORDS[choice.care] ?? choice.care}${choice.cost ? ` · ${nf(choice.cost)} ₲` : " · free"}`;
+    const detail = document.createElement("span");
+    detail.textContent = choice.catch
+      ? `+${Math.round(choice.catch * 100)}% catch · +${Math.round(choice.value * 100)}% value`
+      : "nothing extra";
+    button.append(title, detail);
+    button.disabled = v.stable.guineas < choice.cost;
+    button.addEventListener("click", () => {
+      careChoice = choice.care;
+      writeStore(CARE_KEY, choice.care);
+      draw();
+    });
+    care.append(button);
+  }
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent =
+    chosen && v.stable.guineas >= chosen.cost
+      ? `Breeding spends the covering and ${chosen.cost ? `charges ${nf(chosen.cost)} ₲ for care` : "costs nothing extra"}.`
+      : `You cannot afford ${CARE_WORDS[careChoice] ?? careChoice} care right now — pick something cheaper.`;
+  care.append(note);
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -2388,6 +2814,9 @@ function draw() {
   badge("badge-horses", nf(horseLots.length));
   badge("horse-count", nf(horseLots.length));
   if (document.body.dataset.screen !== screen) showScreen(screen);
+  if (el("sound")) el("sound").textContent = `sound: ${soundOn ? "on" : "off"}`;
+  renderCovering(v);
+  maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
   el("straw-count").textContent = nf(v.straws.length);
@@ -2484,7 +2913,7 @@ function draw() {
       breed.disabled = horse.sex !== "F" || !selectedStraw;
       breed.addEventListener("click", () => {
         if (!selectedStraw) return toast("pick a covering first", true);
-        act({ type: "breed", mareId: horse.id, strawId: selectedStraw });
+        act({ type: "breed", mareId: horse.id, strawId: selectedStraw, care: careChoice });
         selectedStraw = null;
       });
       row.append(breed);
@@ -2948,6 +3377,26 @@ el("advance").addEventListener("click", () => {
 });
 
 const watchButton = el("watch");
+const soundButton = el("sound");
+if (soundButton) {
+  soundButton.addEventListener("click", () => {
+    soundOn = !soundOn;
+    writeStore(SOUND_KEY, soundOn ? "on" : "off");
+    soundButton.textContent = `sound: ${soundOn ? "on" : "off"}`;
+    if (soundOn) chime(2, true);
+  });
+}
+
+const revealBox = el("reveal");
+if (revealBox) {
+  revealBox.addEventListener("click", (event) => {
+    if (event.target === revealBox) revealBox.hidden = true;
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") revealBox.hidden = true;
+  });
+}
+
 if (watchButton) {
   watchButton.addEventListener("click", () => {
     playedSeason = null;
