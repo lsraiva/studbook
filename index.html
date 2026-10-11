@@ -1253,7 +1253,9 @@ function runSeason(state) {
 
     // Cause and effect in words: which trait actually cost each runner, and by how
     // much. Without this a player can only guess at what the conditions reward.
-    for (const entry of entrants.slice(0, 6)) {
+    // every runner of a real stable, at any placing: a player who finishes tenth
+    // still needs to know why, or the conditions never teach themselves
+    for (const entry of entrants) {
       if (entry === winner) continue;
       const owner = state.stables.find((row) => row.id === entry.stableId);
       if (!owner || owner.id.startsWith("ai")) continue;
