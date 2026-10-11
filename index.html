@@ -151,6 +151,31 @@
       details.glossary dl { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 0.35rem 0.8rem; font-size: 0.82rem; margin: 0.6rem 0 0; }
       details.glossary dt { color: var(--brass); font-weight: 700; }
       details.glossary dd { margin: 0; color: var(--dim); }
+      /* one screen per job: every panel declares which screen it belongs to */
+      .grid { grid-template-columns: minmax(0, 1fr); }
+      .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.6rem; }
+      .tab { background: var(--panel); border: 1px solid var(--line); color: var(--dim); border-radius: 999px; padding: 0.35rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
+      .tab[aria-current="true"] { background: #2a2350; border-color: var(--brass); color: var(--cream); }
+      .badge { opacity: 0.7; font-size: 0.7rem; }
+      .panel[data-when] { display: none; }
+      body[data-screen="yard"] .panel[data-when~="yard"],
+      body[data-screen="racing"] .panel[data-when~="racing"],
+      body[data-screen="breeding"] .panel[data-when~="breeding"],
+      body[data-screen="studs"] .panel[data-when~="studs"],
+      body[data-screen="horses"] .panel[data-when~="horses"],
+      body[data-screen="ledger"] .panel[data-when~="ledger"] { display: block; }
+      .entry { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.45rem 0.6rem; margin-bottom: 0.4rem; background: var(--panel); }
+      .entry .who { font-size: 0.85rem; }
+      .tactic { display: flex; gap: 0.25rem; align-items: center; }
+      .tactic .tiny { font-size: 0.7rem; }
+      .tactic .fit { font-size: 0.66rem; color: var(--dim); }
+      .track { display: grid; gap: 0.3rem; }
+      .lane { display: grid; grid-template-columns: minmax(84px, 150px) 1fr; align-items: center; gap: 0.5rem; font-size: 0.78rem; }
+      .lane .rail { position: relative; height: 1.6rem; background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.06)); border-radius: 0.4rem; }
+      .lane .runner { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; left: 0; transition: left 0.6s ease; }
+      .lane .runner svg { width: 2rem; height: 1.2rem; }
+      .lane.mine { color: var(--cream); font-weight: 700; }
+      .lane.mine .rail { box-shadow: inset 0 0 0 1px rgba(214, 178, 110, 0.45); }
     </style>
   </head>
   <body>
@@ -197,6 +222,15 @@
       <span class="pill"><span class="dot" id="net"></span><span id="nettext">linking…</span></span>
     </header>
 
+    <nav class="tabs" id="tabs" aria-label="Screens">
+      <button class="tab" type="button" data-screen="yard">Yard <span class="badge" id="badge-yard">0</span></button>
+      <button class="tab" type="button" data-screen="racing">Racing <span class="badge" id="badge-racing">0</span></button>
+      <button class="tab" type="button" data-screen="breeding">Breeding <span class="badge" id="badge-breeding">0</span></button>
+      <button class="tab" type="button" data-screen="studs">Stud market <span class="badge" id="badge-studs">0</span></button>
+      <button class="tab" type="button" data-screen="horses">Horse market <span class="badge" id="badge-horses">0</span></button>
+      <button class="tab" type="button" data-screen="ledger">Ledger</button>
+    </nav>
+
     <p id="status">connecting to the sales ring…</p>
     <div class="spine">
       <span class="step"><b>1</b> breed a mare to a covering</span>
@@ -208,7 +242,7 @@
 
     <main class="grid">
       <div class="stack">
-        <section class="panel">
+        <section class="panel" data-when="yard">
           <h2>Your horses · <span id="herd-count">0</span> in training</h2>
           <div style="overflow-x: auto">
             <table>
@@ -227,7 +261,12 @@
           </p>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-when="racing">
+          <h2>Your runners</h2>
+          <div id="race-entries"></div>
+        </section>
+
+        <section class="panel" data-when="racing">
           <h2>Race meeting · <span id="condition2">—</span></h2>
           <div class="meeting" id="meeting"></div>
           <div class="row" style="margin-top: 0.6rem">
@@ -236,7 +275,20 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-when="racing">
+          <h2>The race</h2>
+          <p class="hint">
+            A replay of the running you just saw: the order at the finish is exactly the
+            placings, so what the animation shows is what the rules decided.
+          </p>
+          <div class="track" id="track"></div>
+          <div class="row" style="margin-top: 0.6rem">
+            <button class="brass" id="watch" type="button">Watch the replay</button>
+            <span class="hint" id="track-note"></span>
+          </div>
+        </section>
+
+        <section class="panel" data-when="breeding">
           <h2>Your coverings · <span id="straw-count">0</span> held</h2>
           <p class="hint">
             A covering is a frozen straw: it stays usable after the stallion retires, so an
@@ -245,7 +297,26 @@
           <div class="cards" id="straws"></div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-when="breeding">
+          <h2>Your mares</h2>
+          <p class="hint">
+            Pick a covering above, then breed a mare. The line under each name is what the
+            cross would bring: vigour from a new lineage, and both parents' inbreeding.
+          </p>
+          <div style="overflow-x: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mare</th><th class="hide-sm">Sex</th><th>Age</th><th>Value</th>
+                  <th class="hide-sm">F</th><th class="hide-sm">Form</th><th>Upkeep</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="mares"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" data-when="breeding">
           <h2>Requests · <span id="want-count">0</span> open</h2>
           <p class="hint">
             Name the genetics you want and the price you will pay: a rival holding a matching
@@ -272,7 +343,7 @@
       </div>
 
       <div class="stack">
-        <section class="panel">
+        <section class="panel" data-when="studs">
           <h2>Stallion catalogue · <span id="listing-count">0</span> lots</h2>
           <p class="hint">
             Certify a lot to reveal the sire's genotype and its hidden carriers, then buy the
@@ -281,7 +352,16 @@
           <div class="cards" id="listings"></div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-when="horses">
+          <h2>Horse market · <span id="horse-count">0</span> lots</h2>
+          <p class="hint">
+            Whole horses for sale, consigned by other stables. A lot ages in the ring, so a
+            price that sits unsold drops to clearance. Consign your own from the Yard.
+          </p>
+          <div class="cards" id="horse-lots"></div>
+        </section>
+
+        <section class="panel" data-when="ledger">
           <h2>Standings</h2>
           <table>
             <thead><tr><th>Horse</th><th>Stable</th><th>Value</th></tr></thead>
@@ -289,7 +369,7 @@
           </table>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-when="ledger">
           <h2>Rivals</h2>
           <table>
             <thead><tr><th>Stable</th><th>₲</th><th>Horses</th><th>Best</th></tr></thead>
@@ -297,7 +377,7 @@
           </table>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-when="ledger">
           <h2>The week</h2>
           <ul class="log" id="log"></ul>
         </section>
@@ -396,6 +476,14 @@ const MARE_CAREER_FOALS = 8;
 const STALLION_MAX_AGE = 10;
 const MARE_MAX_AGE = 12;
 const RACE_AGE = 2;
+/**
+ * The instruction a stable gives a runner. It is a real decision: pushing rewards
+ * early traits in a race that rewards them and punishes it in one that does not,
+ * holding does the reverse. Nobody is forced to choose — steady is the default.
+ */
+const TACTICS = ["push", "steady", "hold"];
+const TACTIC_GAIN = 0.6;
+const REPLAY_CHECKPOINTS = 6;
 const INBREED_VALUE_PENALTY = 1.0;
 const INBREED_FERTILITY = 0.9;
 const BASE_LIVE_RATE = 0.92;
@@ -694,6 +782,43 @@ function adviceFor(state, stable, field) {
   return "Run the season when your runners are entered.";
 }
 
+/**
+ * What an instruction does to one horse in one condition. Returns the score shift
+ * and a shape: positive means the horse shows up early and can be reeled in,
+ * negative means it comes late. Both are pure functions of traits and condition.
+ */
+function paceProfile(horse, condition, tactic) {
+  const weights = CONDITIONS[condition];
+  const mean = (a, b) => (traitValue(horse.genome, a) + traitValue(horse.genome, b)) / 2;
+  const earlyTraits = mean("speed", "accel");
+  const lateTraits = mean("stamina", "recovery");
+  const earlyWeight = (weights.speed ?? 0) + (weights.accel ?? 0);
+  const lateWeight = (weights.stamina ?? 0) + (weights.recovery ?? 0);
+  const lean =
+    earlyWeight + lateWeight > 0 ? (earlyWeight - lateWeight) / (earlyWeight + lateWeight) : 0;
+  let shift = 0;
+  if (tactic === "push") {
+    shift = TACTIC_GAIN * ((earlyTraits - 6) / 6) * (0.5 + 0.5 * lean);
+  } else if (tactic === "hold") {
+    shift = TACTIC_GAIN * ((lateTraits - 6) / 6) * (0.5 - 0.5 * lean);
+  }
+  const bias = tactic === "push" ? 0.3 : tactic === "hold" ? -0.3 : 0;
+  const shape = Math.max(-0.6, Math.min(0.6, (earlyTraits - lateTraits) / 24 + bias));
+  return { shift, shape };
+}
+
+/** Plain words for what a going rewards, derived from its own weights. */
+function conditionNote(condition) {
+  const weights = CONDITIONS[condition];
+  const ranked = TRAITS.filter((trait) => (weights[trait] ?? 0) > 0).sort(
+    (a, b) => (weights[b] ?? 0) - (weights[a] ?? 0),
+  );
+  if (ranked.length < 2) return `A ${condition} meeting.`;
+  const top = ranked.slice(0, 2);
+  const weak = ranked[ranked.length - 1];
+  return `A ${condition} rewards ${top.join(" and ")}; it punishes a horse short of ${weak}.`;
+}
+
 function log(state, text, kind = "market") {
   state.log = [{ season: state.season, text, kind }, ...state.log].slice(0, LOG_MAX);
 }
@@ -743,6 +868,7 @@ function freshStable(state, stableId, name, playerId) {
     straws: [],
     entries: [],
     selectedStraw: null,
+    tactics: {},
     forcedSales: 0,
   };
 }
@@ -946,6 +1072,16 @@ function validateAction(state, playerId, action) {
     if (stable.guineas < lot.price) return { ok: false, error: "not enough guineas" };
     return { ok: true };
   }
+  if (type === "setTactic") {
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (!stable.entries.includes(horse.id)) {
+      return { ok: false, error: "enter the horse before giving it an instruction" };
+    }
+    if (!TACTICS.includes(action.tactic)) return { ok: false, error: "unknown instruction" };
+    return { ok: true };
+  }
+
   if (type === "selectStraw") {
     if (action.strawId === null || action.strawId === undefined) return { ok: true };
     const held = stable.straws.find((entry) => entry.id === action.strawId);
@@ -1146,6 +1282,11 @@ function applyAction(state, playerId, action) {
     return next;
   }
 
+  if (action.type === "setTactic") {
+    stable.tactics = { ...(stable.tactics ?? {}), [action.horseId]: action.tactic };
+    return next;
+  }
+
   if (action.type === "selectStraw") {
     stable.selectedStraw = action.strawId ?? null;
     return next;
@@ -1210,9 +1351,16 @@ function runSeason(state) {
 
   if (entrants.length) {
     for (const entry of entrants) {
-      const score = entry.horse.conditions[condition];
-      const noise = (rollValue(state) - 0.5) * NOISE * score;
-      entry.score = score + noise;
+      const owner = state.stables.find((row) => row.id === entry.stableId);
+      // the stable's instruction for this runner; the house runs plain if none is set
+      const tactic = (owner && owner.tactics && owner.tactics[entry.horse.id]) || "steady";
+      const base = entry.horse.conditions[condition];
+      const profile = paceProfile(entry.horse, condition, tactic);
+      const noise = (rollValue(state) - 0.5) * NOISE * base;
+      entry.tactic = tactic;
+      entry.shift = profile.shift;
+      entry.shape = profile.shape;
+      entry.score = base + profile.shift + noise;
     }
     entrants.sort((a, b) => b.score - a.score);
     const pot = Math.round(entrants.length * ENTRY_FEE * PURSE_SUBSIDY);
@@ -1231,12 +1379,43 @@ function runSeason(state) {
         if (horse.stakes) horse.stakesWins += 1;
       }
     });
+    // The replay is derived from the result, never invented: at the finish the order
+    // is exactly the placings, so the animation cannot contradict the race. Before
+    // the finish, front-loaded runners show up early and get reeled back in.
+    const best = entrants[0].score;
+    const worst = entrants[entrants.length - 1].score;
+    const span = Math.max(0.001, best - worst);
+    const beats = [];
+    for (let step = 1; step <= REPLAY_CHECKPOINTS; step += 1) {
+      const t = step / REPLAY_CHECKPOINTS;
+      const order = entrants
+        .map((entry) => {
+          const rank = (entry.score - worst) / span;
+          const progress = t * (0.82 + 0.18 * rank) + (entry.shape ?? 0) * (1 - t) * t * 0.9;
+          return {
+            horseId: entry.horse.id,
+            name: entry.horse.name,
+            stable: entry.stableId,
+            lineage: entry.horse.lineage,
+            progress: round(progress, 3),
+          };
+        })
+        .sort((a, b) => b.progress - a.progress);
+      beats.push({ t: round(t, 2), order });
+    }
     const winner = entrants[0];
     state.lastRace = {
       season: state.season,
       condition,
       pot,
       runners: entrants.length,
+      replay: beats,
+      tactics: entrants.map((entry) => ({
+        horseId: entry.horse.id,
+        name: entry.horse.name,
+        tactic: entry.tactic,
+        shift: round(entry.shift ?? 0, 2),
+      })),
       result: entrants.slice(0, Math.min(3, entrants.length)).map((entry) => ({
         horseId: entry.horse.id,
         name: entry.horse.name,
@@ -1261,9 +1440,10 @@ function runSeason(state) {
       if (!owner || owner.id.startsWith("ai")) continue;
       const place = entrants.indexOf(entry) + 1;
       const gap = round(winner.score - entry.score, 2);
+      const misjudged = entry.shift !== undefined && entry.shift < -0.05;
       log(
         state,
-        `${entry.horse.name} finished ${place} of ${entrants.length} in the ${condition}, ${gap} behind — lost it on ${raceDiagnosis(entry.horse, winner.horse, condition)}.`,
+        `${entry.horse.name} finished ${place} of ${entrants.length} in the ${condition}, ${gap} behind — lost it on ${raceDiagnosis(entry.horse, winner.horse, condition)}${misjudged ? `, and ${entry.tactic} was the wrong instruction for a ${condition}` : ""}.`,
         "race",
       );
     }
@@ -1442,6 +1622,14 @@ function aiPrepareSeason(state, stable) {
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
   stable.entries = runners.map((horse) => horse.id);
+  // Rivals pick an instruction too, so a tactic is a decision rather than a free
+  // edge: they lean on whichever half of their own profile is stronger.
+  stable.tactics = {};
+  for (const horse of runners) {
+    const early = (traitValue(horse.genome, "speed") + traitValue(horse.genome, "accel")) / 2;
+    const late = (traitValue(horse.genome, "stamina") + traitValue(horse.genome, "recovery")) / 2;
+    stable.tactics[horse.id] = early >= late ? "push" : "hold";
+  }
 
   const mares = owned
     .filter((horse) => horse.sex === "F" && !horse.retired && horse.foals < MARE_CAREER_FOALS && horse.age <= MARE_MAX_AGE)
@@ -1579,6 +1767,14 @@ function viewFor(state, playerId) {
       sire: horse.sire ?? null,
       dam: horse.dam ?? null,
       retired: horse.retired,
+      entered: Boolean(stable && stable.entries.includes(horse.id)),
+      tactic: (stable && stable.tactics && stable.tactics[horse.id]) || "steady",
+      // what each instruction would do to THIS horse in THIS going, so the choice
+      // is informed before it is made rather than explained after it is lost
+      tacticFit: {
+        push: round(paceProfile(horse, state.condition, "push").shift, 2),
+        hold: round(paceProfile(horse, state.condition, "hold").shift, 2),
+      },
       value: horse.value,
       band: valueBand(horse, field),
       fLabel: inbreedingLabel(horse.f),
@@ -1623,6 +1819,7 @@ function viewFor(state, playerId) {
     eliteCut: state.eliteCut,
     field,
     advice: adviceFor(state, stable, field),
+    goingNote: conditionNote(state.condition),
     selectedStraw: stable ? stable.selectedStraw : null,
     eliteCount: Math.max(1, Math.round(population.length * STAKES_SHARE)),
     stable: stable
@@ -1632,6 +1829,7 @@ function viewFor(state, playerId) {
           guineas: stable.guineas,
           forcedSales: stable.forcedSales,
           entries: stable.entries,
+          tactics: stable.tactics ?? {},
         }
       : null,
     horses: stable ? stable.horses.map((id) => horseById(state, id)).filter(Boolean).map(horseView) : [],
@@ -1716,6 +1914,8 @@ function viewFor(state, playerId) {
           condition: state.lastRace.condition,
           pot: state.lastRace.pot,
           runners: state.lastRace.runners,
+          replay: state.lastRace.replay ?? null,
+          tactics: state.lastRace.tactics ?? [],
           winner: state.lastRace.result[0] ? state.lastRace.result[0].name : "—",
           places: state.lastRace.result.map((entry, index) => ({
             place: index + 1,
@@ -1929,6 +2129,28 @@ let me = null;
 let selectedStraw = null;
 let askedSeat = false;
 
+// ── screens ────────────────────────────────────────────────────────────────
+// One screen per job, routable by hash so a screen can be linked and reloaded.
+const SCREENS = ["yard", "racing", "breeding", "studs", "horses", "ledger"];
+
+function screenFromHash() {
+  const name = (location.hash || "").replace("#", "");
+  return SCREENS.includes(name) ? name : "yard";
+}
+
+let screen = screenFromHash();
+
+function showScreen(name) {
+  screen = SCREENS.includes(name) ? name : "yard";
+  document.body.dataset.screen = screen;
+  if (location.hash.replace("#", "") !== screen) history.replaceState(null, "", `#${screen}`);
+  for (const button of document.querySelectorAll(".tab")) {
+    button.setAttribute("aria-current", String(button.dataset.screen === screen));
+  }
+}
+
+window.addEventListener("hashchange", () => showScreen(screenFromHash()));
+
 /** Lineage coat colours, so a stable reads as a set of animals rather than rows. */
 const COATS = {
   L1: "#b5651d", L2: "#5a4632", L3: "#8c6239", L4: "#cfbe9c",
@@ -2006,6 +2228,50 @@ function traitBars(traits) {
   return wrap;
 }
 
+let replayTimer = null;
+let playedSeason = null;
+
+/**
+ * Replays the beats the rules computed. Each checkpoint's spread is normalised to
+ * the rail so the pack stays readable, but the order inside a checkpoint, and who
+ * wins the last one, are exactly what the engine decided.
+ */
+function playReplay(replay, force) {
+  const track = el("track");
+  if (!track || !replay || !replay.length) return;
+  const season = view && view.meeting ? view.meeting.season : null;
+  if (!force && playedSeason === season) return;
+  playedSeason = season;
+  if (replayTimer) clearInterval(replayTimer);
+  let step = 0;
+  const paint = () => {
+    const beat = replay[step];
+    if (!beat) return;
+    const values = beat.order.map((row) => row.progress);
+    const lo = Math.min(...values);
+    const hi = Math.max(...values);
+    const spread = Math.max(0.001, hi - lo);
+    for (const row of beat.order) {
+      const marker = track.querySelector(`[data-horse="${row.horseId}"] .runner`);
+      if (marker) marker.style.left = `${6 + 78 * ((row.progress - lo) / spread)}%`;
+    }
+    const note = el("track-note");
+    if (note) {
+      note.textContent =
+        step === replay.length - 1
+          ? `finish — ${beat.order[0].name} wins`
+          : `checkpoint ${step + 1} of ${replay.length} — ${beat.order[0].name} leads`;
+    }
+    step += 1;
+    if (step >= replay.length) {
+      clearInterval(replayTimer);
+      replayTimer = null;
+    }
+  };
+  paint();
+  replayTimer = setInterval(paint, 700);
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -2023,15 +2289,26 @@ function draw() {
     advice.hidden = !v.advice;
     advice.textContent = v.advice ?? "";
   }
+  // the tab bar, with the count that makes each screen worth visiting
+  const badge = (id, value) => {
+    const node = el(id);
+    if (node) node.textContent = value;
+  };
+  const horseLots = v.listings.filter((lot) => lot.kind === "horse");
+  badge("badge-yard", nf(v.horses.filter((horse) => !horse.retired).length));
+  badge("badge-racing", nf(v.stable.entries.length));
+  badge("badge-breeding", nf(v.horses.filter((horse) => horse.sex === "F" && !horse.retired).length));
+  badge("badge-studs", nf(v.straws.length));
+  badge("badge-horses", nf(horseLots.length));
+  badge("horse-count", nf(horseLots.length));
+  if (document.body.dataset.screen !== screen) showScreen(screen);
   el("entry-fee").textContent = nf(v.entryFee);
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
   el("straw-count").textContent = nf(v.straws.length);
   el("listing-count").textContent = nf(v.listings.length);
 
-  // herd
-  const herd = el("herd");
-  herd.innerHTML = "";
-  for (const horse of v.horses) {
+  // herd rows: built once, drawn by the Yard and by the Breeding screen's mares
+  function herdRow(horse) {
     const tr = document.createElement("tr");
     const entered = v.stable.entries.includes(horse.id);
     tr.className = (entered ? "entered" : "") + (horse.id === selectedHorse ? " selected" : "");
@@ -2148,7 +2425,75 @@ function draw() {
     buttons.append(row);
 
     tr.append(name, sex, age, value, f, form, upkeep, buttons);
-    herd.append(tr);
+    return tr;
+  }
+
+  // herd
+  const herd = el("herd");
+  if (herd) {
+    herd.innerHTML = "";
+    for (const horse of v.horses) herd.append(herdRow(horse));
+  }
+
+  // the breeding screen shows only the mares, each carrying the pairing line the
+  // rules sent for the covering currently selected
+  const mares = el("mares");
+  if (mares) {
+    mares.innerHTML = "";
+    for (const horse of v.horses.filter((row) => row.sex === "F" && !row.retired)) {
+      mares.append(herdRow(horse));
+    }
+  }
+
+  // the racing screen: who is running, and the instruction each one carries
+  const entries = el("race-entries");
+  if (entries) {
+    entries.innerHTML = "";
+    const running = v.stable.entries
+      .map((id) => v.horses.find((horse) => horse.id === id))
+      .filter(Boolean);
+    if (!running.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "No runners entered. Pick up to three on the Yard screen — the enter button sits on each row.";
+      entries.append(empty);
+    }
+    for (const horse of running) {
+      const card = document.createElement("div");
+      card.className = "entry";
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = `${horse.name} · value ${nf(horse.value, 2)} · ${horse.band}`;
+      card.append(who);
+      const group = document.createElement("div");
+      group.className = "tactic";
+      for (const tactic of ["push", "steady", "hold"]) {
+        const button = document.createElement("button");
+        button.className = "tiny" + (horse.tactic === tactic ? " brass" : "");
+        button.textContent = tactic;
+        if (tactic !== "steady" && horse.tacticFit) {
+          const fit = horse.tacticFit[tactic];
+          const note = document.createElement("span");
+          note.className = "fit";
+          note.textContent = ` ${fit > 0 ? "+" : ""}${nf(fit, 2)}`;
+          button.append(note);
+        }
+        button.title =
+          tactic === "push"
+            ? "Go early: rewards a fast horse in a race that rewards speed"
+            : tactic === "hold"
+              ? "Save for the finish: rewards a stayer in a race that rewards stamina"
+              : "Run plain, no instruction";
+        button.addEventListener("click", () => act({ type: "setTactic", horseId: horse.id, tactic }));
+        group.append(button);
+      }
+      card.append(group);
+      entries.append(card);
+    }
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = v.goingNote;
+    entries.append(note);
   }
 
   // straws
@@ -2211,16 +2556,31 @@ function draw() {
     straws.append(card);
   }
 
-  // catalogue
+  // the two markets sit on their own screens, split by what the lot actually is
+  const studLots = v.listings.filter((lot) => lot.kind !== "horse");
+  const horseMarket = v.listings.filter((lot) => lot.kind === "horse");
   const listings = el("listings");
-  listings.innerHTML = "";
-  if (!v.listings.length) {
-    const empty = document.createElement("p");
-    empty.className = "hint";
-    empty.textContent = "The catalogue is empty right now — rivals list coverings each season.";
-    listings.append(empty);
+  if (listings) {
+    listings.innerHTML = "";
+    if (!studLots.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "The catalogue is empty right now — rivals list coverings each season.";
+      listings.append(empty);
+    }
   }
-  for (const lot of v.listings.slice(0, 30)) {
+  const horseCards = el("horse-lots");
+  if (horseCards) {
+    horseCards.innerHTML = "";
+    if (!horseMarket.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent =
+        "No horses in the ring. Rivals consign each season, and you can consign your own from the Yard.";
+      horseCards.append(empty);
+    }
+  }
+  for (const lot of [...studLots.slice(0, 30), ...horseMarket.slice(0, 30)]) {
     const card = document.createElement("div");
     card.className = "lot" + (lot.mine ? " mine" : "");
     const isHorse = lot.kind === "horse";
@@ -2275,7 +2635,7 @@ function draw() {
       }
     }
     card.append(row);
-    listings.append(card);
+    (lot.kind === "horse" ? horseCards : listings)?.append(card);
   }
 
   // Requests: the demand side of the market, where you name the genetics you want.
@@ -2333,6 +2693,47 @@ function draw() {
     line.className = "hint";
     line.textContent = "No meeting run yet this season. Enter runners and run the season.";
     meeting.append(line);
+  }
+
+  // the race itself. The lanes are rebuilt only when the meeting changes, so an
+  // animation in progress is not wiped out by a redraw.
+  const track = el("track");
+  if (track) {
+    const replay = v.meeting && v.meeting.replay ? v.meeting.replay : null;
+    if (!replay) {
+      if (track.dataset.stamp !== "none") {
+        track.innerHTML = "";
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "Run the season and the running appears here.";
+        track.append(empty);
+        track.dataset.stamp = "none";
+      }
+    } else {
+      const lanes = replay[replay.length - 1].order;
+      const stamp = `${v.meeting.season}:${lanes.map((row) => row.horseId).join(",")}`;
+      if (track.dataset.stamp !== stamp) {
+        track.innerHTML = "";
+        track.dataset.stamp = stamp;
+        const mineNow = new Set(v.horses.map((horse) => horse.id));
+        for (const row of lanes) {
+          const lane = document.createElement("div");
+          lane.className = "lane" + (mineNow.has(row.horseId) ? " mine" : "");
+          lane.dataset.horse = row.horseId;
+          const label = document.createElement("span");
+          label.textContent = row.name;
+          const rail = document.createElement("div");
+          rail.className = "rail";
+          const runner = document.createElement("i");
+          runner.className = "runner";
+          runner.append(horseArt(row.lineage));
+          rail.append(runner);
+          lane.append(label, rail);
+          track.append(lane);
+        }
+      }
+      playReplay(replay, false);
+    }
   }
 
   // standings
@@ -2393,6 +2794,22 @@ el("advance").addEventListener("click", () => {
   act({ type: "advance" });
   toast("the season runs…");
 });
+
+const watchButton = el("watch");
+if (watchButton) {
+  watchButton.addEventListener("click", () => {
+    playedSeason = null;
+    if (view && view.meeting) playReplay(view.meeting.replay, true);
+  });
+}
+
+for (const tab of document.querySelectorAll(".tab")) {
+  tab.addEventListener("click", () => {
+    showScreen(tab.dataset.screen);
+    draw();
+  });
+}
+showScreen(screen);
 
 connect();
 
