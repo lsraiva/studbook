@@ -1287,17 +1287,16 @@ const SAVE_PREFIX = "studbook:standalone:";
 
 function localPlayerId() {
   const key = "hf:game:playerId";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = Math.random().toString(36).slice(2, 10);
-    localStorage.setItem(key, id);
-  }
+  const saved = readStore(key);
+  if (saved) return saved;
+  const id = Math.random().toString(36).slice(2, 10);
+  writeStore(key, id);
   return id;
 }
 
 function loadSaved(playerId) {
+  const raw = readStore(SAVE_PREFIX + playerId);
   try {
-    const raw = localStorage.getItem(SAVE_PREFIX + playerId);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -1316,8 +1315,7 @@ class LocalSocket {
   emit(type, event) { for (const fn of this.listeners[type] || []) fn(event); }
   post(data) { this.emit("message", { data: JSON.stringify(data) }); }
   save() {
-    try { localStorage.setItem(SAVE_PREFIX + this.playerId, JSON.stringify(this.game)); }
-    catch { /* a full or blocked localStorage must not break the game */ }
+    writeStore(SAVE_PREFIX + this.playerId, JSON.stringify(this.game));
   }
   fresh(playerId) {
     return { status: "playing", seats: [playerId], state: setup([playerId]), result: null };
@@ -1375,13 +1373,37 @@ class LocalSocket {
 // ── net (keep) ─────────────────────────────────────────────────────────────
 const room = new URLSearchParams(location.search).get("room") || "main";
 
+/**
+ * Storage can THROW, not just fail: in-app browsers (Instagram, TikTok, Facebook
+ * webviews), private modes and cross-origin frames raise a SecurityError on the
+ * property itself. Reading it unguarded killed the whole module and the game never
+ * started. Every access is guarded now, with an in-memory fallback so a session
+ * still works even when nothing can be persisted.
+ */
+const MEMORY_STORE = {};
+
+function readStore(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return Object.prototype.hasOwnProperty.call(MEMORY_STORE, key) ? MEMORY_STORE[key] : null;
+  }
+}
+
+function writeStore(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    MEMORY_STORE[key] = value;
+  }
+}
+
 function playerId() {
   const key = "hf:game:playerId";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = Math.random().toString(36).slice(2, 10);
-    localStorage.setItem(key, id);
-  }
+  const saved = readStore(key);
+  if (saved) return saved;
+  const id = Math.random().toString(36).slice(2, 10);
+  writeStore(key, id);
   return id;
 }
 
