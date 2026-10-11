@@ -2504,7 +2504,7 @@ let shownFoal = readStore(FOAL_KEY) || "";
 let revealTimers = [];
 let audio = null;
 const TIERS = ["ordinary", "promising", "excellent", "exceptional", "stakes class"];
-const CARE_WORDS = { plain: "plain", prepared: "prepared", studcare: "stud care" };
+const CARE_WORDS = { plain: "plain care", prepared: "prepared care", studcare: "stud care" };
 /** Lineage coat colours, so a stable reads as a set of animals rather than rows. */
 const COATS = {
   L1: "#b5651d", L2: "#5a4632", L3: "#8c6239", L4: "#cfbe9c",
@@ -2744,7 +2744,7 @@ function openReveal(foal, v) {
     card.append(waitHead);
     const waitSub = document.createElement("p");
     waitSub.className = "hint";
-    waitSub.textContent = `${foal.damName} caught to ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain"} care — the chance was ${Math.round((foal.chance ?? 0) * 100)}%.`;
+    waitSub.textContent = `${foal.damName} caught to ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain care"} — the chance was ${Math.round((foal.chance ?? 0) * 100)}%.`;
     card.append(waitSub);
     const waitLines = document.createElement("div");
     waitLines.className = "lines";
@@ -2796,7 +2796,7 @@ function openReveal(foal, v) {
   const sub = document.createElement("p");
   sub.className = "hint";
   sub.textContent = event === "born"
-    ? `${foal.damName} out of ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain"} care.`
+    ? `${foal.damName} out of ${foal.sireName}, with ${CARE_WORDS[foal.care] ?? "plain care"}.`
     : `${foal.damName} was covered by ${foal.sireName} and did not catch — the chance was ${Math.round((foal.chance ?? 0) * 100)}%. The straw and the care are spent either way.`;
   card.append(sub);
 
@@ -2827,7 +2827,7 @@ function openReveal(foal, v) {
       kvRow("against her dam", `${nf(foal.damValue, 2)} → ${nf(foal.value, 2)} (${foal.improvement >= 0 ? "+" : ""}${nf(foal.improvement, 2)})`),
       kvRow("the field", `${nf(foal.place)} of ${nf(foal.field)} living horses`),
       kvRow("inbreeding", `${nf(foal.f, 3)} · ${foal.fLabel}`),
-      kvRow("care", CARE_WORDS[foal.care] ?? "plain"),
+      kvRow("care", CARE_WORDS[foal.care] ?? "plain care"),
     );
     if (foal.personalBest) lines.append(kvRow("your yard", "best foal you have bred"));
     card.append(lines);
@@ -2948,7 +2948,7 @@ function renderCovering(v) {
   note.textContent =
     chosen && v.stable.guineas >= chosen.cost
       ? `Breeding spends the covering and ${chosen.cost ? `charges ${nf(chosen.cost)} ₲ for care` : "costs nothing extra"}.`
-      : `You cannot afford ${CARE_WORDS[careChoice] ?? careChoice} care right now — pick something cheaper.`;
+      : `You cannot afford ${CARE_WORDS[careChoice] ?? careChoice} right now — pick something cheaper.`;
   care.append(note);
 }
 
