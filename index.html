@@ -98,6 +98,15 @@
       .horseart { width: 34px; height: 26px; vertical-align: -6px; margin-right: 0.35rem; flex: none; }
       .nameline { display: flex; align-items: center; }
       .icon { width: 16px; height: 16px; vertical-align: -3px; margin-right: 0.3rem; }
+      select, input[type="number"] {
+        font: inherit;
+        color: var(--fg);
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 0.6rem;
+        padding: 0.45rem 0.6rem;
+        min-height: 42px;
+      }
       .tag { display: inline-block; font-size: 0.62rem; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 0 0.35rem; margin-left: 0.25rem; vertical-align: 1px; }
       .tag.stakes { color: var(--brass); }
       .tag.retired { color: var(--dim); }
@@ -212,6 +221,31 @@
             elite sire's stock is finite. Pick a straw, then breed a mare to it.
           </p>
           <div class="cards" id="straws"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Requests · <span id="want-count">0</span> open</h2>
+          <p class="hint">
+            Name the genetics you want and the price you will pay: a rival holding a matching
+            covering fills it at the next season. Asking across lineages is how fresh blood
+            gets into a herd.
+          </p>
+          <div class="row">
+            <select id="want-lineage" aria-label="Preferred lineage">
+              <option value="">any lineage</option>
+              <option value="L1">L1 Thunder</option>
+              <option value="L2">L2 Oxbow</option>
+              <option value="L3">L3 Flicker</option>
+              <option value="L4">L4 Tidewell</option>
+              <option value="L5">L5 Quiet</option>
+              <option value="L6">L6 Granite</option>
+              <option value="L7">L7 Comet</option>
+              <option value="L8">L8 Marathon</option>
+            </select>
+            <input id="want-price" type="number" min="20" step="10" value="120" aria-label="Price in guineas" />
+            <button class="brass" id="want-post" type="button">Post request</button>
+          </div>
+          <div class="cards" id="wants"></div>
         </section>
       </div>
 
@@ -343,6 +377,11 @@ const START_HORSES = 4;
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
 const AI_ACTIVE_CAP = 10; // cap on rivals' horses IN TRAINING, not total
+const WANT_LIMIT = 3; // standing requests a stable may hold open
+const WANT_TTL = 3; // seasons before an unfilled request lapses
+const WANT_MIN_QUALITY = 0.6; // a sire must be at least this share of your best
+const DUTCH_DECAY = 0.75; // stale lots mark down each season until they clear
+const DUTCH_FLOOR = 20;
 const LOG_MAX = 12;
 const NOISE = 0.12; // race-day variance, as a share of the horse's score
 
@@ -612,6 +651,7 @@ function setup(players) {
     stables: [],
     horses: [],
     listings: [],
+    wants: [],
     log: [],
     ledger: [],
     lastRace: null,
@@ -739,6 +779,21 @@ function validateAction(state, playerId, action) {
     return { ok: true };
   }
 
+  if (type === "postWanted") {
+    if (!Number.isFinite(action.price) || action.price < 20) {
+      return { ok: false, error: "offer at least 20 GNS" };
+    }
+    const mine = state.wants.filter((want) => want.stable === stable.id);
+    if (mine.length >= WANT_LIMIT) return { ok: false, error: `at most ${WANT_LIMIT} open requests` };
+    return { ok: true };
+  }
+
+  if (type === "cancelWanted") {
+    const want = state.wants.find((entry) => entry.id === action.wantId);
+    if (!want || want.stable !== stable.id) return { ok: false, error: "not your request" };
+    return { ok: true };
+  }
+
   if (type === "sell") {
     const horse = horseById(state, action.horseId);
     if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
@@ -853,6 +908,28 @@ function applyAction(state, playerId, action) {
     horse.certifiedBy = [...horse.certifiedBy, stable.id];
     stable.guineas -= CERTIFY_COST;
     log(next, `${stable.name} paid ${CERTIFY_COST} GNS to certify ${horse.name}.`, "market");
+    return next;
+  }
+
+  if (action.type === "postWanted") {
+    const lineage = typeof action.lineage === "string" && action.lineage ? action.lineage : null;
+    next.wants.push({
+      id: `w${next.nextId++}`,
+      stable: stable.id,
+      price: Math.round(action.price),
+      lineage,
+      season: next.season,
+    });
+    log(
+      next,
+      `${stable.name} requests ${lineage ? `a ${lineage} covering` : "any covering"} at ${Math.round(action.price)} GNS.`,
+      "market",
+    );
+    return next;
+  }
+
+  if (action.type === "cancelWanted") {
+    next.wants = next.wants.filter((want) => want.id !== action.wantId);
     return next;
   }
 
@@ -1038,6 +1115,55 @@ function runSeason(state) {
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) aiListStraws(state, stable);
   }
+
+  // Stale lots mark down. A market whose asks never move does not clear, which is
+  // exactly what the design called for a Dutch lot to fix.
+  for (const listing of state.listings) {
+    if (state.season - listing.season >= 1) {
+      listing.price = Math.max(DUTCH_FLOOR, Math.round(listing.price * DUTCH_DECAY));
+    }
+  }
+
+  // Fill standing requests. This is the demand side of the market, and the design's
+  // argument was that buyers want COMPLEMENTARY genetics, so a matching board beats
+  // browsing a catalogue.
+  const survivingWants = [];
+  for (const want of state.wants) {
+    const buyer = state.stables.find((entry) => entry.id === want.stable);
+    const expired = state.season - want.season >= WANT_TTL;
+    if (!buyer || expired || buyer.guineas < want.price) continue;
+    const bestOwn = Math.max(
+      0,
+      ...buyer.horses.map((id) => horseById(state, id)?.value ?? 0),
+    );
+    let filled = false;
+    for (const seller of state.stables) {
+      if (seller.id === buyer.id) continue;
+      const index = seller.straws.findIndex((straw) => {
+        const sire = horseById(state, straw.sire);
+        if (!sire) return false;
+        if (want.lineage && sire.lineage !== want.lineage) return false;
+        return sire.value >= bestOwn * WANT_MIN_QUALITY;
+      });
+      if (index < 0) continue;
+      const straw = seller.straws.splice(index, 1)[0];
+      const sire = horseById(state, straw.sire);
+      const rake = Math.round(want.price * MARKET_RAKE);
+      buyer.guineas -= want.price;
+      seller.guineas += want.price - rake;
+      buyer.straws.push({ ...straw, id: `s${state.nextStraw++}` });
+      log(
+        state,
+        `${seller.name} filled ${buyer.name}'s request with ${sire ? sire.name : "a covering"} at ${want.price} GNS.`,
+        "market",
+      );
+      filled = true;
+      break;
+    }
+    if (!filled) survivingWants.push(want);
+  }
+  state.wants = survivingWants;
+
   log(state, `Season ${state.season} opens. Condition: ${state.condition}.`, "season");
   state.turn = (state.turn ?? 0) + 1;
   return state;
@@ -1229,6 +1355,7 @@ function viewFor(state, playerId) {
         sireRetired: sire ? sire.retired : false,
         sireLineage: sire ? sire.lineage : null,
         mine: Boolean(stable && listing.seller === stable.id),
+        age: state.season - listing.season,
         sireTraits: sire ? traitsOf(sire.genome) : null,
         sireGenotype: sire && certified.has(sire.id) ? sire.genome : null,
       };
@@ -1267,6 +1394,16 @@ function viewFor(state, playerId) {
           })),
         }
       : null,
+    wants: state.wants.map((want) => ({
+      id: want.id,
+      stable: want.stable,
+      stableName: state.stables.find((entry) => entry.id === want.stable)?.name ?? "unknown",
+      price: want.price,
+      lineage: want.lineage,
+      season: want.season,
+      age: state.season - want.season,
+      mine: Boolean(stable && want.stable === stable.id),
+    })),
     log: state.log,
     ledger: state.ledger,
     retirements: population.filter((horse) => horse.retired).length,
@@ -1684,6 +1821,17 @@ function draw() {
       act({ type: "listStraw", strawId: straw.id, price: Math.max(25, straw.suggestedValue) }),
     );
     row.append(list);
+    const cheap = document.createElement("button");
+    cheap.className = "tiny";
+    cheap.textContent = "quick 60%";
+    cheap.addEventListener("click", () =>
+      act({
+        type: "listStraw",
+        strawId: straw.id,
+        price: Math.max(20, Math.round((straw.suggestedValue ?? 40) * 0.6)),
+      }),
+    );
+    row.append(cheap);
     card.append(row);
     straws.append(card);
   }
@@ -1710,7 +1858,7 @@ function draw() {
     card.append(meta);
     const meta2 = document.createElement("div");
     meta2.className = "kv";
-    meta2.innerHTML = `<span>${lot.sellerName} · v${lot.vintage}</span><b>${nf(lot.price)} ₲</b>`;
+    meta2.innerHTML = `<span>${lot.sellerName} · v${lot.vintage}${lot.age >= 1 ? " · clearance" : ""}</span><b>${nf(lot.price)} ₲</b>`;
     card.append(meta2);
     if (lot.sireTraits) card.append(traitBars(lot.sireTraits));
     if (lot.sireGenotype) {
@@ -1747,6 +1895,37 @@ function draw() {
     }
     card.append(row);
     listings.append(card);
+  }
+
+  // Requests: the demand side of the market, where you name the genetics you want.
+  const wantCount = el("want-count");
+  if (wantCount) wantCount.textContent = nf(v.wants.length);
+  const wants = el("wants");
+  if (wants) {
+    wants.innerHTML = "";
+    for (const want of v.wants) {
+      const card = document.createElement("div");
+      card.className = "lot" + (want.mine ? " mine" : "");
+      const head = document.createElement("div");
+      head.className = "name";
+      head.textContent = want.mine ? "your request" : want.stableName;
+      card.append(head);
+      const meta = document.createElement("div");
+      meta.className = "kv";
+      meta.innerHTML = `<span>${want.lineage || "any lineage"} · open ${want.age} season(s)</span><b>${nf(want.price)} ₲</b>`;
+      card.append(meta);
+      if (want.mine) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const cancel = document.createElement("button");
+        cancel.className = "tiny";
+        cancel.textContent = "cancel";
+        cancel.addEventListener("click", () => act({ type: "cancelWanted", wantId: want.id }));
+        row.append(cancel);
+        card.append(row);
+      }
+      wants.append(card);
+    }
   }
 
   // meeting
@@ -1811,6 +1990,17 @@ function draw() {
 }
 
 let selectedHorse = null;
+
+const wantButton = el("want-post");
+if (wantButton) {
+  wantButton.addEventListener("click", () => {
+    const price = Number(el("want-price")?.value ?? 0);
+    const lineage = el("want-lineage")?.value || null;
+    if (!Number.isFinite(price) || price < 20) return toast("offer at least 20 GNS", true);
+    act({ type: "postWanted", price, lineage });
+    toast("request posted — rivals answer next season");
+  });
+}
 
 el("advance").addEventListener("click", () => {
   act({ type: "advance" });
