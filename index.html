@@ -1,0 +1,1802 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Studbook — bloodstock, breeding and the stallion market</title>
+    <meta
+      property="og:title"
+      content="Studbook — a bloodstock breeding game"
+    />
+    <meta
+      property="og:description"
+      content="Breed from a genotype, sell coverings on the stallion market, race for purses, and keep your line from inbreeding itself into nothing."
+    />
+    <meta
+      property="og:image"
+      content=""
+    />
+    <meta name="theme-color" content="#0d0b14" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0d0b14;
+        --panel: #17141f;
+        --panel2: #1e1a29;
+        --line: #2f2840;
+        --fg: #f4f0fa;
+        --dim: #9a91b4;
+        --brass: #d9a541;
+        --cream: #f6e7c8;
+        --green: #7fd48a;
+        --red: #ff8080;
+        --violet: #9a7bff;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+      body {
+        min-height: 100dvh;
+        background:
+          radial-gradient(1100px 700px at 10% -10%, #241d33 0%, transparent 60%),
+          radial-gradient(900px 600px at 100% 0%, #1a1526 0%, transparent 55%),
+          var(--bg);
+        color: var(--fg);
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        padding: calc(0.9rem + env(safe-area-inset-top))
+          calc(clamp(0.7rem, 2vw, 1.6rem) + env(safe-area-inset-right))
+          calc(2rem + env(safe-area-inset-bottom))
+          calc(clamp(0.7rem, 2vw, 1.6rem) + env(safe-area-inset-left));
+      }
+      b, .num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border-radius: 0.6rem;
+        border: 1px solid var(--line);
+        background: var(--panel2);
+        color: var(--fg);
+        padding: 0.5rem 0.7rem;
+        min-height: 42px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      @media (hover: hover) { button:hover:not(:disabled) { background: #272137; border-color: #443a72; } }
+      button:disabled { opacity: 0.42; cursor: not-allowed; }
+      button.brass { background: linear-gradient(180deg, var(--brass), #b4831f); border-color: #8c6415; color: #241a05; font-weight: 700; }
+      button.good { background: #1f3a24; border-color: #33643c; color: #cdf3d3; }
+      button.bad { background: #3a1f22; border-color: #6b3438; color: #ffd6d6; }
+      button.tiny { min-height: 34px; padding: 0.3rem 0.5rem; font-size: 0.8rem; }
+
+      .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin-bottom: 0.7rem; }
+      .brand { font-weight: 800; letter-spacing: 0.05em; }
+      .brand span { color: var(--brass); }
+      .pill { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 0.3rem 0.65rem; font-size: 0.83rem; color: var(--dim); white-space: nowrap; }
+      .pill b { color: var(--fg); }
+      .pill.bank { border-color: #4a3a1c; background: #221b12; }
+      .pill.bank b { color: var(--brass); }
+      .spacer { flex: 1 1 auto; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+      .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+      .dot.bad { background: var(--red); }
+
+      #status { margin: 0 0 0.7rem; font-size: 0.8rem; color: var(--dim); min-height: 1.2em; }
+      #status.bad { color: var(--red); }
+
+      .grid { display: grid; gap: 0.8rem; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; }
+      @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0.9rem; padding: 0.85rem; }
+      .panel h2 { margin: 0 0 0.5rem; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+      .stack { display: grid; gap: 0.7rem; }
+      .hint { font-size: 0.75rem; color: var(--dim); }
+
+      table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+      th { text-align: left; font-weight: 600; color: var(--dim); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.25rem 0.3rem; border-bottom: 1px solid var(--line); }
+      td { padding: 0.35rem 0.3rem; border-bottom: 1px solid rgba(120, 110, 180, 0.12); vertical-align: middle; }
+      tr.entered td { background: rgba(217, 165, 65, 0.08); }
+      tr.selected td { background: rgba(154, 123, 255, 0.12); }
+      .name { font-weight: 700; }
+      .horseart { width: 34px; height: 26px; vertical-align: -6px; margin-right: 0.35rem; flex: none; }
+      .nameline { display: flex; align-items: center; }
+      .icon { width: 16px; height: 16px; vertical-align: -3px; margin-right: 0.3rem; }
+      .tag { display: inline-block; font-size: 0.62rem; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 0 0.35rem; margin-left: 0.25rem; vertical-align: 1px; }
+      .tag.stakes { color: var(--brass); }
+      .tag.retired { color: var(--dim); }
+      .tag.pension { color: var(--dim); }
+      .traits { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; min-width: 130px; }
+      .trait { height: 6px; background: #241f31; border-radius: 2px; overflow: hidden; }
+      .trait i { display: block; height: 100%; background: var(--violet); }
+      .row { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+      .gain { color: var(--green); }
+      .loss { color: var(--red); }
+      .cards { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+      .lot { background: var(--panel2); border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.55rem; display: grid; gap: 0.35rem; }
+      .lot.mine { border-color: #4a3a1c; }
+      .kv { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; color: var(--dim); }
+      .kv b { color: var(--cream); }
+      ul.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.8rem; color: var(--dim); }
+      ul.log li::before { content: "·"; color: var(--brass); margin-right: 0.4rem; }
+      .meeting { display: grid; gap: 0.3rem; font-size: 0.84rem; }
+      .winner { font-weight: 700; color: var(--brass); }
+      #toasts { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; gap: 0.35rem; justify-items: center; z-index: 20; pointer-events: none; }
+      .toast { background: #221b12; border: 1px solid #5a4a1c; color: var(--cream); border-radius: 999px; padding: 0.4rem 0.85rem; font-size: 0.83rem; }
+      .toast.bad { background: #2a1414; border-color: #6a3030; color: #ffd7d7; }
+      @media (max-width: 620px) {
+        .hide-sm { display: none; }
+        .pill { font-size: 0.76rem; padding: 0.24rem 0.5rem; }
+        .panel { padding: 0.7rem; border-radius: 0.8rem; }
+        table { font-size: 0.78rem; }
+      }
+      .foot { margin: 0.9rem 0 0; font-size: 0.72rem; color: #6f6790; max-width: 74ch; }
+    </style>
+  </head>
+  <body>
+    <!-- Code-drawn art. The commissioned set is pending workspace credits: the style
+         formula is fixed and the prompts are recorded in design/assets.csv, so these
+         silhouettes are placeholders with the real palette, not a final look. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="horse" viewBox="0 0 120 90">
+        <g fill="currentColor">
+          <ellipse cx="52" cy="42" rx="30" ry="15" />
+          <ellipse cx="78" cy="28" rx="9" ry="12" transform="rotate(-20 78 28)" />
+          <ellipse cx="93" cy="15" rx="12" ry="6" transform="rotate(-32 93 15)" />
+          <rect x="30" y="50" width="7" height="26" rx="3" />
+          <rect x="70" y="52" width="7" height="24" rx="3" />
+          <rect x="44" y="52" width="7" height="24" rx="3" />
+          <rect x="58" y="54" width="7" height="22" rx="3" />
+        </g>
+        <g fill="rgba(0,0,0,0.38)">
+          <path d="M26 33 q10-11 23-11 l0 6 q-13 0-20 9 z" />
+          <rect x="17" y="32" width="5" height="30" rx="2" />
+          <circle cx="97" cy="12" r="1.9" />
+          <rect x="30" y="74" width="7" height="4" rx="1" />
+          <rect x="70" y="74" width="7" height="4" rx="1" />
+        </g>
+      </symbol>
+      <symbol id="rosette" viewBox="0 0 40 40">
+        <g fill="currentColor"><circle cx="20" cy="16" r="11" /><circle cx="20" cy="16" r="4" fill="rgba(0,0,0,0.35)" /></g>
+        <path d="M14 25 l-6 13 l7-3 l5 3 z" fill="rgba(0,0,0,0.3)" />
+      </symbol>
+      <symbol id="straw" viewBox="0 0 40 40">
+        <g fill="currentColor"><rect x="14" y="6" width="12" height="28" rx="6" /><rect x="12" y="12" width="16" height="5" rx="2" fill="rgba(0,0,0,0.35)" /></g>
+      </symbol>
+      <symbol id="gavel" viewBox="0 0 40 40">
+        <g fill="currentColor"><rect x="8" y="12" width="20" height="9" rx="3" /><rect x="20" y="20" width="4" height="16" rx="2" /><rect x="8" y="32" width="20" height="4" rx="2" /></g>
+      </symbol>
+    </svg>
+    <header class="bar">
+      <div class="brand"><span>STUD</span>BOOK</div>
+      <span class="spacer"></span>
+      <span class="pill bank">₲ <b id="guineas">0</b></span>
+      <span class="pill">season <b id="season">1</b></span>
+      <span class="pill" id="condition-pill">going: <b id="condition">—</b></span>
+      <span class="pill hide-sm">stakes cut <b id="cut">0</b></span>
+      <span class="pill"><span class="dot" id="net"></span><span id="nettext">linking…</span></span>
+    </header>
+
+    <p id="status">connecting to the sales ring…</p>
+
+    <main class="grid">
+      <div class="stack">
+        <section class="panel">
+          <h2>Your horses · <span id="herd-count">0</span> in training</h2>
+          <div style="overflow-x: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Horse</th><th class="hide-sm">Sex</th><th>Age</th><th>Value</th>
+                  <th class="hide-sm">F</th><th class="hide-sm">Form</th><th>Upkeep</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="herd"></tbody>
+            </table>
+          </div>
+          <p class="hint">
+            Pick up to three runners, then run the season. Upkeep is charged per horse in
+            training, and a horse that costs more than it earns will eat your stable.
+          </p>
+        </section>
+
+        <section class="panel">
+          <h2>Race meeting · <span id="condition2">—</span></h2>
+          <div class="meeting" id="meeting"></div>
+          <div class="row" style="margin-top: 0.6rem">
+            <button class="brass" id="advance" type="button">Run the season</button>
+            <span class="hint">Entry <span id="entry-fee">40</span> ₲ per runner · four places paid</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Your coverings · <span id="straw-count">0</span> held</h2>
+          <p class="hint">
+            A covering is a frozen straw: it stays usable after the stallion retires, so an
+            elite sire's stock is finite. Pick a straw, then breed a mare to it.
+          </p>
+          <div class="cards" id="straws"></div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel">
+          <h2>Stallion catalogue · <span id="listing-count">0</span> lots</h2>
+          <p class="hint">
+            Certify a lot to reveal the sire's genotype and its hidden carriers, then buy the
+            covering and put it to your best mare.
+          </p>
+          <div class="cards" id="listings"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Standings</h2>
+          <table>
+            <thead><tr><th>Horse</th><th>Stable</th><th>Value</th></tr></thead>
+            <tbody id="standings"></tbody>
+          </table>
+        </section>
+
+        <section class="panel">
+          <h2>Rivals</h2>
+          <table>
+            <thead><tr><th>Stable</th><th>₲</th><th>Horses</th><th>Best</th></tr></thead>
+            <tbody id="rivals"></tbody>
+          </table>
+        </section>
+
+        <section class="panel">
+          <h2>The week</h2>
+          <ul class="log" id="log"></ul>
+        </section>
+      </div>
+    </main>
+
+    <p class="foot">
+      Studbook is a game. The genotypes are simulated, the guineas are simulated, and nothing
+      here is a real horse or a real currency.
+    </p>
+
+    <div id="toasts" aria-live="polite"></div>
+    <script type="module">
+/**
+ * STUDBOOK — the game. A bloodstock sim: genotype-driven breeding, a stallion
+ * market, seasonal racing, ageing and upkeep.
+ *
+ * The genetics here are the SAME model the 20-generation study validated
+ * (horse-genetics/breed-sim.py): 12 loci, two per trait, allele values 0-3, per
+ * locus dominance alternating between complete (carriers hidden — which is what a
+ * certification is worth) and additive, and eight founder lineages tilting their
+ * allele frequencies toward one specialty trait.
+ *
+ * Settings are the ones the robustness pass supported, not guesses:
+ *   * stallion cap of 5 straws per season AND a career limit, tuned as a PAIR
+ *     (together they retained 44.9% of genetic variance; either alone ~20%);
+ *   * inbreeding penalty of 1.0 on F — the only lever that held the stakes class
+ *     down (89.4% vs 100%) and pushed saturation to generation 16;
+ *   * RELATIVE stakes classes (top 3% of the current population each season),
+ *     because against a fixed bar every configuration saturated;
+ *   * hybrid vigour at 10%, kept as a behavioural incentive rather than a balance
+ *     lever (across seeds it was inside the noise);
+ *   * upkeep that scales superlinearly with talent, so quality carries a
+ *     recurring cost it cannot recover by being scarce.
+ *
+ * Contract (enforced by `bun run check:logic`): six exports, no imports, no
+ * timers, no Date.now(), no Math.random(), pure, JSON-serializable state.
+ */
+
+const meta = { game: "Studbook", minPlayers: 1, maxPlayers: 4 };
+
+// ── genetics constants (mirrored from the study) ──────────────────────────
+const TRAITS = ["speed", "stamina", "accel", "recovery", "temperament", "soundness"];
+const LOCI = [];
+for (const trait of TRAITS) for (const index of [0, 1]) LOCI.push(`${trait}${index}`);
+const DOMINANCE = {};
+LOCI.forEach((locus, index) => {
+  DOMINANCE[locus] = [0.0, 0.5, 1.0][index % 3];
+});
+const BASE_FREQ = [0.42, 0.33, 0.2, 0.05];
+const SPECIALTY_FREQ = [0.12, 0.23, 0.35, 0.3];
+const LINEAGES = [
+  { id: "L1", specialty: "speed", name: "Thunder" },
+  { id: "L2", specialty: "stamina", name: "Oxbow" },
+  { id: "L3", specialty: "accel", name: "Flicker" },
+  { id: "L4", specialty: "recovery", name: "Tidewell" },
+  { id: "L5", specialty: "temperament", name: "Quiet" },
+  { id: "L6", specialty: "soundness", name: "Granite" },
+  { id: "L7", specialty: "speed", name: "Comet" },
+  { id: "L8", specialty: "stamina", name: "Marathon" },
+];
+const CONDITIONS = {
+  sprint: { speed: 0.35, accel: 0.3, recovery: 0.15, temperament: 0.1, stamina: 0.05, soundness: 0.05 },
+  classic: { speed: 0.2, stamina: 0.2, accel: 0.15, recovery: 0.2, temperament: 0.1, soundness: 0.15 },
+  staying: { stamina: 0.35, recovery: 0.25, speed: 0.1, accel: 0.05, temperament: 0.1, soundness: 0.15 },
+};
+const CONDITION_ORDER = ["sprint", "classic", "staying"];
+
+// ── game constants ────────────────────────────────────────────────────────
+const SERVICES_PER_SEASON = 5; // the cap the study found matters, with careers
+const MARE_CAREER_FOALS = 8;
+const STALLION_MAX_AGE = 10;
+const MARE_MAX_AGE = 12;
+const RACE_AGE = 2;
+const INBREED_VALUE_PENALTY = 1.0;
+const INBREED_FERTILITY = 0.9;
+const BASE_LIVE_RATE = 0.92;
+const VIGOUR = 0.1;
+const STAKES_SHARE = 0.03; // relative, recomputed every season
+const UPKEEP_BASE = 5;
+// Softened so a mid-tier stable of eight can actually feed itself. The curve is
+// still superlinear — an elite horse costs roughly twice a plodder — which is the
+// anti-inflation job upkeep is meant to do.
+const UPKEEP_TALENT = 1.1;
+const UPKEEP_EXPONENT = 1.55;
+// A 100-fee entry with a thin pot was a poverty trap: a stable that could not
+// afford the fee could not earn, so it never recovered. A small fee and a real
+// subsidy make racing the income engine it is meant to be.
+const ENTRY_FEE = 40;
+const PURSE_SUBSIDY = 3.0; // the house tops the pot up
+const PURSE_SPLIT = [0.45, 0.25, 0.18, 0.12]; // four places, as real meetings pay
+const FOAL_UPKEEP = 0.25; // board for a foal
+const PENSION_UPKEEP = 0.3; // board for a retired horse
+const HOUSE_HORSE_FLOOR = 0.5; // the house always takes a horse at half appraisal
+const MARKET_RAKE = 0.05;
+const CERTIFY_COST = 60;
+const START_BANK = 2000;
+const START_HORSES = 4;
+const AI_STABLES = 3;
+const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
+const AI_ACTIVE_CAP = 10; // cap on rivals' horses IN TRAINING, not total
+const LOG_MAX = 12;
+const NOISE = 0.12; // race-day variance, as a share of the horse's score
+
+const PREFIXES = ["Ash", "Bel", "Cor", "Dun", "El", "Fen", "Gar", "Hol", "Ire", "Jar", "Kel", "Lorn", "Mor", "Nair", "Or", "Pell", "Quill", "Rav", "Sil", "Tarn"];
+const SUFFIXES = ["field", "mont", "brook", "stone", "ridge", "vale", "ford", "moor", "gate", "crest", "mere", "bay"];
+
+// ── deterministic helpers ─────────────────────────────────────────────────
+function copy(state) {
+  return JSON.parse(JSON.stringify(state));
+}
+
+function nextRandom(seed) {
+  const a = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return { state: a >>> 0, value: ((t ^ (t >>> 14)) >>> 0) / 4294967296 };
+}
+
+function seedFrom(text) {
+  const value = String(text ?? "anon");
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash >>> 0;
+}
+
+function round(value, places = 2) {
+  const factor = Math.pow(10, places);
+  return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+/** Advance the PRNG and return an integer in [0, max). */
+function rollInt(state, max) {
+  const step = nextRandom(state.rng);
+  state.rng = step.state;
+  return Math.min(max - 1, Math.floor(step.value * max));
+}
+
+function rollValue(state) {
+  const step = nextRandom(state.rng);
+  state.rng = step.state;
+  return step.value;
+}
+
+function sampleAllele(state, freqs) {
+  const pull = rollValue(state);
+  let acc = 0;
+  for (let value = 0; value < freqs.length; value++) {
+    acc += freqs[value];
+    if (pull <= acc) return value;
+  }
+  return freqs.length - 1;
+}
+
+function alleleFrequencies(lineageId) {
+  const lineage = LINEAGES.find((entry) => entry.id === lineageId) ?? LINEAGES[0];
+  const table = {};
+  for (const locus of LOCI) {
+    table[locus] = locus.startsWith(lineage.specialty) ? SPECIALTY_FREQ : BASE_FREQ;
+  }
+  return table;
+}
+
+const FREQ_CACHE = {};
+for (const lineage of LINEAGES) FREQ_CACHE[lineage.id] = alleleFrequencies(lineage.id);
+
+function horseName(state, lineageId) {
+  const lineage = LINEAGES.find((entry) => entry.id === lineageId) ?? LINEAGES[0];
+  const prefix = PREFIXES[rollInt(state, PREFIXES.length)];
+  const suffix = SUFFIXES[rollInt(state, SUFFIXES.length)];
+  return `${prefix}${suffix} (${lineage.id})`;
+}
+
+// ── phenotype maths ───────────────────────────────────────────────────────
+function expressed(genome, locus) {
+  const pair = genome[locus] ?? [0, 0];
+  const hi = Math.max(pair[0], pair[1]);
+  const lo = Math.min(pair[0], pair[1]);
+  const delta = DOMINANCE[locus];
+  return ((hi + delta * lo) * 2) / (1 + delta);
+}
+
+function traitValue(genome, trait) {
+  return expressed(genome, `${trait}0`) + expressed(genome, `${trait}1`);
+}
+
+function traitsOf(genome) {
+  const out = {};
+  for (const trait of TRAITS) out[trait] = round(traitValue(genome, trait), 2);
+  return out;
+}
+
+/** Best-fitting performance across the three conditions: specialists survive. */
+function conditionScores(genome) {
+  const out = {};
+  for (const [condition, weights] of Object.entries(CONDITIONS)) {
+    let total = 0;
+    for (const [trait, weight] of Object.entries(weights)) total += weight * traitValue(genome, trait);
+    out[condition] = total;
+  }
+  return out;
+}
+
+function geneticValue(genome) {
+  const scores = conditionScores(genome);
+  return Math.max(...Object.values(scores));
+}
+
+function heterozygosity(genome) {
+  let count = 0;
+  for (const locus of LOCI) {
+    const pair = genome[locus];
+    if (pair && pair[0] !== pair[1]) count += 1;
+  }
+  return count / LOCI.length;
+}
+
+function vigourFor(sire, dam) {
+  return sire.lineage === dam.lineage ? 0 : VIGOUR;
+}
+
+/**
+ * Recompute every horse's derived numbers for the current population: genetic
+ * value, inbreeding (as homozygosity excess, as in the study), realised value
+ * with the inbreeding penalty and vigour, and the RELATIVE stakes class.
+ */
+function scorePopulation(state) {
+  const frequencies = {};
+  for (const locus of LOCI) {
+    const counts = [0, 0, 0, 0];
+    for (const horse of state.horses) {
+      counts[horse.genome[locus][0]] += 1;
+      counts[horse.genome[locus][1]] += 1;
+    }
+    const total = counts.reduce((sum, value) => sum + value, 0) || 1;
+    frequencies[locus] = counts.map((value) => value / total);
+  }
+  let expectedHeterozygosity = 0;
+  for (const locus of LOCI) {
+    let sumSquares = 0;
+    for (const p of frequencies[locus]) sumSquares += p * p;
+    expectedHeterozygosity += 1 - sumSquares;
+  }
+  expectedHeterozygosity /= LOCI.length;
+
+  for (const horse of state.horses) {
+    horse.genetic = round(geneticValue(horse.genome), 3);
+    const observed = heterozygosity(horse.genome);
+    horse.f = expectedHeterozygosity > 0 ? round(Math.max(0, Math.min(1, 1 - observed / expectedHeterozygosity)), 4) : 0;
+    const vigour = horse.vigour ?? 0;
+    horse.value = round(horse.genetic * (1 - INBREED_VALUE_PENALTY * horse.f) * (1 + vigour), 3);
+    horse.conditions = conditionScores(horse.genome);
+    horse.upkeep = upkeepFor(horse);
+  }
+
+  const ranked = [...state.horses].filter((h) => inPlay(h)).sort((a, b) => b.value - a.value);
+  const eliteCount = Math.max(1, Math.round(ranked.length * STAKES_SHARE));
+  for (const horse of state.horses) horse.stakes = false;
+  for (const horse of ranked.slice(0, eliteCount)) horse.stakes = true;
+  state.eliteCut = ranked.length ? ranked[Math.min(eliteCount, ranked.length - 1)].value : 0;
+}
+
+function upkeepFor(horse) {
+  const talent = Math.pow(Math.max(horse.genetic, 0), UPKEEP_EXPONENT);
+  const full = UPKEEP_BASE + UPKEEP_TALENT * talent;
+  // Only horses in training eat like racehorses. Charging full board on the whole
+  // herd is what turned the first playtest into a death spiral: breeding costs
+  // nothing, so the herd grew while every foal was billed as a racer forever.
+  if (horse.age < 1) return Math.round(full * FOAL_UPKEEP);
+  if (horse.retired) return Math.round(full * PENSION_UPKEEP);
+  return Math.round(full);
+}
+
+function suggestedStrawPrice(horse) {
+  const base = 60 + Math.pow(Math.max(horse.genetic - 3, 0), 2.1) * 1.4;
+  const stakesBonus = horse.stakes ? 1.35 : 1;
+  const record = 1 + Math.min(horse.stakesWins, 6) * 0.08;
+  const age = 1 - Math.min(Math.max(horse.age - 2, 0), 10) * 0.02;
+  return Math.max(20, Math.round(base * stakesBonus * record * age));
+}
+
+function suggestedHorsePrice(horse) {
+  return Math.max(25, Math.round(Math.pow(Math.max(horse.value, 1), 2.4) * 1.5));
+}
+
+function log(state, text, kind = "market") {
+  state.log = [{ season: state.season, text, kind }, ...state.log].slice(0, LOG_MAX);
+}
+
+// ── horse and stable construction ─────────────────────────────────────────
+function makeFounder(state, lineageId, sex, age) {
+  const freqs = FREQ_CACHE[lineageId];
+  const genome = {};
+  for (const locus of LOCI) {
+    genome[locus] = [sampleAllele(state, freqs[locus]), sampleAllele(state, freqs[locus])];
+  }
+  return makeHorse(state, genome, lineageId, sex, age, 0);
+}
+
+function makeHorse(state, genome, lineageId, sex, age, bornSeason, vigour = 0) {
+  const id = `h${state.nextId++}`;
+  return {
+    id,
+    name: horseName(state, lineageId),
+    sex,
+    lineage: lineageId,
+    genome,
+    age,
+    bornSeason,
+    vigour,
+    retired: false,
+    starts: 0,
+    wins: 0,
+    stakesWins: 0,
+    earnings: 0,
+    foals: 0,
+    strawsThisSeason: 0,
+    certifiedBy: [],
+    owner: null,
+  };
+}
+
+function freshStable(state, stableId, name, playerId) {
+  return {
+    id: stableId,
+    name,
+    player: playerId,
+    guineas: START_BANK,
+    horses: [],
+    straws: [],
+    entries: [],
+    forcedSales: 0,
+  };
+}
+
+function giveStartingStock(state, stable) {
+  for (let i = 0; i < START_HORSES; i++) {
+    const lineage = LINEAGES[rollInt(state, LINEAGES.length)].id;
+    const sex = i < 2 ? "F" : "M";
+    const horse = makeFounder(state, lineage, sex, 3 + rollInt(state, 3));
+    horse.owner = stable.id;
+    state.horses.push(horse);
+    stable.horses.push(horse.id);
+    if (sex === "M") {
+      for (let s = 0; s < SERVICES_PER_SEASON; s += 1) {
+        stable.straws.push({ id: `s${state.nextStraw++}`, sire: horse.id, vintage: state.season });
+      }
+    }
+  }
+  // one extra mare so breeding is possible from turn one without trading
+  const mare = makeFounder(state, LINEAGES[rollInt(state, LINEAGES.length)].id, "F", 4);
+  mare.owner = stable.id;
+  state.horses.push(mare);
+  stable.horses.push(mare.id);
+}
+
+// ── setup ─────────────────────────────────────────────────────────────────
+function setup(players) {
+  const state = {
+    seed: seedFrom(players.join("|")),
+    rng: seedFrom(players.join("|")),
+    season: 1,
+    nextId: 1,
+    nextStraw: 1,
+    stables: [],
+    horses: [],
+    listings: [],
+    log: [],
+    ledger: [],
+    lastRace: null,
+    condition: CONDITION_ORDER[0],
+    eliteCut: 0,
+    owner: players[0] ?? null,
+    players: [...players],
+    unowned: [],
+  };
+
+  players.forEach((playerId, index) => {
+    const stable = freshStable(state, `st${index + 1}`, index === 0 ? "Your stable" : `Stable ${index + 1}`, playerId);
+    state.stables.push(stable);
+    giveStartingStock(state, stable);
+  });
+  for (let i = 0; i < AI_STABLES; i++) {
+    const stable = freshStable(state, `ai${i + 1}`, ["Ashgrove", "Ravensmoor", "Tarnfield"][i] ?? `Rival ${i + 1}`, null);
+    state.stables.push(stable);
+    giveStartingStock(state, stable);
+  }
+  // Score BEFORE anything prices a lot. Listings created from unscored horses had
+  // NaN prices, which JSON stores as null — and null read as a free covering.
+  scorePopulation(state);
+  for (const stable of state.stables) {
+    if (stable.id.startsWith("ai")) aiListStraws(state, stable);
+  }
+  state.condition = CONDITION_ORDER[(state.season - 1) % CONDITION_ORDER.length];
+  log(state, "Season 1 opens. Sales catalogues are live.", "season");
+  return state;
+}
+
+function stableOf(state, playerId) {
+  return state.stables.find((stable) => stable.player === playerId) ?? null;
+}
+
+function horseById(state, horseId) {
+  return state.horses.find((horse) => horse.id === horseId) ?? null;
+}
+
+/** In training: owned, not retired, not sold off or lost to a debt. */
+function inPlay(horse) {
+  return Boolean(horse) && !horse.retired && !horse.sold && horse.owner !== null;
+}
+
+function strawsOf(state, stable) {
+  return stable.straws;
+}
+
+function nextSeason(state) {
+  state.season += 1;
+  state.condition = CONDITION_ORDER[(state.season - 1) % CONDITION_ORDER.length];
+}
+
+// ── action validation ─────────────────────────────────────────────────────
+function validateAction(state, playerId, action) {
+  if (!state) return { ok: false, error: "join first" };
+  if (!action || typeof action !== "object") return { ok: false, error: "action must be an object" };
+  const type = action.type;
+  const stable = stableOf(state, playerId);
+  // setup runs when the FIRST player arrives (minPlayers is 1), so a later joiner is
+  // seated by the room with no stable of their own. They provision one here.
+  if (type === "takeSeat") {
+    return stable ? { ok: false, error: "you already have a stable" } : { ok: true };
+  }
+  if (!stable) return { ok: false, error: "take a seat first" };
+
+  if (type === "advance") return { ok: true };
+
+  if (type === "enter") {
+    const ids = Array.isArray(action.horseIds) ? action.horseIds : [];
+    if (ids.length > 3) return { ok: false, error: "at most 3 runners per meeting" };
+    for (const id of ids) {
+      const horse = horseById(state, id);
+      if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+      if (horse.retired) return { ok: false, error: `${horse.name} is retired` };
+      if (horse.age < RACE_AGE) return { ok: false, error: `${horse.name} is too young to race` };
+    }
+    return { ok: true };
+  }
+
+  if (type === "breed") {
+    const mare = horseById(state, action.mareId);
+    const straw = stable.straws.find((entry) => entry.id === action.strawId);
+    if (!mare || mare.owner !== stable.id) return { ok: false, error: "not your mare" };
+    if (mare.sex !== "F") return { ok: false, error: "only a mare can be covered" };
+    if (mare.retired) return { ok: false, error: "that mare is retired" };
+    if (mare.age > MARE_MAX_AGE) return { ok: false, error: "that mare is past breeding age" };
+    if (mare.foals >= MARE_CAREER_FOALS) return { ok: false, error: "that mare has finished her career" };
+    if (!straw) return { ok: false, error: "you do not hold that straw" };
+    const sire = horseById(state, straw.sire);
+    if (!sire) return { ok: false, error: "that straw has no sire" };
+    if (stable.guineas < 0) return { ok: false, error: "settle your debts first" };
+    return { ok: true };
+  }
+
+  if (type === "listStraw") {
+    const straw = stable.straws.find((entry) => entry.id === action.strawId);
+    if (!straw) return { ok: false, error: "you do not hold that straw" };
+    if (!Number.isFinite(action.price) || action.price < 1) {
+      return { ok: false, error: "price must be a positive number" };
+    }
+    return { ok: true };
+  }
+
+  if (type === "unlistStraw") {
+    const listing = state.listings.find((entry) => entry.id === action.listingId);
+    if (!listing || listing.seller !== stable.id) return { ok: false, error: "not your listing" };
+    return { ok: true };
+  }
+
+  if (type === "buyStraw") {
+    const listing = state.listings.find((entry) => entry.id === action.listingId);
+    if (!listing) return { ok: false, error: "listing is gone" };
+    if (listing.seller === stable.id) return { ok: false, error: "that is your own lot" };
+    if (stable.guineas < listing.price) return { ok: false, error: "not enough guineas" };
+    return { ok: true };
+  }
+
+  if (type === "certify") {
+    const horse = horseById(state, action.horseId);
+    if (!horse) return { ok: false, error: "no such horse" };
+    if (horse.owner === stable.id) return { ok: false, error: "you already know your own stock" };
+    if (horse.certifiedBy.includes(stable.id)) return { ok: false, error: "already certified for you" };
+    if (stable.guineas < CERTIFY_COST) return { ok: false, error: "not enough guineas" };
+    return { ok: true };
+  }
+
+  if (type === "sell") {
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (stable.horses.length <= 1) return { ok: false, error: "you cannot sell your last horse" };
+    return { ok: true };
+  }
+
+  if (type === "retire") {
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (horse.retired) return { ok: false, error: "already retired" };
+    return { ok: true };
+  }
+
+  return { ok: false, error: "unknown action" };
+}
+
+// ── action application ────────────────────────────────────────────────────
+function applyAction(state, playerId, action) {
+  const next = copy(state);
+  if (action && action.type === "takeSeat") {
+    const stable = freshStable(next, `st${next.stables.length + 1}`, `Stable ${next.stables.length + 1}`, playerId);
+    next.stables.push(stable);
+    giveStartingStock(next, stable);
+    scorePopulation(next);
+    log(next, `${stable.name} joins the sales ring.`, "season");
+    return next;
+  }
+  const stable = stableOf(next, playerId);
+  if (!stable) return next;
+
+  if (action.type === "enter") {
+    stable.entries = [...new Set((action.horseIds ?? []).map(String))].slice(0, 3);
+    return next;
+  }
+
+  if (action.type === "breed") {
+    const mare = horseById(next, action.mareId);
+    const strawIndex = stable.straws.findIndex((entry) => entry.id === action.strawId);
+    const straw = stable.straws[strawIndex];
+    const sire = horseById(next, straw.sire);
+    stable.straws.splice(strawIndex, 1);
+    mare.foals += 1;
+    log(next, `${mare.name} covered by ${sire.name} (vintage ${straw.vintage}).`, "breeding");
+
+    const liveRate = Math.max(0.35, BASE_LIVE_RATE - INBREED_FERTILITY * ((sire.f + mare.f) / 2));
+    if (rollValue(next) > liveRate) {
+      log(next, `No foal from ${mare.name} this season.`, "breeding");
+      return next;
+    }
+    const genome = {};
+    for (const locus of LOCI) {
+      genome[locus] = [
+        sire.genome[locus][rollInt(next, 2)],
+        mare.genome[locus][rollInt(next, 2)],
+      ];
+    }
+    const lineage = rollValue(next) < 0.5 ? sire.lineage : mare.lineage;
+    const sex = rollValue(next) < 0.5 ? "M" : "F";
+    const foal = makeHorse(next, genome, lineage, sex, 0, next.season, vigourFor(sire, mare));
+    foal.owner = stable.id;
+    next.horses.push(foal);
+    stable.horses.push(foal.id);
+    log(next, `${foal.name} foaled by ${mare.name} out of ${sire.name}.`, "breeding");
+    scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "listStraw") {
+    const index = stable.straws.findIndex((entry) => entry.id === action.strawId);
+    const straw = stable.straws.splice(index, 1)[0];
+    const sire = horseById(next, straw.sire);
+    next.listings.push({
+      id: `l${next.nextId++}`,
+      seller: stable.id,
+      straw,
+      price: Math.round(action.price),
+      sire: straw.sire,
+      sireName: sire ? sire.name : "unknown",
+      vintage: straw.vintage,
+      season: next.season,
+    });
+    log(next, `${stable.name} offers a straw from ${sire ? sire.name : "unknown"} at ${Math.round(action.price)} GNS.`, "market");
+    return next;
+  }
+
+  if (action.type === "unlistStraw") {
+    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
+    const listing = next.listings.splice(index, 1)[0];
+    stable.straws.push(listing.straw);
+    return next;
+  }
+
+  if (action.type === "buyStraw") {
+    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
+    const listing = next.listings.splice(index, 1)[0];
+    const seller = next.stables.find((entry) => entry.id === listing.seller);
+    const rake = Math.round(listing.price * MARKET_RAKE);
+    stable.guineas -= listing.price;
+    if (seller) seller.guineas += listing.price - rake;
+    stable.straws.push({ ...listing.straw, id: `s${next.nextStraw++}` });
+    next.ledger = [
+      { season: next.season, text: `${stable.name} bought a straw from ${listing.sireName}`, amount: -listing.price },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(next, `${stable.name} bought a ${listing.sireName} straw for ${listing.price} GNS.`, "market");
+    return next;
+  }
+
+  if (action.type === "certify") {
+    const horse = horseById(next, action.horseId);
+    horse.certifiedBy = [...horse.certifiedBy, stable.id];
+    stable.guineas -= CERTIFY_COST;
+    log(next, `${stable.name} paid ${CERTIFY_COST} GNS to certify ${horse.name}.`, "market");
+    return next;
+  }
+
+  if (action.type === "sell") {
+    const horse = horseById(next, action.horseId);
+    const floor = Math.round(suggestedHorsePrice(horse) * HOUSE_HORSE_FLOOR);
+    stable.guineas += floor;
+    stable.horses = stable.horses.filter((id) => id !== horse.id);
+    // Keep the horse in state. His genotype has to outlive him: banked straws stay
+    // usable, which is the point of freezing semen. Deleting him orphaned every
+    // straw he had ever sired.
+    horse.owner = null;
+    horse.sold = true;
+    next.ledger = [
+      { season: next.season, text: `Sold ${horse.name} to the house`, amount: floor },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(next, `${horse.name} sold to the house for ${floor} GNS.`, "market");
+    scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "retire") {
+    const horse = horseById(next, action.horseId);
+    horse.retired = true;
+    log(next, `${horse.name} retired to the paddock.`, "breeding");
+    scorePopulation(next);
+    return next;
+  }
+
+  if (action.type === "advance") return runSeason(next);
+
+  return next;
+}
+
+// ── the season ────────────────────────────────────────────────────────────
+function runSeason(state) {
+  const condition = state.condition;
+  const entrants = [];
+
+  for (const stable of state.stables) {
+    if (stable.id.startsWith("ai")) {
+      // House money keeps rival stables solvent enough to trade, which is what
+      // gives a solo player counterparties in the straw market.
+      stable.guineas += AI_STIPEND;
+      aiPrepareSeason(state, stable);
+    }
+    for (const horseId of stable.entries.slice(0, 3)) {
+      const horse = horseById(state, horseId);
+      if (!horse || horse.retired || horse.age < RACE_AGE) continue;
+      // The house waives what a stable cannot pay. Without this a broke stable can
+      // never race, so it can never earn — the trap that killed two playtests.
+      // Real tracks grant hardship entries for exactly this reason.
+      const fee = Math.min(ENTRY_FEE, Math.max(0, stable.guineas));
+      stable.guineas -= fee;
+      entrants.push({ horse, stableId: stable.id });
+    }
+    stable.entries = [];
+  }
+
+  if (entrants.length) {
+    for (const entry of entrants) {
+      const score = entry.horse.conditions[condition];
+      const noise = (rollValue(state) - 0.5) * NOISE * score;
+      entry.score = score + noise;
+    }
+    entrants.sort((a, b) => b.score - a.score);
+    const pot = Math.round(entrants.length * ENTRY_FEE * PURSE_SUBSIDY);
+    entrants.forEach((entry, index) => {
+      const share = PURSE_SPLIT[index];
+      const prize = share ? Math.round(pot * share) : 0;
+      const horse = entry.horse;
+      const stable = state.stables.find((s) => s.id === entry.stableId);
+      horse.starts += 1;
+      if (prize > 0 && stable) {
+        stable.guineas += prize;
+        horse.earnings += prize;
+      }
+      if (index === 0) {
+        horse.wins += 1;
+        if (horse.stakes) horse.stakesWins += 1;
+      }
+    });
+    const winner = entrants[0];
+    state.lastRace = {
+      season: state.season,
+      condition,
+      pot,
+      runners: entrants.length,
+      result: entrants.slice(0, Math.min(3, entrants.length)).map((entry) => ({
+        horseId: entry.horse.id,
+        name: entry.horse.name,
+        score: round(entry.score, 2),
+        stable: entry.stableId,
+      })),
+      winnerStakes: Boolean(winner.horse.stakes),
+    };
+    log(
+      state,
+      `${condition} meeting: ${winner.horse.name} wins a pot of ${pot} GNS from ${entrants.length} runners.`,
+      "race",
+    );
+  } else {
+    state.lastRace = null;
+  }
+
+  // upkeep, ageing, straws, retirement
+  for (const stable of state.stables) {
+    let bill = 0;
+    for (const horseId of [...stable.horses]) {
+      const horse = horseById(state, horseId);
+      if (!horse) continue;
+      bill += horse.upkeep;
+    }
+    stable.guineas -= bill;
+    if (stable.guineas < 0) {
+      const cheapest = [...stable.horses]
+        .map((id) => horseById(state, id))
+        .filter((horse) => horse && !horse.retired)
+        .sort((a, b) => a.value - b.value)[0];
+      if (cheapest) {
+        cheapest.owner = null;
+        cheapest.sold = true;
+        stable.horses = stable.horses.filter((id) => id !== cheapest.id);
+        stable.forcedSales += 1;
+        log(state, `${stable.name} could not meet the ${bill} GNS upkeep bill; ${cheapest.name} was sold off.`, "upkeep");
+      }
+      stable.guineas = Math.max(stable.guineas, 0);
+    }
+  }
+
+  for (const horse of [...state.horses]) {
+    horse.age += 1;
+    const limit = horse.sex === "M" ? STALLION_MAX_AGE : MARE_MAX_AGE;
+    if (!horse.retired && horse.age > limit) horse.retired = true;
+  }
+
+  // Rivals keep their herds to a sensible size and cash the surplus. An unbounded
+  // rival herd was out-earning a human player on scale alone.
+  for (const stable of state.stables) {
+    if (!stable.id.startsWith("ai")) continue;
+    // Pensioners first: a retired horse produces nothing, so cashing it is always
+    // right. Culling the weakest ACTIVE horse while pensioners clogged the herd is
+    // what shrank rival stables to nothing and emptied the catalogue.
+    const pensioners = stable.horses
+      .map((id) => horseById(state, id))
+      .filter((horse) => horse && horse.retired);
+    for (const pensioner of pensioners) {
+      stable.guineas += Math.round(suggestedHorsePrice(pensioner) * HOUSE_HORSE_FLOOR);
+      stable.horses = stable.horses.filter((id) => id !== pensioner.id);
+      pensioner.owner = null;
+      pensioner.sold = true;
+    }
+    let active = stable.horses
+      .map((id) => horseById(state, id))
+      .filter((horse) => horse && !horse.retired);
+    while (active.length > AI_ACTIVE_CAP) {
+      const weakest = active.slice().sort((a, b) => a.value - b.value)[0];
+      stable.guineas += Math.round(suggestedHorsePrice(weakest) * HOUSE_HORSE_FLOOR);
+      stable.horses = stable.horses.filter((id) => id !== weakest.id);
+      weakest.owner = null;
+      weakest.sold = true;
+      active = active.filter((horse) => horse.id !== weakest.id);
+    }
+  }
+
+  for (const stable of state.stables) {
+    for (const horseId of stable.horses) {
+      const horse = horseById(state, horseId);
+      if (!horse || horse.sex !== "M") continue;
+      if (horse.retired || horse.age < 2 || horse.age > STALLION_MAX_AGE) continue;
+      horse.strawsThisSeason = 0;
+      for (let i = 0; i < SERVICES_PER_SEASON; i += 1) {
+        stable.straws.push({ id: `s${state.nextStraw++}`, sire: horse.id, vintage: state.season });
+        horse.strawsThisSeason += 1;
+      }
+    }
+  }
+
+  nextSeason(state);
+  state.listings = state.listings.filter((listing) => state.season - listing.season < 3);
+  scorePopulation(state);
+  for (const stable of state.stables) {
+    if (stable.id.startsWith("ai")) aiListStraws(state, stable);
+  }
+  log(state, `Season ${state.season} opens. Condition: ${state.condition}.`, "season");
+  state.turn = (state.turn ?? 0) + 1;
+  return state;
+}
+
+// ── rival stables, so a solo player always has counterparties ─────────────
+function aiPrepareSeason(state, stable) {
+  const owned = stable.horses.map((id) => horseById(state, id)).filter(Boolean);
+  const runners = owned
+    .filter((horse) => !horse.retired && horse.age >= RACE_AGE)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3);
+  stable.entries = runners.map((horse) => horse.id);
+
+  const mares = owned
+    .filter((horse) => horse.sex === "F" && !horse.retired && horse.foals < MARE_CAREER_FOALS && horse.age <= MARE_MAX_AGE)
+    .sort((a, b) => b.value - a.value);
+  for (const mare of mares.slice(0, 2)) {
+    let strawIndex = stable.straws.findIndex((entry) => {
+      const sire = horseById(state, entry.sire);
+      return sire && sire.lineage !== mare.lineage;
+    });
+    if (strawIndex < 0) strawIndex = stable.straws.length ? 0 : -1;
+    if (strawIndex < 0) break;
+    const straw = stable.straws[strawIndex];
+    const sire = horseById(state, straw.sire);
+    if (!sire) break;
+    stable.straws.splice(strawIndex, 1);
+    mare.foals += 1;
+    const liveRate = Math.max(0.35, BASE_LIVE_RATE - INBREED_FERTILITY * ((sire.f + mare.f) / 2));
+    if (rollValue(state) > liveRate) continue;
+    const genome = {};
+    for (const locus of LOCI) {
+      genome[locus] = [sire.genome[locus][rollInt(state, 2)], mare.genome[locus][rollInt(state, 2)]];
+    }
+    const lineage = rollValue(state) < 0.5 ? sire.lineage : mare.lineage;
+    const sex = rollValue(state) < 0.5 ? "M" : "F";
+    const foal = makeHorse(state, genome, lineage, sex, 0, state.season, vigourFor(sire, mare));
+    foal.owner = stable.id;
+    state.horses.push(foal);
+    stable.horses.push(foal.id);
+  }
+
+  // Rivals buy coverings the way real breeders do — for throughput and for outside
+  // blood — not only when a lot beats their own best horse. Demanding superiority
+  // is what left 85 lots unsold in the last playtest.
+  const bestOwn = Math.max(0, ...owned.map((horse) => horse.value));
+  const needsCoverings = mares.length > 0 || stable.straws.length < 6;
+  for (let bought = 0; bought < 2; bought += 1) {
+    if (!needsCoverings) break;
+    const budget = stable.guineas - 250;
+    if (budget < 40) break;
+    const wanted = state.listings
+      .filter((listing) => listing.seller !== stable.id)
+      .map((listing) => ({ listing, sire: horseById(state, listing.sire) }))
+      .filter((entry) => entry.sire && entry.listing.price <= budget && entry.sire.value >= bestOwn * 0.6)
+      // Best VALUE PER GUINEA, not best absolute sire: buying the priciest lot and
+      // ignoring price is what left the catalogue piled up in the last playtest.
+      .sort((a, b) => b.sire.value / b.listing.price - a.sire.value / a.listing.price)[0];
+    if (!wanted) break;
+    const index = state.listings.findIndex((entry) => entry.id === wanted.listing.id);
+    state.listings.splice(index, 1);
+    const seller = state.stables.find((entry) => entry.id === wanted.listing.seller);
+    const rake = Math.round(wanted.listing.price * MARKET_RAKE);
+    stable.guineas -= wanted.listing.price;
+    if (seller) seller.guineas += wanted.listing.price - rake;
+    stable.straws.push({ ...wanted.listing.straw, id: `s${state.nextStraw++}` });
+  }
+}
+
+function aiListStraws(state, stable) {
+  // A per-stable cap: flooding the catalogue is what left 400 lots unsold in the
+  // first playtest, which is the design's own warning about dead markets.
+  const spare = stable.straws.slice(0, Math.min(8, Math.max(0, stable.straws.length - 3)));
+  for (const straw of spare) {
+    const sire = horseById(state, straw.sire);
+    if (!sire) continue;
+    const index = stable.straws.findIndex((entry) => entry.id === straw.id);
+    if (index < 0) continue;
+    stable.straws.splice(index, 1);
+    state.listings.push({
+      id: `l${state.nextId++}`,
+      seller: stable.id,
+      straw,
+      price: suggestedStrawPrice(sire),
+      sire: straw.sire,
+      sireName: sire.name,
+      vintage: straw.vintage,
+      season: state.season,
+    });
+  }
+}
+
+// ── end state and views ───────────────────────────────────────────────────
+function isGameOver() {
+  return { over: false };
+}
+
+function certifyView(horse, stable) {
+  return horse.certifiedBy.includes(stable.id);
+}
+
+function viewFor(state, playerId) {
+  const stable = stableOf(state, playerId);
+  const mine = new Set(stable ? stable.horses : []);
+  const certified = new Set();
+  if (stable) {
+    for (const horse of state.horses) {
+      if (horse.certifiedBy.includes(stable.id)) certified.add(horse.id);
+    }
+  }
+
+  const horseView = (horse) => {
+    const revealed = mine.has(horse.id) || certified.has(horse.id);
+    return {
+      id: horse.id,
+      name: horse.name,
+      sex: horse.sex,
+      age: horse.age,
+      lineage: horse.lineage,
+      retired: horse.retired,
+      value: horse.value,
+      genetic: horse.genetic,
+      f: horse.f,
+      stakes: horse.stakes,
+      starts: horse.starts,
+      wins: horse.wins,
+      stakesWins: horse.stakesWins,
+      earnings: horse.earnings,
+      foals: horse.foals,
+      upkeep: horse.upkeep,
+      traits: traitsOf(horse.genome),
+      conditions: horse.conditions,
+      owner: horse.owner,
+      certified: certified.has(horse.id),
+      genotype: revealed ? horse.genome : null,
+    };
+  };
+
+  const population = state.horses
+    .filter((horse) => inPlay(horse))
+    .sort((a, b) => b.value - a.value);
+
+  return {
+    isYou: Boolean(stable),
+    season: state.season,
+    condition: state.condition,
+    eliteCut: state.eliteCut,
+    eliteCount: Math.max(1, Math.round(population.length * STAKES_SHARE)),
+    stable: stable
+      ? {
+          id: stable.id,
+          name: stable.name,
+          guineas: stable.guineas,
+          forcedSales: stable.forcedSales,
+          entries: stable.entries,
+        }
+      : null,
+    horses: stable ? stable.horses.map((id) => horseById(state, id)).filter(Boolean).map(horseView) : [],
+    straws: stable
+      ? stable.straws.map((straw) => {
+          const sire = horseById(state, straw.sire);
+          return {
+            id: straw.id,
+            sire: straw.sire,
+            sireName: sire ? sire.name : "unknown",
+            vintage: straw.vintage,
+            suggestedValue: sire ? suggestedStrawPrice(sire) : 0,
+            sireValue: sire ? sire.value : 0,
+            sireStakes: sire ? sire.stakes : false,
+            sireRetired: sire ? sire.retired : false,
+          };
+        })
+      : [],
+    listings: state.listings.map((listing) => {
+      const sire = horseById(state, listing.sire);
+      return {
+        id: listing.id,
+        seller: listing.seller,
+        sellerName: state.stables.find((entry) => entry.id === listing.seller)?.name ?? "unknown",
+        price: listing.price,
+        sireName: listing.sireName,
+        sireId: listing.sire,
+        vintage: listing.vintage,
+        suggested: sire ? suggestedStrawPrice(sire) : 0,
+        sireValue: sire ? sire.value : 0,
+        sireStakes: sire ? sire.stakes : false,
+        sireAge: sire ? sire.age : null,
+        sireRetired: sire ? sire.retired : false,
+        sireLineage: sire ? sire.lineage : null,
+        mine: Boolean(stable && listing.seller === stable.id),
+        sireTraits: sire ? traitsOf(sire.genome) : null,
+        sireGenotype: sire && certified.has(sire.id) ? sire.genome : null,
+      };
+    }),
+    rivals: state.stables
+      .filter((entry) => !entry.player)
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        guineas: entry.guineas,
+        horses: entry.horses.length,
+        best: round(
+          Math.max(0, ...entry.horses.map((id) => horseById(state, id)?.value ?? 0)),
+          2,
+        ),
+      })),
+    standings: population.slice(0, 8).map((horse) => ({
+      name: horse.name,
+      stable: state.stables.find((entry) => entry.id === horse.owner)?.name ?? "unowned",
+      value: horse.value,
+      stakes: horse.stakes,
+      wins: horse.wins,
+    })),
+    meeting: state.lastRace
+      ? {
+          season: state.lastRace.season,
+          condition: state.lastRace.condition,
+          pot: state.lastRace.pot,
+          runners: state.lastRace.runners,
+          winner: state.lastRace.result[0] ? state.lastRace.result[0].name : "—",
+          places: state.lastRace.result.map((entry, index) => ({
+            place: index + 1,
+            name: entry.name,
+            stable: state.stables.find((s) => s.id === entry.stable)?.name ?? "unknown",
+            score: entry.score,
+          })),
+        }
+      : null,
+    log: state.log,
+    ledger: state.ledger,
+    retirements: population.filter((horse) => horse.retired).length,
+    certifyCost: CERTIFY_COST,
+    entryFee: ENTRY_FEE,
+    servicesPerSeason: SERVICES_PER_SEASON,
+    mareCareer: MARE_CAREER_FOALS,
+    stakesShare: STAKES_SHARE,
+  };
+}
+
+/* ---- local room ---------------------------------------------------------
+   The hosted game talks to a Durable Object room over a WebSocket. This build
+   serves the SAME protocol in-page, so the rules and the screen above and below
+   are untouched: only the transport differs, and progress saves to localStorage.
+   ------------------------------------------------------------------------ */
+const SAVE_PREFIX = "studbook:standalone:";
+
+function localPlayerId() {
+  const key = "hf:game:playerId";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = Math.random().toString(36).slice(2, 10);
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function loadSaved(playerId) {
+  try {
+    const raw = localStorage.getItem(SAVE_PREFIX + playerId);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+class LocalSocket {
+  constructor() {
+    this.readyState = 1; // WebSocket.OPEN, which is all the client checks
+    this.listeners = { open: [], message: [], close: [] };
+    this.playerId = localPlayerId();
+    this.game = loadSaved(this.playerId);
+    setTimeout(() => this.emit("open", {}), 0);
+  }
+  addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+  emit(type, event) { for (const fn of this.listeners[type] || []) fn(event); }
+  post(data) { this.emit("message", { data: JSON.stringify(data) }); }
+  save() {
+    try { localStorage.setItem(SAVE_PREFIX + this.playerId, JSON.stringify(this.game)); }
+    catch { /* a full or blocked localStorage must not break the game */ }
+  }
+  fresh(playerId) {
+    return { status: "playing", seats: [playerId], state: setup([playerId]), result: null };
+  }
+  broadcast() {
+    this.post({
+      type: "state",
+      status: this.game.status,
+      seats: this.game.seats,
+      you: this.playerId,
+      connected: 1,
+      view: viewFor(this.game.state, this.playerId),
+      result: this.game.result,
+      meta,
+    });
+  }
+  send(raw) {
+    if (raw === "__ping") return;
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+    if (msg.type === "join") {
+      this.playerId = msg.playerId;
+      // look the save up under the id the client actually claims
+      if (!this.game) this.game = loadSaved(msg.playerId) || this.fresh(msg.playerId);
+      this.save();
+      this.broadcast();
+      return;
+    }
+    if (!this.game) return;
+    if (msg.type === "action") {
+      const verdict = validateAction(this.game.state, this.playerId, msg.action);
+      if (!verdict.ok) {
+        this.post({ type: "error", error: verdict.error || "invalid action" });
+        return;
+      }
+      this.game.state = applyAction(this.game.state, this.playerId, msg.action);
+      this.save();
+      this.broadcast();
+      return;
+    }
+    if (msg.type === "reset") {
+      this.game = this.fresh(this.playerId);
+      this.save();
+      this.broadcast();
+    }
+  }
+}
+
+/**
+ * Studbook client. The net half is the platform's standard harness; the view half
+ * renders whatever the authoritative room sends. This file decides nothing about
+ * the game — it sends intents and draws.
+ */
+
+// ── net (keep) ─────────────────────────────────────────────────────────────
+const room = new URLSearchParams(location.search).get("room") || "main";
+
+function playerId() {
+  const key = "hf:game:playerId";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = Math.random().toString(36).slice(2, 10);
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+const PING = "__ping";
+const PONG = "__pong";
+let socket = null;
+let retry = 0;
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  socket = new LocalSocket();
+  socket.addEventListener("open", () => {
+    retry = 0;
+    net("live", "ring open");
+    setStatus("ring open — reading the catalogue…");
+    send({ type: "join", playerId: playerId() });
+  });
+  socket.addEventListener("message", (event) => {
+    if (event.data === PONG) return;
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (msg.type === "state") onState(msg);
+    else if (msg.type === "error") {
+      setStatus(msg.error, true);
+      toast(msg.error, true);
+    }
+  });
+  socket.addEventListener("close", () => {
+    retry = Math.min(retry + 1, 6);
+    const wait = 500 * 2 ** (retry - 1);
+    net("bad", "reconnecting");
+    setStatus(`link lost — retrying in ${Math.round(wait / 1000)}s`, true);
+    setTimeout(connect, wait);
+  });
+}
+
+function send(msg) {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+}
+setInterval(() => {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(PING);
+}, 30_000);
+
+// ── view ───────────────────────────────────────────────────────────────────
+const el = (id) => document.getElementById(id);
+const nf = (n, digits = 0) => new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(Number.isFinite(n) ? n : 0);
+
+let view = null;
+let seats = [];
+let me = null;
+let selectedStraw = null;
+let askedSeat = false;
+
+/** Lineage coat colours, so a stable reads as a set of animals rather than rows. */
+const COATS = {
+  L1: "#b5651d", L2: "#5a4632", L3: "#8c6239", L4: "#cfbe9c",
+  L5: "#a8703f", L6: "#6f6b6b", L7: "#c98a4b", L8: "#7a5c46",
+};
+
+/** A code-drawn horse, coloured by lineage. Placeholder art pending credits. */
+function horseArt(lineage) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "horseart");
+  svg.setAttribute("viewBox", "0 0 120 90");
+  svg.style.color = COATS[lineage] ?? "#a8703f";
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", "#horse");
+  svg.append(use);
+  return svg;
+}
+
+function iconArt(id, colour) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 40 40");
+  svg.style.color = colour;
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#${id}`);
+  svg.append(use);
+  return svg;
+}
+
+function setStatus(text, bad = false) {
+  const node = el("status");
+  node.textContent = text;
+  node.classList.toggle("bad", bad);
+}
+function net(kind, text) {
+  el("net").className = "dot " + (kind === "live" ? "live" : kind === "bad" ? "bad" : "");
+  el("nettext").textContent = text;
+}
+function toast(text, bad = false) {
+  const node = document.createElement("div");
+  node.className = "toast" + (bad ? " bad" : "");
+  node.textContent = text;
+  el("toasts").append(node);
+  setTimeout(() => node.remove(), bad ? 2800 : 3200);
+}
+function act(action) {
+  send({ type: "action", action });
+}
+
+function onState(msg) {
+  view = msg.view;
+  seats = msg.seats ?? [];
+  me = msg.you;
+  const seated = seats.includes(me);
+  if (!seated) setStatus("this tab is a spectator — the seat is held elsewhere");
+  if (seated && view && !view.stable && !askedSeat) {
+    askedSeat = true;
+    send({ type: "action", action: { type: "takeSeat" } });
+  }
+  draw();
+}
+
+function traitBars(traits) {
+  const wrap = document.createElement("div");
+  wrap.className = "traits";
+  for (const key of ["speed", "stamina", "accel", "recovery", "temperament", "soundness"]) {
+    const cell = document.createElement("div");
+    cell.className = "trait";
+    cell.title = `${key}: ${traits ? traits[key] : "?"}`;
+    const fill = document.createElement("i");
+    fill.style.width = `${Math.min(100, ((traits ? traits[key] : 0) / 12) * 100)}%`;
+    cell.append(fill);
+    wrap.append(cell);
+  }
+  return wrap;
+}
+
+function draw() {
+  const v = view;
+  if (!v || !v.stable) return;
+  el("guineas").textContent = nf(v.stable.guineas);
+  el("season").textContent = nf(v.season);
+  el("condition").textContent = v.condition;
+  el("condition2").textContent = v.condition;
+  el("cut").textContent = nf(v.eliteCut, 2);
+  el("entry-fee").textContent = nf(v.entryFee);
+  el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
+  el("straw-count").textContent = nf(v.straws.length);
+  el("listing-count").textContent = nf(v.listings.length);
+
+  // herd
+  const herd = el("herd");
+  herd.innerHTML = "";
+  for (const horse of v.horses) {
+    const tr = document.createElement("tr");
+    const entered = v.stable.entries.includes(horse.id);
+    tr.className = (entered ? "entered" : "") + (horse.id === selectedHorse ? " selected" : "");
+
+    const name = document.createElement("td");
+    const nameline = document.createElement("div");
+    nameline.className = "nameline";
+    nameline.append(horseArt(horse.lineage));
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "name";
+    nameSpan.textContent = horse.name;
+    nameline.append(nameSpan);
+    name.append(nameline);
+    if (horse.stakes) {
+      const tag = document.createElement("span");
+      tag.className = "tag stakes";
+      tag.textContent = "stakes";
+      name.append(tag);
+    }
+    if (horse.retired) {
+      const tag = document.createElement("span");
+      tag.className = "tag retired";
+      tag.textContent = "retired";
+      name.append(tag);
+    }
+
+    const sex = document.createElement("td");
+    sex.className = "hide-sm";
+    sex.textContent = horse.sex === "M" ? "colt" : "filly";
+
+    const age = document.createElement("td");
+    age.textContent = nf(horse.age);
+
+    const value = document.createElement("td");
+    value.className = "num";
+    value.textContent = nf(horse.value, 2);
+
+    const f = document.createElement("td");
+    f.className = "hide-sm num";
+    f.textContent = nf(horse.f, 3);
+
+    const form = document.createElement("td");
+    form.className = "hide-sm";
+    form.append(traitBars(horse.traits));
+
+    const upkeep = document.createElement("td");
+    upkeep.className = "num";
+    upkeep.textContent = nf(horse.upkeep);
+
+    const buttons = document.createElement("td");
+    const row = document.createElement("div");
+    row.className = "row";
+    if (!horse.retired) {
+      const enter = document.createElement("button");
+      enter.className = "tiny" + (entered ? " brass" : "");
+      enter.textContent = entered ? "entered" : "enter";
+      enter.disabled = horse.age < 2;
+      enter.addEventListener("click", () => {
+        const next = entered
+          ? v.stable.entries.filter((id) => id !== horse.id)
+          : [...v.stable.entries, horse.id].slice(0, 3);
+        act({ type: "enter", horseIds: next });
+      });
+      row.append(enter);
+
+      const breed = document.createElement("button");
+      breed.className = "tiny good";
+      breed.textContent = "breed";
+      breed.disabled = horse.sex !== "F" || !selectedStraw;
+      breed.addEventListener("click", () => {
+        if (!selectedStraw) return toast("pick a covering first", true);
+        act({ type: "breed", mareId: horse.id, strawId: selectedStraw });
+        selectedStraw = null;
+      });
+      row.append(breed);
+
+      const sell = document.createElement("button");
+      sell.className = "tiny bad";
+      sell.textContent = "sell";
+      sell.addEventListener("click", () => act({ type: "sell", horseId: horse.id }));
+      row.append(sell);
+    }
+    buttons.append(row);
+
+    tr.append(name, sex, age, value, f, form, upkeep, buttons);
+    herd.append(tr);
+  }
+
+  // straws
+  const straws = el("straws");
+  straws.innerHTML = "";
+  if (!v.straws.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No coverings held. Buy one from the catalogue, or breed a stallion of your own.";
+    straws.append(empty);
+  }
+  for (const straw of v.straws.slice(0, 24)) {
+    const card = document.createElement("div");
+    card.className = "lot" + (straw.id === selectedStraw ? " mine" : "");
+    const head = document.createElement("div");
+    head.className = "name";
+    head.textContent = straw.sireName;
+    card.append(head);
+    const meta = document.createElement("div");
+    meta.className = "kv";
+    meta.innerHTML = `<span>sire value</span><b>${nf(straw.sireValue, 2)}</b>`;
+    card.append(meta);
+    const meta2 = document.createElement("div");
+    meta2.className = "kv";
+    meta2.innerHTML = `<span>vintage ${straw.vintage}</span><b>${straw.sireStakes ? "stakes" : "—"}</b>`;
+    card.append(meta2);
+    const row = document.createElement("div");
+    row.className = "row";
+    const select = document.createElement("button");
+    select.className = "tiny" + (straw.id === selectedStraw ? " brass" : "");
+    select.textContent = straw.id === selectedStraw ? "selected" : "select";
+    select.addEventListener("click", () => {
+      selectedStraw = straw.id === selectedStraw ? null : straw.id;
+      draw();
+    });
+    row.append(select);
+    const list = document.createElement("button");
+    list.className = "tiny";
+    list.textContent = `list ${nf(Math.max(25, straw.suggestedValue))}₲`;
+    list.addEventListener("click", () =>
+      act({ type: "listStraw", strawId: straw.id, price: Math.max(25, straw.suggestedValue) }),
+    );
+    row.append(list);
+    card.append(row);
+    straws.append(card);
+  }
+
+  // catalogue
+  const listings = el("listings");
+  listings.innerHTML = "";
+  if (!v.listings.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "The catalogue is empty right now — rivals list coverings each season.";
+    listings.append(empty);
+  }
+  for (const lot of v.listings.slice(0, 30)) {
+    const card = document.createElement("div");
+    card.className = "lot" + (lot.mine ? " mine" : "");
+    const head = document.createElement("div");
+    head.className = "name";
+    head.textContent = lot.sireName;
+    card.append(head);
+    const meta = document.createElement("div");
+    meta.className = "kv";
+    meta.innerHTML = `<span>sire value</span><b>${nf(lot.sireValue, 2)}</b>`;
+    card.append(meta);
+    const meta2 = document.createElement("div");
+    meta2.className = "kv";
+    meta2.innerHTML = `<span>${lot.sellerName} · v${lot.vintage}</span><b>${nf(lot.price)} ₲</b>`;
+    card.append(meta2);
+    if (lot.sireTraits) card.append(traitBars(lot.sireTraits));
+    if (lot.sireGenotype) {
+      const geno = document.createElement("div");
+      geno.className = "hint";
+      geno.textContent = Object.entries(lot.sireGenotype)
+        .map(([locus, pair]) => `${locus}:${pair.join("")}`)
+        .join(" ");
+      card.append(geno);
+    }
+    const row = document.createElement("div");
+    row.className = "row";
+    if (lot.mine) {
+      const withdraw = document.createElement("button");
+      withdraw.className = "tiny";
+      withdraw.textContent = "withdraw";
+      withdraw.addEventListener("click", () => act({ type: "unlistStraw", listingId: lot.id }));
+      row.append(withdraw);
+    } else {
+      const buy = document.createElement("button");
+      buy.className = "tiny brass";
+      buy.textContent = `buy ${nf(lot.price)}₲`;
+      buy.disabled = v.stable.guineas < lot.price;
+      buy.addEventListener("click", () => act({ type: "buyStraw", listingId: lot.id }));
+      row.append(buy);
+      if (!lot.sireGenotype) {
+        const certify = document.createElement("button");
+        certify.className = "tiny";
+        certify.textContent = "certify";
+        certify.disabled = v.stable.guineas < v.certifyCost;
+        certify.addEventListener("click", () => act({ type: "certify", horseId: lot.sireId }));
+        row.append(certify);
+      }
+    }
+    card.append(row);
+    listings.append(card);
+  }
+
+  // meeting
+  const meeting = el("meeting");
+  meeting.innerHTML = "";
+  if (v.meeting) {
+    const line = document.createElement("div");
+    line.innerHTML = `<span class="winner">${v.meeting.winner}</span> took the ${v.meeting.condition} — pot ${nf(v.meeting.pot)} ₲ from ${nf(v.meeting.runners)} runners`;
+    meeting.append(line);
+    for (const placed of v.meeting.places) {
+      const row = document.createElement("div");
+      row.className = "kv";
+      row.innerHTML = `<span>${placed.place}. ${placed.name} <span class="hint">(${placed.stable})</span></span><b>${nf(placed.score, 2)}</b>`;
+      meeting.append(row);
+    }
+  } else {
+    const line = document.createElement("div");
+    line.className = "hint";
+    line.textContent = "No meeting run yet this season. Enter runners and run the season.";
+    meeting.append(line);
+  }
+
+  // standings
+  const standings = el("standings");
+  standings.innerHTML = "";
+  for (const horse of v.standings) {
+    const tr = document.createElement("tr");
+    const name = document.createElement("td");
+    name.textContent = horse.name;
+    if (horse.stakes) {
+      const tag = document.createElement("span");
+      tag.className = "tag stakes";
+      tag.textContent = "stakes";
+      name.append(tag);
+    }
+    const stable = document.createElement("td");
+    stable.textContent = horse.stable;
+    const value = document.createElement("td");
+    value.className = "num";
+    value.textContent = nf(horse.value, 2);
+    tr.append(name, stable, value);
+    standings.append(tr);
+  }
+
+  // rivals
+  const rivals = el("rivals");
+  rivals.innerHTML = "";
+  for (const rival of v.rivals) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${rival.name}</td><td class="num">${nf(rival.guineas)}</td><td class="num">${nf(rival.horses)}</td><td class="num">${nf(rival.best, 2)}</td>`;
+    rivals.append(tr);
+  }
+
+  // log
+  const log = el("log");
+  log.innerHTML = "";
+  for (const entry of v.log) {
+    const li = document.createElement("li");
+    li.textContent = `S${entry.season} · ${entry.text}`;
+    log.append(li);
+  }
+}
+
+let selectedHorse = null;
+
+el("advance").addEventListener("click", () => {
+  act({ type: "advance" });
+  toast("the season runs…");
+});
+
+connect();
+
+    </script>
+  </body>
+</html>
