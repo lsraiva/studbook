@@ -136,6 +136,21 @@
         table { font-size: 0.78rem; }
       }
       .foot { margin: 0.9rem 0 0; font-size: 0.72rem; color: #6f6790; max-width: 74ch; }
+      .spine { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; font-size: 0.78rem; color: var(--dim); margin: 0 0 0.5rem; }
+      .spine .step { border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem 0.6rem; background: var(--panel); }
+      .spine .step b { color: var(--brass); }
+      .advice { margin: 0 0 0.7rem; padding: 0.55rem 0.8rem; border: 1px solid #4a3a1c; background: #221b12; color: var(--cream); border-radius: 0.7rem; font-size: 0.86rem; }
+      .advice[hidden] { display: none; }
+      .band { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); display: block; }
+      .band.stakes { color: var(--brass); }
+      .pairing { font-size: 0.72rem; color: var(--cream); background: rgba(154, 123, 255, 0.12); border-left: 2px solid var(--violet); padding: 0.3rem 0.5rem; border-radius: 0.4rem; margin-top: 0.3rem; }
+      .pairing.risk { background: rgba(255, 128, 128, 0.12); border-left-color: var(--red); }
+      .why { font-size: 0.78rem; color: var(--dim); border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.35rem; margin-top: 0.35rem; }
+      details.glossary { margin: 0.9rem 0 0; }
+      details.glossary summary { cursor: pointer; color: var(--dim); font-size: 0.82rem; }
+      details.glossary dl { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 0.35rem 0.8rem; font-size: 0.82rem; margin: 0.6rem 0 0; }
+      details.glossary dt { color: var(--brass); font-weight: 700; }
+      details.glossary dd { margin: 0; color: var(--dim); }
     </style>
   </head>
   <body>
@@ -178,11 +193,18 @@
       <span class="pill bank">₲ <b id="guineas">0</b></span>
       <span class="pill">season <b id="season">1</b></span>
       <span class="pill" id="condition-pill">going: <b id="condition">—</b></span>
-      <span class="pill hide-sm">stakes cut <b id="cut">0</b></span>
+      <span class="pill hide-sm">field <b id="field-mean">0</b> avg · elite cut <b id="field-cut">0</b> · <b id="field-stakes">0</b> stakes</span>
       <span class="pill"><span class="dot" id="net"></span><span id="nettext">linking…</span></span>
     </header>
 
     <p id="status">connecting to the sales ring…</p>
+    <div class="spine">
+      <span class="step"><b>1</b> breed a mare to a covering</span>
+      <span class="step"><b>2</b> enter up to three runners</span>
+      <span class="step"><b>3</b> run the season</span>
+      <span class="step"><b>4</b> sell coverings, buy better blood</span>
+    </div>
+    <p class="advice" id="advice" hidden></p>
 
     <main class="grid">
       <div class="stack">
@@ -281,6 +303,30 @@
         </section>
       </div>
     </main>
+
+    <details class="glossary">
+      <summary>What the numbers mean</summary>
+      <dl>
+        <dt>Guineas (₲)</dt>
+        <dd>Your money. Earned from race purses and selling coverings, spent on upkeep and better blood.</dd>
+        <dt>Value</dt>
+        <dd>How good a horse is now, scored for the condition it fits best. The field average and the elite cut are in the header, so a number can be placed.</dd>
+        <dt>Stakes</dt>
+        <dd>The top 3% of the living field, recalculated each season. It is a rank, not a fixed bar, so last season's champion can drift out of it.</dd>
+        <dt>F</dt>
+        <dd>Inbreeding. Close-bred horses lose value directly, which is why good parents can still produce a poor foal.</dd>
+        <dt>Covering</dt>
+        <dd>One frozen straw from a stallion. A breeding spends it, and it stays usable after the stallion retires.</dd>
+        <dt>Going</dt>
+        <dd>The condition this season runs. Sprint rewards speed and acceleration; staying rewards stamina and recovery.</dd>
+        <dt>Upkeep</dt>
+        <dd>Board per horse per season, rising steeply with talent. A horse that costs more than it earns will eat the stable.</dd>
+        <dt>Consign</dt>
+        <dd>Put a horse into the auction. It leaves your racing string while it is in the ring, and returns if you withdraw it.</dd>
+        <dt>Rake</dt>
+        <dd>The house's 5% on any sale between stables.</dd>
+      </dl>
+    </details>
 
     <p class="foot">
       Studbook is a game. The genotypes are simulated, the guineas are simulated, and nothing
@@ -569,6 +615,85 @@ function suggestedHorsePrice(horse) {
   return Math.max(25, Math.round(Math.pow(Math.max(horse.value, 1), 2.4) * 1.5));
 }
 
+/**
+ * Reference points. A number means nothing on its own, so every screen that shows a
+ * value also shows where the field sits: what is average, what the elite cut is, how
+ * many horses are stakes class.
+ */
+function fieldStats(state) {
+  const population = state.horses.filter((horse) => inPlay(horse));
+  const values = population.map((horse) => horse.value);
+  const mean = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  return {
+    horses: population.length,
+    mean: round(mean, 2),
+    best: values.length ? round(Math.max(...values), 2) : 0,
+    eliteCut: round(state.eliteCut ?? 0, 2),
+    stakesCount: population.filter((horse) => horse.stakes).length,
+  };
+}
+
+function valueBand(horse, field) {
+  if (horse.stakes) return "stakes";
+  if (field.eliteCut && horse.value >= field.eliteCut * 0.85) return "near elite";
+  if (horse.value >= field.mean) return "above the field";
+  return "below the field";
+}
+
+/** Inbreeding in words, because "F 0.284" teaches a player nothing. */
+function inbreedingLabel(f) {
+  if (f < 0.05) return "clean";
+  if (f < 0.12) return "slightly related";
+  if (f < 0.22) return "related";
+  return "close-bred";
+}
+
+/**
+ * Which trait actually cost a race: the largest weighted shortfall against the
+ * winner, so the conditions teach themselves instead of being guessed at.
+ */
+function raceDiagnosis(mine, theirs, condition) {
+  const weights = CONDITIONS[condition];
+  let worst = null;
+  for (const trait of TRAITS) {
+    const weight = weights[trait] ?? 0;
+    if (weight <= 0) continue;
+    const shortfall =
+      weight * (traitValue(theirs.genome, trait) - traitValue(mine.genome, trait));
+    if (!worst || shortfall > worst.shortfall) worst = { trait, shortfall };
+  }
+  return worst && worst.shortfall > 0.15 ? worst.trait : "race-day variance";
+}
+
+/** One line telling the player the most useful next thing, from the state itself. */
+function adviceFor(state, stable, field) {
+  if (!stable) return "Take a seat to open a stable.";
+  const herd = stable.horses
+    .map((id) => horseById(state, id))
+    .filter((horse) => inPlay(horse));
+  const mares = herd.filter(
+    (horse) => horse.sex === "F" && horse.foals < MARE_CAREER_FOALS,
+  );
+  const meanF = herd.length
+    ? herd.reduce((sum, horse) => sum + horse.f, 0) / herd.length
+    : 0;
+  if (!stable.entries.length && herd.some((horse) => horse.age >= RACE_AGE)) {
+    return "Enter up to three runners, then run the season.";
+  }
+  if (herd.length > 8) {
+    const bill = herd.reduce((sum, horse) => sum + horse.upkeep, 0);
+    return `Upkeep is ${bill} GNS a season for ${herd.length} horses. Consign or sell one you are not racing.`;
+  }
+  if (meanF > 0.18) {
+    return `Your herd is ${inbreedingLabel(meanF)} (F ${round(meanF, 3)}). Buy a covering from another lineage, or post a request and let rivals answer.`;
+  }
+  if (mares.length && !stable.straws.length) {
+    return "Your mares are due and you hold no coverings. Buy one from the catalogue, or post a request.";
+  }
+  if (!herd.length) return "Buy a horse from the catalogue, or breed one.";
+  return "Run the season when your runners are entered.";
+}
+
 function log(state, text, kind = "market") {
   state.log = [{ season: state.season, text, kind }, ...state.log].slice(0, LOG_MAX);
 }
@@ -617,6 +742,7 @@ function freshStable(state, stableId, name, playerId) {
     horses: [],
     straws: [],
     entries: [],
+    selectedStraw: null,
     forcedSales: 0,
   };
 }
@@ -820,6 +946,13 @@ function validateAction(state, playerId, action) {
     if (stable.guineas < lot.price) return { ok: false, error: "not enough guineas" };
     return { ok: true };
   }
+  if (type === "selectStraw") {
+    if (action.strawId === null || action.strawId === undefined) return { ok: true };
+    const held = stable.straws.find((entry) => entry.id === action.strawId);
+    if (!held) return { ok: false, error: "you do not hold that covering" };
+    return { ok: true };
+  }
+
   if (type === "sell") {
     const horse = horseById(state, action.horseId);
     if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
@@ -1013,6 +1146,11 @@ function applyAction(state, playerId, action) {
     return next;
   }
 
+  if (action.type === "selectStraw") {
+    stable.selectedStraw = action.strawId ?? null;
+    return next;
+  }
+
   if (action.type === "sell") {
     const horse = horseById(next, action.horseId);
     const floor = Math.round(suggestedHorsePrice(horse) * HOUSE_HORSE_FLOOR);
@@ -1112,6 +1250,21 @@ function runSeason(state) {
       `${condition} meeting: ${winner.horse.name} wins a pot of ${pot} GNS from ${entrants.length} runners.`,
       "race",
     );
+
+    // Cause and effect in words: which trait actually cost each runner, and by how
+    // much. Without this a player can only guess at what the conditions reward.
+    for (const entry of entrants.slice(0, 6)) {
+      if (entry === winner) continue;
+      const owner = state.stables.find((row) => row.id === entry.stableId);
+      if (!owner || owner.id.startsWith("ai")) continue;
+      const place = entrants.indexOf(entry) + 1;
+      const gap = round(winner.score - entry.score, 2);
+      log(
+        state,
+        `${entry.horse.name} finished ${place} of ${entrants.length} in the ${condition}, ${gap} behind — lost it on ${raceDiagnosis(entry.horse, winner.horse, condition)}.`,
+        "race",
+      );
+    }
   } else {
     state.lastRace = null;
   }
@@ -1400,6 +1553,11 @@ function certifyView(horse, stable) {
 
 function viewFor(state, playerId) {
   const stable = stableOf(state, playerId);
+  const field = fieldStats(state);
+  const selectedCovering = stable && stable.selectedStraw
+    ? stable.straws.find((entry) => entry.id === stable.selectedStraw) ?? null
+    : null;
+  const selectedSire = selectedCovering ? horseById(state, selectedCovering.sire) : null;
   const mine = new Set(stable ? stable.horses : []);
   const certified = new Set();
   if (stable) {
@@ -1420,6 +1578,20 @@ function viewFor(state, playerId) {
       dam: horse.dam ?? null,
       retired: horse.retired,
       value: horse.value,
+      band: valueBand(horse, field),
+      fLabel: inbreedingLabel(horse.f),
+      pairing: horse.sex === "F" && !horse.retired && selectedSire
+        ? {
+            sireId: selectedSire.id,
+            sireName: selectedSire.name,
+            crossLineage: selectedSire.lineage !== horse.lineage,
+            sameLineage: selectedSire.lineage === horse.lineage,
+            sireF: selectedSire.f,
+            damF: horse.f,
+            vigour: selectedSire.lineage !== horse.lineage ? VIGOUR : 0,
+            foalsLeft: Math.max(0, MARE_CAREER_FOALS - horse.foals),
+          }
+        : null,
       genetic: horse.genetic,
       f: horse.f,
       stakes: horse.stakes,
@@ -1447,6 +1619,9 @@ function viewFor(state, playerId) {
     season: state.season,
     condition: state.condition,
     eliteCut: state.eliteCut,
+    field,
+    advice: adviceFor(state, stable, field),
+    selectedStraw: stable ? stable.selectedStraw : null,
     eliteCount: Math.max(1, Math.round(population.length * STAKES_SHARE)),
     stable: stable
       ? {
@@ -1836,7 +2011,16 @@ function draw() {
   el("season").textContent = nf(v.season);
   el("condition").textContent = v.condition;
   el("condition2").textContent = v.condition;
-  el("cut").textContent = nf(v.eliteCut, 2);
+  // the old single "stakes cut" pill was replaced by the richer field pill
+  if (el("cut")) el("cut").textContent = nf(v.eliteCut, 2);
+  if (el("field-mean")) el("field-mean").textContent = nf(v.field.mean, 2);
+  if (el("field-cut")) el("field-cut").textContent = nf(v.field.eliteCut, 2);
+  if (el("field-stakes")) el("field-stakes").textContent = nf(v.field.stakesCount);
+  const advice = el("advice");
+  if (advice) {
+    advice.hidden = !v.advice;
+    advice.textContent = v.advice ?? "";
+  }
   el("entry-fee").textContent = nf(v.entryFee);
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
   el("straw-count").textContent = nf(v.straws.length);
@@ -1859,6 +2043,16 @@ function draw() {
     nameSpan.textContent = horse.name;
     nameline.append(nameSpan);
     name.append(nameline);
+    if (horse.pairing) {
+      const pair = document.createElement("div");
+      const risky = horse.pairing.sameLineage || Math.max(horse.pairing.sireF, horse.pairing.damF) > 0.2;
+      pair.className = "pairing" + (risky ? " risk" : "");
+      pair.textContent =
+        `with ${horse.pairing.sireName}: ${horse.pairing.crossLineage ? "cross lineage +" + Math.round(horse.pairing.vigour * 100) + "% vigour" : "same lineage, no vigour"}` +
+        ` · sire F ${nf(horse.pairing.sireF, 3)}, mare F ${nf(horse.pairing.damF, 3)}` +
+        ` · ${horse.pairing.foalsLeft} foals left`;
+      name.append(pair);
+    }
     if (horse.stakes) {
       const tag = document.createElement("span");
       tag.className = "tag stakes";
@@ -1882,10 +2076,18 @@ function draw() {
     const value = document.createElement("td");
     value.className = "num";
     value.textContent = nf(horse.value, 2);
+    const band = document.createElement("span");
+    band.className = "band" + (horse.band === "stakes" ? " stakes" : "");
+    band.textContent = horse.band;
+    value.append(band);
 
     const f = document.createElement("td");
     f.className = "hide-sm num";
     f.textContent = nf(horse.f, 3);
+    const fLabel = document.createElement("span");
+    fLabel.className = "band";
+    fLabel.textContent = horse.fLabel;
+    f.append(fLabel);
 
     const form = document.createElement("td");
     form.className = "hide-sm";
@@ -1958,7 +2160,7 @@ function draw() {
   }
   for (const straw of v.straws.slice(0, 24)) {
     const card = document.createElement("div");
-    card.className = "lot" + (straw.id === selectedStraw ? " mine" : "");
+    card.className = "lot" + (straw.id === (v.selectedStraw ?? selectedStraw) ? " mine" : "");
     const head = document.createElement("div");
     head.className = "name";
     head.textContent = straw.sireName;
@@ -1977,7 +2179,11 @@ function draw() {
     select.className = "tiny" + (straw.id === selectedStraw ? " brass" : "");
     select.textContent = straw.id === selectedStraw ? "selected" : "select";
     select.addEventListener("click", () => {
-      selectedStraw = straw.id === selectedStraw ? null : straw.id;
+      const current = v.selectedStraw ?? selectedStraw;
+      selectedStraw = straw.id === current ? null : straw.id;
+      // the rules need the selection too: the pairing preview on each mare comes
+      // from the server, which is the only place that knows the pedigree
+      act({ type: "selectStraw", strawId: selectedStraw });
       draw();
     });
     row.append(select);
@@ -2113,6 +2319,12 @@ function draw() {
       row.className = "kv";
       row.innerHTML = `<span>${placed.place}. ${placed.name} <span class="hint">(${placed.stable})</span></span><b>${nf(placed.score, 2)}</b>`;
       meeting.append(row);
+    }
+    for (const entry of v.log.filter((row) => row.kind === "race" && row.season === v.meeting.season).slice(0, 4)) {
+      const why = document.createElement("div");
+      why.className = "why";
+      why.textContent = entry.text;
+      meeting.append(why);
     }
   } else {
     const line = document.createElement("div");
