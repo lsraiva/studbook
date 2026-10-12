@@ -267,18 +267,18 @@
       <span class="step"><b>3</b> run the season</span>
       <span class="step"><b>4</b> sell coverings, buy better blood</span>
     </div>
-    <p class="advice" id="advice" hidden></p>
+    <p class="advice" id="advice" hidden aria-live="polite"></p>
 
     <main class="grid">
       <div class="stack">
         <section class="panel" data-when="yard">
           <h2>Your horses · <span id="herd-count">0</span> in training</h2>
           <div style="overflow-x: auto">
-            <table>
+            <table aria-label="Your horses in training">
               <thead>
                 <tr>
-                  <th>Horse</th><th class="hide-sm">Sex</th><th>Age</th><th>Value</th>
-                  <th class="hide-sm">F</th><th class="hide-sm">Form</th><th>Upkeep</th><th></th>
+                  <th scope="col">Horse</th><th scope="col" class="hide-sm">Sex</th><th scope="col">Age</th><th scope="col">Value</th>
+                  <th scope="col" class="hide-sm">F</th><th scope="col" class="hide-sm">Form</th><th scope="col">Upkeep</th><th scope="col"></th>
                 </tr>
               </thead>
               <tbody id="herd"></tbody>
@@ -353,11 +353,11 @@
             cross would bring: vigour from a new lineage, and both parents' inbreeding.
           </p>
           <div style="overflow-x: auto">
-            <table>
+            <table aria-label="Your mares">
               <thead>
                 <tr>
-                  <th>Mare</th><th class="hide-sm">Sex</th><th>Age</th><th>Value</th>
-                  <th class="hide-sm">F</th><th class="hide-sm">Form</th><th>Upkeep</th><th></th>
+                  <th scope="col">Mare</th><th scope="col" class="hide-sm">Sex</th><th scope="col">Age</th><th scope="col">Value</th>
+                  <th scope="col" class="hide-sm">F</th><th scope="col" class="hide-sm">Form</th><th scope="col">Upkeep</th><th scope="col"></th>
                 </tr>
               </thead>
               <tbody id="mares"></tbody>
@@ -426,16 +426,16 @@
 
         <section class="panel" data-when="ledger">
           <h2>Standings</h2>
-          <table>
-            <thead><tr><th>Horse</th><th>Stable</th><th>Value</th></tr></thead>
+          <table aria-label="Standings">
+            <thead><tr><th scope="col">Horse</th><th scope="col">Stable</th><th scope="col">Value</th></tr></thead>
             <tbody id="standings"></tbody>
           </table>
         </section>
 
         <section class="panel" data-when="ledger">
           <h2>Rivals</h2>
-          <table>
-            <thead><tr><th>Stable</th><th>₲</th><th>Horses</th><th>Best</th></tr></thead>
+          <table aria-label="Rival stables">
+            <thead><tr><th scope="col">Stable</th><th scope="col">₲</th><th scope="col">Horses</th><th scope="col">Best</th></tr></thead>
             <tbody id="rivals"></tbody>
           </table>
         </section>
@@ -486,7 +486,7 @@
       here is a real horse or a real currency.
     </p>
 
-    <div id="reveal" class="reveal" hidden aria-live="polite"></div>
+    <div id="reveal" class="reveal" hidden role="dialog" aria-modal="true" aria-label="Breeding result" aria-live="polite"></div>
 
     <div id="toasts" aria-live="polite"></div>
     <script type="module">
@@ -2972,6 +2972,16 @@ function revealTraits(traits) {
   return { wrap, bars };
 }
 
+let focusBeforeReveal = null;
+
+/** Closing always returns focus to whatever the player was on before the dialog. */
+function closeReveal() {
+  const box = el("reveal");
+  if (box) box.hidden = true;
+  if (focusBeforeReveal && typeof focusBeforeReveal.focus === "function") focusBeforeReveal.focus();
+  focusBeforeReveal = null;
+}
+
 function openReveal(foal, v) {
   const box = el("reveal");
   if (!box) return;
@@ -2979,6 +2989,7 @@ function openReveal(foal, v) {
   revealTimers = [];
   box.innerHTML = "";
   box.hidden = false;
+  focusBeforeReveal = document.activeElement;
 
   const event = foal.event ?? (foal.ok ? "born" : "miss");
   const tierIndex = event === "born" ? Math.max(0, TIERS.indexOf(foal.tier)) : -1;
@@ -3005,7 +3016,7 @@ function openReveal(foal, v) {
     lostClose.className = "tiny";
     lostClose.textContent = "try again";
     lostClose.addEventListener("click", () => {
-      box.hidden = true;
+      closeReveal();
     });
     lostRow.append(lostClose);
     card.append(lostRow);
@@ -3042,7 +3053,7 @@ function openReveal(foal, v) {
     waitButton.className = "brass";
     waitButton.textContent = "wait for the season";
     waitButton.addEventListener("click", () => {
-      box.hidden = true;
+      closeReveal();
     });
     waitClose.append(waitButton);
     card.append(waitClose);
@@ -3184,12 +3195,19 @@ function openReveal(foal, v) {
   close.className = "tiny";
   close.textContent = event === "born" ? "back to the yard" : "try again";
   close.addEventListener("click", () => {
-    box.hidden = true;
+    closeReveal();
   });
   closeRow.append(close);
   card.append(closeRow);
 
+  card.setAttribute("tabindex", "-1");
   box.append(card);
+  // a dialog that opens without taking focus leaves a keyboard user stranded behind it
+  try {
+    card.focus();
+  } catch {
+    /* focus is a courtesy; the dialog still works without it */
+  }
   const fateTier = foal.fate === "strong" ? 4 : foal.fate === "twins" ? 3 : 0;
   chime(Math.max(tierIndex, fateTier), event === "born");
 }
@@ -3537,6 +3555,8 @@ function draw() {
       card.append(who);
       const group = document.createElement("div");
       group.className = "tactic";
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-label", `Instruction for ${horse.name}`);
       for (const tactic of ["push", "steady", "hold"]) {
         const button = document.createElement("button");
         button.className = "tiny" + (horse.tactic === tactic ? " brass" : "");
@@ -3963,10 +3983,10 @@ if (soundButton) {
 const revealBox = el("reveal");
 if (revealBox) {
   revealBox.addEventListener("click", (event) => {
-    if (event.target === revealBox) revealBox.hidden = true;
+    if (event.target === revealBox) closeReveal();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") revealBox.hidden = true;
+    if (event.key === "Escape") closeReveal();
   });
 }
 
