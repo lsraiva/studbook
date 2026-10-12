@@ -547,6 +547,22 @@ const CONDITION_ORDER = ["sprint", "classic", "staying"];
 
 // ── game constants ────────────────────────────────────────────────────────
 const SERVICES_PER_SEASON = 5; // the cap the study found matters, with careers
+/**
+ * How many coverings a stable can keep in the barn.
+ *
+ * The surplus was never the service cap's fault. Five services a season is a ceiling on
+ * how far one stallion's blood spreads, which the study found matters, and it is left
+ * alone. The glut came from retention: every covering ever issued stayed in the barn
+ * forever, uncosted and never spoiling, so a herd with four mares piled up 264 of them
+ * in 25 seasons. A finite barn is the honest constraint - a stud farm has freezer space.
+ */
+const STRAW_STORAGE = 22;
+/**
+ * How many of a barn's excess coverings reach the market each season. The rest are
+ * culled: the design already learned that flooding the catalogue leaves hundreds of
+ * lots unsold, and a valve that over-supplies is not a valve.
+ */
+const STRAW_MARKET_PER_TURN = 3;
 const MARE_CAREER_FOALS = 8;
 const STALLION_MAX_AGE = 10;
 const MARE_MAX_AGE = 12;
@@ -916,6 +932,9 @@ function raceDiagnosis(mine, theirs, condition) {
 /** One line telling the player the most useful next thing, from the state itself. */
 function adviceFor(state, stable, field) {
   if (!stable) return "Take a seat to open a stable.";
+  if ((stable.straws ?? []).length >= STRAW_STORAGE) {
+    return `Your barn is full: ${stable.straws.length} of ${STRAW_STORAGE} coverings. Sell or use the weakest before the season turns, or they go to the market at the floor.`;
+  }
   const herd = stable.horses
     .map((id) => horseById(state, id))
     .filter((horse) => inPlay(horse));
@@ -1861,6 +1880,51 @@ function runSeason(state) {
     }
   }
 
+  // A barn has finite space. The service cap keeps a stallion's reach in check; what an
+  // owner cannot store leaves. Elites are spared, then the oldest go first: culling by
+  // sire VALUE measurably raised the field's inbreeding (0.20 to 0.27) by taking the
+  // cheap-but-diverse sires out of circulation, while age keeps fresh blood moving.
+  for (const stable of state.stables) {
+    const overflow = (stable.straws ?? []).length - STRAW_STORAGE;
+    if (overflow <= 0) continue;
+    const leaving = [...stable.straws]
+      .sort((a, b) => {
+        if (Boolean(a.elite) !== Boolean(b.elite)) return a.elite ? 1 : -1;
+        return (a.vintage ?? 0) - (b.vintage ?? 0);
+      })
+      .slice(0, overflow);
+    let listed = 0;
+    let culled = 0;
+    for (const straw of leaving) {
+      const index = stable.straws.findIndex((entry) => entry.id === straw.id);
+      if (index < 0) continue;
+      stable.straws.splice(index, 1);
+      const sire = horseById(state, straw.sire);
+      if (listed < STRAW_MARKET_PER_TURN) {
+        listed += 1;
+        state.listings.push({
+          id: `l${state.nextId++}`,
+          seller: stable.id,
+          straw,
+          price: DUTCH_FLOOR,
+          sire: straw.sire,
+          sireName: sire ? sire.name : "unknown",
+          vintage: straw.vintage,
+          season: state.season,
+        });
+      } else {
+        culled += 1;
+      }
+    }
+    // One line for the turn, not one per covering: a notice per straw buried the race
+    // diagnoses out of the week's log.
+    log(
+      state,
+      `${stable.name}'s barn was full: ${listed} covering${listed === 1 ? "" : "s"} went to the market at ${DUTCH_FLOOR} GNS${culled ? ` and ${culled} were culled` : ""}.`,
+      "market",
+    );
+  }
+
   nextSeason(state);
   // A straw lot simply expires. A consigned HORSE cannot be left ownerless, so the
   // house buys it in at the floor — the auction's own answer to a lot nobody wanted.
@@ -2406,6 +2470,7 @@ function viewFor(state, playerId) {
     ledger: state.ledger,
     retirements: population.filter((horse) => horse.retired).length,
     certifyCost: CERTIFY_COST,
+    strawStorage: STRAW_STORAGE,
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
     careChoices: CARE_CHOICES.map((care) => ({
@@ -3294,7 +3359,7 @@ function draw() {
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
-  el("straw-count").textContent = nf(v.straws.length);
+  el("straw-count").textContent = v.strawStorage ? `${nf(v.straws.length)} of ${nf(v.strawStorage)}` : nf(v.straws.length);
   el("listing-count").textContent = nf(v.listings.length);
 
   // herd rows: built once, drawn by the Yard and by the Breeding screen's mares
@@ -3504,6 +3569,12 @@ function draw() {
   // straws
   const straws = el("straws");
   straws.innerHTML = "";
+  if (v.strawStorage && v.straws.length >= v.strawStorage) {
+    const warn = document.createElement("p");
+    warn.className = "hint";
+    warn.textContent = `Barn full at ${nf(v.strawStorage)}. When the season turns the weakest coverings go to the market at the floor — sell or use them first, and an elite covering is never the one dropped.`;
+    straws.append(warn);
+  }
   if (!v.straws.length) {
     const empty = document.createElement("p");
     empty.className = "hint";
