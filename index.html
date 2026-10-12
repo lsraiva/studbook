@@ -2982,6 +2982,23 @@ function closeReveal() {
   focusBeforeReveal = null;
 }
 
+/**
+ * One way in as well as one way out. The first pass only wired the focus into the
+ * born/miss card, and a covering that catches takes the "in foal" card instead, which
+ * returns early - so the dialog that opens most often was the one that never took focus.
+ */
+function mountDialog(card) {
+  const box = el("reveal");
+  if (!box) return;
+  card.setAttribute("tabindex", "-1");
+  box.append(card);
+  try {
+    card.focus();
+  } catch {
+    /* focus is a courtesy; the dialog still works without it */
+  }
+}
+
 function openReveal(foal, v) {
   const box = el("reveal");
   if (!box) return;
@@ -3020,7 +3037,7 @@ function openReveal(foal, v) {
     });
     lostRow.append(lostClose);
     card.append(lostRow);
-    box.append(card);
+    mountDialog(card);
     chime(0, false);
     return;
   }
@@ -3057,7 +3074,7 @@ function openReveal(foal, v) {
     });
     waitClose.append(waitButton);
     card.append(waitClose);
-    box.append(card);
+    mountDialog(card);
     settle();
     return;
   }
@@ -3200,14 +3217,7 @@ function openReveal(foal, v) {
   closeRow.append(close);
   card.append(closeRow);
 
-  card.setAttribute("tabindex", "-1");
-  box.append(card);
-  // a dialog that opens without taking focus leaves a keyboard user stranded behind it
-  try {
-    card.focus();
-  } catch {
-    /* focus is a courtesy; the dialog still works without it */
-  }
+  mountDialog(card);
   const fateTier = foal.fate === "strong" ? 4 : foal.fate === "twins" ? 3 : 0;
   chime(Math.max(tierIndex, fateTier), event === "born");
 }
