@@ -540,7 +540,15 @@ const RACE_AGE = 2;
  * holding does the reverse. Nobody is forced to choose — steady is the default.
  */
 const TACTICS = ["push", "steady", "hold"];
-const TACTIC_GAIN = 0.6;
+/**
+ * Calibrated by measurement, not taste. At 0.6 an instruction moved the score by
+ * 0.02-0.2 while race-day noise ran to 0.36, so twelve seasons entered with the right
+ * instruction and twelve with none produced identical results: the decision was
+ * decoration. The gain now outweighs the noise it competes with.
+ */
+const TACTIC_GAIN = 1.5;
+/** How often the house misreads its own horse. A rival that never errs is a toll. */
+const AI_TACTIC_ERROR = 0.3;
 const REPLAY_CHECKPOINTS = 6;
 const INBREED_VALUE_PENALTY = 1.0;
 const INBREED_FERTILITY = 0.9;
@@ -614,7 +622,7 @@ const WANT_MIN_QUALITY = 0.6; // a sire must be at least this share of your best
 const DUTCH_DECAY = 0.75; // stale lots mark down each season until they clear
 const DUTCH_FLOOR = 20;
 const LOG_MAX = 12;
-const NOISE = 0.12; // race-day variance, as a share of the horse's score
+const NOISE = 0.09; // race-day variance, as a share of the horse's score
 
 const PREFIXES = ["Ash", "Bel", "Cor", "Dun", "El", "Fen", "Gar", "Hol", "Ire", "Jar", "Kel", "Lorn", "Mor", "Nair", "Or", "Pell", "Quill", "Rav", "Sil", "Tarn"];
 const SUFFIXES = ["field", "mont", "brook", "stone", "ridge", "vale", "ford", "moor", "gate", "crest", "mere", "bay"];
@@ -913,9 +921,11 @@ function paceProfile(horse, condition, tactic) {
     earlyWeight + lateWeight > 0 ? (earlyWeight - lateWeight) / (earlyWeight + lateWeight) : 0;
   let shift = 0;
   if (tactic === "push") {
-    shift = TACTIC_GAIN * ((earlyTraits - 6) / 6) * (0.5 + 0.5 * lean);
+    // 0.4 + 0.6*lean: a matched instruction is fully rewarded and a mismatched one
+    // turns negative, so pushing early in a staying race costs the horse something.
+    shift = TACTIC_GAIN * ((earlyTraits - 6) / 6) * (0.4 + 0.6 * lean);
   } else if (tactic === "hold") {
-    shift = TACTIC_GAIN * ((lateTraits - 6) / 6) * (0.5 - 0.5 * lean);
+    shift = TACTIC_GAIN * ((lateTraits - 6) / 6) * (0.4 - 0.6 * lean);
   }
   const bias = tactic === "push" ? 0.3 : tactic === "hold" ? -0.3 : 0;
   const shape = Math.max(-0.6, Math.min(0.6, (earlyTraits - lateTraits) / 24 + bias));
@@ -1969,7 +1979,9 @@ function aiPrepareSeason(state, stable) {
   for (const horse of runners) {
     const early = (traitValue(horse.genome, "speed") + traitValue(horse.genome, "accel")) / 2;
     const late = (traitValue(horse.genome, "stamina") + traitValue(horse.genome, "recovery")) / 2;
-    stable.tactics[horse.id] = early >= late ? "push" : "hold";
+    const best = early >= late ? "push" : "hold";
+    const misread = early >= late ? "hold" : "push";
+    stable.tactics[horse.id] = rollValue(state) < AI_TACTIC_ERROR ? misread : best;
   }
 
   const mares = owned
