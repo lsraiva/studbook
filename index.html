@@ -146,6 +146,7 @@
       .pairing { font-size: 0.72rem; color: var(--cream); background: rgba(154, 123, 255, 0.12); border-left: 2px solid var(--violet); padding: 0.3rem 0.5rem; border-radius: 0.4rem; margin-top: 0.3rem; }
       .pairing.risk { background: rgba(255, 128, 128, 0.12); border-left-color: var(--red); }
       .select { font-size: 0.74rem; color: var(--brass); background: rgba(214, 178, 110, 0.12); border-left: 2px solid var(--brass); padding: 0.3rem 0.5rem; border-radius: 0.4rem; margin-top: 0.3rem; }
+      .lineage { font-size: 0.68rem; color: var(--dim); margin-top: 0.15rem; }
       .why { font-size: 0.78rem; color: var(--dim); border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.35rem; margin-top: 0.35rem; }
       details.glossary { margin: 0.9rem 0 0; }
       details.glossary summary { cursor: pointer; color: var(--dim); font-size: 0.82rem; }
@@ -442,6 +443,16 @@
         <section class="panel" data-when="ledger">
           <h2>The week</h2>
           <ul class="log" id="log"></ul>
+        </section>
+
+        <section class="panel" data-when="ledger">
+          <h2>Your foals · <span id="foal-count">0</span> bred</h2>
+          <p class="hint">
+            Everything this yard has bred, newest first, each with the tier it landed in on
+            the day it was born. That tier is a rank against the field of that season, so a
+            foal that looked excellent then can be ordinary against a better field later.
+          </p>
+          <div class="cards" id="foals"></div>
         </section>
       </div>
     </main>
@@ -1079,6 +1090,7 @@ function freshStable(state, stableId, name, playerId) {
     selectedStraw: null,
     tactics: {},
     bestFoalValue: 0,
+    foalsBred: [],
     forcedSales: 0,
   };
 }
@@ -1971,6 +1983,7 @@ function runSeason(state) {
         foal.owner = owner.id;
         state.horses.push(foal);
         owner.horses.push(foal.id);
+      owner.foalsBred = [...(owner.foalsBred ?? []), foal.id];
         owner.guineas += BREEDER_PREMIUM;
         state.ledger = [
           { season: state.season, text: `Breeder's premium for ${foal.name}`, amount: BREEDER_PREMIUM },
@@ -1988,6 +2001,10 @@ function runSeason(state) {
       const owner = state.stables.find((entry) => entry.id === report.stableId);
       report.personalBest = report.value > (owner?.bestFoalValue ?? 0);
       if (owner && report.personalBest) owner.bestFoalValue = report.value;
+      // Keep the tier the foal landed in. It is a rank against that season's field, so
+      // it has to be recorded when it happened rather than recomputed years later.
+      const born = horseById(state, report.id);
+      if (born) born.bornTier = report.tier;
     }
     state.lastFoals = [...reports, ...lost];
     if (state.lastFoals.length) state.lastFoal = state.lastFoals[0];
@@ -2175,6 +2192,9 @@ function viewFor(state, playerId) {
       lineage: horse.lineage,
       sire: horse.sire ?? null,
       dam: horse.dam ?? null,
+      sireName: horse.sire ? horseById(state, horse.sire)?.name ?? null : null,
+      damName: horse.dam ? horseById(state, horse.dam)?.name ?? null : null,
+      bornTier: horse.bornTier ?? null,
       retired: horse.retired,
       entered: Boolean(stable && stable.entries.includes(horse.id)),
       tactic: (stable && stable.tactics && stable.tactics[horse.id]) || "steady",
@@ -2253,6 +2273,27 @@ function viewFor(state, playerId) {
           entries: stable.entries,
           tactics: stable.tactics ?? {},
           bestFoalValue: stable.bestFoalValue ?? 0,
+          foals: [...(stable.foalsBred ?? [])]
+            .reverse()
+            .slice(0, 12)
+            .map((id) => {
+              const foal = horseById(state, id);
+              if (!foal) return null;
+              const dam = horseById(state, foal.dam ?? "");
+              const sire = horseById(state, foal.sire ?? "");
+              return {
+                id: foal.id,
+                name: foal.name,
+                bornSeason: foal.bornSeason,
+                tier: foal.bornTier ?? null,
+                value: foal.value,
+                damName: dam ? dam.name : "unknown",
+                sireName: sire ? sire.name : "unknown",
+                inYard: Boolean(stable.horses.includes(foal.id)),
+                retired: Boolean(foal.retired),
+              };
+            })
+            .filter(Boolean),
         }
       : null,
     horses: stable ? stable.horses.map((id) => horseById(state, id)).filter(Boolean).map(horseView) : [],
@@ -3182,6 +3223,40 @@ function renderFoaling(v) {
   }
 }
 
+/** The foal book: what this yard has bred, and what each one landed as. */
+function renderFoals(v) {
+  const list = el("foals");
+  if (!list) return;
+  list.innerHTML = "";
+  const foals = (v.stable && v.stable.foals) || [];
+  const count = el("foal-count");
+  if (count) count.textContent = nf(foals.length);
+  if (!foals.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No foals bred yet. Cover a mare on the Breeding screen and the book starts here.";
+    list.append(empty);
+    return;
+  }
+  for (const foal of foals) {
+    const card = document.createElement("div");
+    card.className = "lot" + (foal.inYard ? " mine" : "");
+    const head = document.createElement("div");
+    head.className = "name";
+    head.textContent = foal.name;
+    card.append(head);
+    const meta = document.createElement("div");
+    meta.className = "kv";
+    meta.innerHTML = `<span>${foal.sireName} out of ${foal.damName} · S${nf(foal.bornSeason)}</span><b>${nf(foal.value, 2)}</b>`;
+    card.append(meta);
+    const where = document.createElement("div");
+    where.className = "kv";
+    where.innerHTML = `<span>${foal.inYard ? "in the yard" : foal.retired ? "retired" : "sold on"}</span><b>${foal.tier ?? "—"}</b>`;
+    card.append(where);
+    list.append(card);
+  }
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -3215,6 +3290,7 @@ function draw() {
   if (el("sound")) el("sound").textContent = `sound: ${soundOn ? "on" : "off"}`;
   renderCovering(v);
   renderFoaling(v);
+  renderFoals(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
@@ -3244,6 +3320,12 @@ function draw() {
       }`;
       name.append(dueLine);
       if (horse.inFoal.fate) name.append(fateTag(horse.inFoal.fate, horse.inFoal.fateNote));
+    }
+    if (horse.sireName || horse.damName) {
+      const lineageLine = document.createElement("div");
+      lineageLine.className = "lineage";
+      lineageLine.textContent = `by ${horse.sireName ?? "unknown"} out of ${horse.damName ?? "unknown"}${horse.bornTier ? ` · landed ${horse.bornTier}` : ""}`;
+      name.append(lineageLine);
     }
     if (horse.pairing && !horse.inFoal) {
       const pair = document.createElement("div");
