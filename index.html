@@ -933,7 +933,7 @@ function raceDiagnosis(mine, theirs, condition) {
 function adviceFor(state, stable, field) {
   if (!stable) return "Take a seat to open a stable.";
   if ((stable.straws ?? []).length >= STRAW_STORAGE) {
-    return `Your barn is full: ${stable.straws.length} of ${STRAW_STORAGE} coverings. Sell or use the weakest before the season turns, or they go to the market at the floor.`;
+    return `Your barn is full: ${stable.straws.length} of ${STRAW_STORAGE} coverings. Sell or use some before the season turns — the oldest then leave for the market at the floor, and elite coverings are never the ones dropped.`;
   }
   const herd = stable.horses
     .map((id) => horseById(state, id))
@@ -3572,7 +3572,7 @@ function draw() {
   if (v.strawStorage && v.straws.length >= v.strawStorage) {
     const warn = document.createElement("p");
     warn.className = "hint";
-    warn.textContent = `Barn full at ${nf(v.strawStorage)}. When the season turns the weakest coverings go to the market at the floor — sell or use them first, and an elite covering is never the one dropped.`;
+    warn.textContent = `Barn full at ${nf(v.strawStorage)}. When the season turns the oldest coverings leave for the market at the floor — sell or use some first, and an elite covering is never the one dropped.`;
     straws.append(warn);
   }
   if (!v.straws.length) {
