@@ -591,6 +591,19 @@ const GESTATION_SEASONS = 1;
  * season it is made, so the season it does pay out in pays a little more.
  */
 const BREEDER_PREMIUM = 240;
+/**
+ * What can go wrong or wonderfully right between the covering and the foal. Rolled
+ * ONCE, at the covering, so the flag is visible for the whole wait: the tension is
+ * in knowing, not only in the surprise. Rates are per covering.
+ */
+const GESTATION_FATES = [
+  { fate: "twins", rate: 0.03, note: "The vet thinks she is carrying twins — a nervous wait." },
+  { fate: "scare", rate: 0.07, note: "She had a scare at the stud. The foal may lose some condition." },
+  { fate: "strong", rate: 0.03, note: "The vet likes what he sees — this one is developing well." },
+  { fate: "slipped", rate: 0.02, note: "Something does not look right. Next season will tell." },
+];
+/** What each fate does to a foal's vigour, which is where value is won and lost. */
+const FATE_VIGOUR = { twins: -0.08, scare: -0.12, strong: 0.13 };
 const START_HORSES = 4;
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
@@ -638,6 +651,21 @@ function rollInt(state, max) {
   const step = nextRandom(state.rng);
   state.rng = step.state;
   return Math.min(max - 1, Math.floor(step.value * max));
+}
+
+function rollGestationFate(state) {
+  const roll = rollValue(state);
+  let acc = 0;
+  for (const entry of GESTATION_FATES) {
+    acc += entry.rate;
+    if (roll < acc) return entry;
+  }
+  return null;
+}
+
+function fateNote(fate) {
+  const entry = GESTATION_FATES.find((row) => row.fate === fate);
+  return entry ? entry.note : null;
 }
 
 function rollValue(state) {
@@ -927,7 +955,7 @@ function tierLines(state) {
  * the state — where the foal really sits in the field, and how far it really fell
  * short of the next tier — so the moment is a read, not a decoration.
  */
-function foalReport(state, foal, dam, sire, care) {
+function foalReport(state, foal, dam, sire, care, fate) {
   const field = fieldStats(state);
   const lines = tierLines(state);
   const beaten = lines.filter((line) => foal.value >= line.value).length;
@@ -944,6 +972,9 @@ function foalReport(state, foal, dam, sire, care) {
     sireId: sire.id,
     sireName: sire.name,
     care,
+    fate: fate || null,
+    fateNote: fateNote(fate),
+    fateVigour: FATE_VIGOUR[fate] ?? 0,
     value: foal.value,
     f: foal.f,
     fLabel: inbreedingLabel(foal.f),
@@ -1331,6 +1362,7 @@ function applyAction(state, playerId, action) {
     }
     // She is in foal. The covering is spent and the wait begins: the foal is not
     // built yet, so the payoff is something the player waits a season for.
+    const fate = rollGestationFate(next);
     const pregnancy = {
       id: `${mare.id}@${next.season}`,
       mareId: mare.id,
@@ -1340,6 +1372,7 @@ function applyAction(state, playerId, action) {
       vintage: straw.vintage,
       conceived: next.season,
       dueSeason: next.season + GESTATION_SEASONS,
+      fate: fate ? fate.fate : null,
     };
     next.foaling = [...(next.foaling ?? []), pregnancy];
     next.lastFoal = {
@@ -1353,9 +1386,12 @@ function applyAction(state, playerId, action) {
       conceived: pregnancy.conceived,
       dueSeason: pregnancy.dueSeason,
       chance: round(liveRate, 3),
+      fate: fate ? fate.fate : null,
+      fateNote: fate ? fate.note : null,
       stableId: stable.id,
     };
     log(next, `${mare.name} is in foal to ${sire.name} — due next season.`, "breeding");
+    if (fate) log(next, fate.note, "breeding");
     return next;
   }
 
@@ -1848,45 +1884,71 @@ function runSeason(state) {
   const due = (state.foaling ?? []).filter((row) => row.dueSeason <= state.season);
   if (due.length) {
     const created = [];
+    const lost = [];
     for (const row of due) {
       const mare = horseById(state, row.mareId);
       const sire = horseById(state, row.sireId);
       const owner = state.stables.find((entry) => entry.id === row.stableId);
       if (!mare || !sire || !owner) continue;
-      const genome = {};
-      for (const locus of LOCI) {
-        genome[locus] = [
-          sire.genome[locus][rollInt(state, 2)],
-          mare.genome[locus][rollInt(state, 2)],
-        ];
+      if (row.fate === "slipped") {
+        log(state, `${mare.name} slipped the foal.`, "breeding");
+        lost.push({
+          event: "slipped",
+          id: `${row.id}:lost`,
+          damId: mare.id,
+          damName: mare.name,
+          sireId: sire.id,
+          sireName: sire.name,
+          care: row.care,
+          fate: "slipped",
+          fateNote: fateNote("slipped"),
+          dueSeason: row.dueSeason,
+          stableId: owner.id,
+          value: 0,
+          tier: null,
+          nearMiss: null,
+          nextTier: null,
+          personalBest: false,
+        });
+        continue;
       }
-      const lineage = rollValue(state) < 0.5 ? sire.lineage : mare.lineage;
-      const sex = rollValue(state) < 0.5 ? "M" : "F";
-      const foal = makeHorse(state, genome, lineage, sex, 0, state.season, vigourFor(sire, mare), sire.id, mare.id);
-      foal.care = row.care;
-      foal.owner = owner.id;
-      state.horses.push(foal);
-      owner.horses.push(foal.id);
-      owner.guineas += BREEDER_PREMIUM;
-      state.ledger = [
-        { season: state.season, text: `Breeder's premium for ${foal.name}`, amount: BREEDER_PREMIUM },
-        ...state.ledger,
-      ].slice(0, 10);
-      log(state, `The stud book pays a breeder's premium of ${BREEDER_PREMIUM} GNS for ${foal.name}.`, "breeding");
-      log(state, `${foal.name} foaled by ${mare.name} out of ${sire.name}.`, "breeding");
-      created.push({ foal, mare, sire, care: row.care });
+      const twins = row.fate === "twins" ? 2 : 1;
+      for (let index = 0; index < twins; index += 1) {
+        const genome = {};
+        for (const locus of LOCI) {
+          genome[locus] = [
+            sire.genome[locus][rollInt(state, 2)],
+            mare.genome[locus][rollInt(state, 2)],
+          ];
+        }
+        const lineage = rollValue(state) < 0.5 ? sire.lineage : mare.lineage;
+        const sex = rollValue(state) < 0.5 ? "M" : "F";
+        const vigour = vigourFor(sire, mare) + (FATE_VIGOUR[row.fate] ?? 0);
+        const foal = makeHorse(state, genome, lineage, sex, 0, state.season, vigour, sire.id, mare.id);
+        foal.care = row.care;
+        foal.owner = owner.id;
+        state.horses.push(foal);
+        owner.horses.push(foal.id);
+        owner.guineas += BREEDER_PREMIUM;
+        state.ledger = [
+          { season: state.season, text: `Breeder's premium for ${foal.name}`, amount: BREEDER_PREMIUM },
+          ...state.ledger,
+        ].slice(0, 10);
+        log(state, `${foal.name} foaled by ${mare.name} out of ${sire.name}.`, "breeding");
+        created.push({ foal, mare, sire, care: row.care, fate: row.fate ?? null });
+      }
     }
     scorePopulation(state);
     const reports = created
-      .map((entry) => foalReport(state, entry.foal, entry.mare, entry.sire, entry.care))
+      .map((entry) => foalReport(state, entry.foal, entry.mare, entry.sire, entry.care, entry.fate))
       .sort((a, b) => b.value - a.value);
     for (const report of reports) {
       const owner = state.stables.find((entry) => entry.id === report.stableId);
       report.personalBest = report.value > (owner?.bestFoalValue ?? 0);
       if (owner && report.personalBest) owner.bestFoalValue = report.value;
     }
-    state.lastFoals = reports;
-    if (reports.length) state.lastFoal = reports[0];
+    state.lastFoals = [...reports, ...lost];
+    if (state.lastFoals.length) state.lastFoal = state.lastFoals[0];
     state.foaling = (state.foaling ?? []).filter((row) => !due.includes(row));
   }
   state.turn = (state.turn ?? 0) + 1;
@@ -2063,6 +2125,8 @@ function viewFor(state, playerId) {
           seasonsLeft: Math.max(0, row.dueSeason - state.season),
           sireName: sire ? sire.name : "unknown",
           care: row.care,
+          fate: row.fate ?? null,
+          fateNote: fateNote(row.fate),
         };
       })(),
       value: horse.value,
@@ -2249,6 +2313,8 @@ function viewFor(state, playerId) {
         mareName: mare ? mare.name : "unknown",
         sireName: sire ? sire.name : "unknown",
         care: row.care,
+        fate: row.fate ?? null,
+        fateNote: fateNote(row.fate),
         conceived: row.conceived,
         dueSeason: row.dueSeason,
         seasonsLeft: Math.max(0, row.dueSeason - state.season),
@@ -2691,6 +2757,15 @@ function settle() {
   }
 }
 
+/** A short tag for a flagged pregnancy, shown while the player waits. */
+function fateTag(fate, note) {
+  const row = document.createElement("div");
+  const bad = fate === "scare" || fate === "slipped";
+  row.className = "pairing" + (bad ? " risk" : "");
+  row.textContent = note ?? fate;
+  return row;
+}
+
 function kvRow(label, value) {
   const row = document.createElement("div");
   const left = document.createElement("span");
@@ -2733,6 +2808,35 @@ function openReveal(foal, v) {
   const card = document.createElement("div");
   card.className = "card";
 
+  // The rare loss: gentler than the fanfare, and honest about what it cost.
+  if (event === "slipped") {
+    const lostStamp = document.createElement("span");
+    lostStamp.className = "stamp miss";
+    lostStamp.textContent = "lost";
+    card.append(lostStamp);
+    const lostHead = document.createElement("h3");
+    lostHead.textContent = "She slipped the foal";
+    card.append(lostHead);
+    const lostSub = document.createElement("p");
+    lostSub.className = "hint";
+    lostSub.textContent = `${foal.damName} lost the foal by ${foal.sireName}. The covering and the care are gone; there is no foal to name.`;
+    card.append(lostSub);
+    const lostRow = document.createElement("div");
+    lostRow.className = "row";
+    lostRow.style.marginTop = "0.7rem";
+    const lostClose = document.createElement("button");
+    lostClose.className = "tiny";
+    lostClose.textContent = "try again";
+    lostClose.addEventListener("click", () => {
+      box.hidden = true;
+    });
+    lostRow.append(lostClose);
+    card.append(lostRow);
+    box.append(card);
+    chime(0, false);
+    return;
+  }
+
   // The conception: the payoff is deferred, so this card is deliberately quiet.
   if (event === "expecting") {
     const waitStamp = document.createElement("span");
@@ -2753,6 +2857,7 @@ function openReveal(foal, v) {
       kvRow("what now", "run the season to bring the foal into the yard"),
     );
     card.append(waitLines);
+    if (foal.fate) card.append(fateTag(foal.fate, foal.fateNote));
     const waitClose = document.createElement("div");
     waitClose.className = "row";
     waitClose.style.marginTop = "0.7rem";
@@ -2831,6 +2936,20 @@ function openReveal(foal, v) {
     );
     if (foal.personalBest) lines.append(kvRow("your yard", "best foal you have bred"));
     card.append(lines);
+    if (foal.fate && foal.fate !== "twins") {
+      card.append(fateTag(foal.fate, foal.fateNote));
+    }
+    if (foal.fate === "twins") {
+      const sibling = (v.lastFoals ?? []).find(
+        (row) => row.id !== foal.id && row.damId === foal.damId && row.event === "born",
+      );
+      const twin = document.createElement("div");
+      twin.className = "pairing";
+      twin.textContent = sibling
+        ? `twins — ${sibling.name} came too, both a little smaller for it`
+        : "twins — two foals, both a little smaller for it";
+      card.append(twin);
+    }
 
     if (foal.nextTier) {
       const meter = document.createElement("div");
@@ -2894,7 +3013,8 @@ function openReveal(foal, v) {
   card.append(closeRow);
 
   box.append(card);
-  chime(Math.max(0, tierIndex), foal.ok);
+  const fateTier = foal.fate === "strong" ? 4 : foal.fate === "twins" ? 3 : 0;
+  chime(Math.max(tierIndex, fateTier), event === "born");
 }
 
 /** Show the moment once per foal, not on every redraw. */
@@ -2986,6 +3106,7 @@ function renderFoaling(v) {
     when.className = "kv";
     when.innerHTML = `<span>care</span><b>${CARE_WORDS[row.care] ?? row.care}</b>`;
     card.append(when);
+    if (row.fate) card.append(fateTag(row.fate, row.fateNote));
     list.append(card);
   }
 }
@@ -3051,6 +3172,7 @@ function draw() {
         horse.inFoal.seasonsLeft <= 1 ? "next season" : `in ${horse.inFoal.seasonsLeft} seasons`
       }`;
       name.append(dueLine);
+      if (horse.inFoal.fate) name.append(fateTag(horse.inFoal.fate, horse.inFoal.fateNote));
     }
     if (horse.pairing && !horse.inFoal) {
       const pair = document.createElement("div");
