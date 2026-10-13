@@ -151,7 +151,18 @@
       .going.next { border-color: var(--brass); }
       .going h3 { margin: 0 0 0.15rem; font-size: 0.95rem; }
       .going .weights { display: grid; gap: 0.18rem; margin-top: 0.45rem; }
-      .going .w { display: grid; grid-template-columns: minmax(72px, 104px) 1fr 2.3rem; align-items: center; gap: 0.45rem; font-size: 0.72rem; color: var(--dim); }
+      .going .w { display: grid; grid-template-columns: 0.7rem minmax(70px, 104px) 1fr 2.3rem; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--dim); }
+      .going .w .dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: rgba(255, 255, 255, 0.22); justify-self: center; }
+      .going .w.top .dot { width: 0.55rem; height: 0.55rem; background: var(--brass); }
+      .going .w.bottom .dot { background: transparent; border: 1px dashed rgba(160, 150, 200, 0.55); }
+      .going .w .tname { display: inline-flex; align-items: center; gap: 0.3rem; }
+      .going .w .ticon { width: 0.82rem; height: 0.82rem; flex: none; }
+      .going .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-top: 0.35rem; }
+      .going .chiplabel { font-size: 0.68rem; color: var(--dim); }
+      .going .chip { display: inline-flex; align-items: center; gap: 0.28rem; border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.45rem; font-size: 0.7rem; color: var(--dim); }
+      .going .chip .ticon { width: 0.75rem; height: 0.75rem; }
+      .going .chip.top { border-color: var(--brass); color: var(--cream); background: rgba(214, 178, 110, 0.12); }
+      .going .chip.least { opacity: 0.6; }
       .going .w .bar { height: 0.5rem; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
       .going .w .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--violet), var(--brass)); }
       .going .w.top { color: var(--cream); font-weight: 700; }
@@ -2508,9 +2519,12 @@ function viewFor(state, playerId) {
         lean: advice.lean,
         bestInstruction: advice.best,
         instructionWhy: advice.why,
-        weights: ranked.map((trait) => ({
+        weights: ranked.map((trait, index) => ({
           trait,
           weight: Math.round((weights[trait] ?? 0) * 100),
+          // What the page marks this row as: the two that decide the card, the one that
+          // never does, and the rest. Derived here so the visual coding cannot drift.
+          tier: index < 2 ? "top" : index === ranked.length - 1 ? "bottom" : "mid",
         })),
         wins: ranked.slice(0, 2),
         punishes: ranked[ranked.length - 1],
@@ -3579,6 +3593,35 @@ function renderFoals(v) {
   }
 }
 
+/**
+ * One tiny line icon per trait, drawn in code like the rest of the art: no assets, no
+ * credits. They exist so a reader identifies a trait before reading its name.
+ */
+const TRAIT_ICONS = {
+  speed: "M13 2 L5 13 h5 l-1 9 8-11 h-5 z",
+  accel: "M6 13l6-6 6 6M6 19l6-6 6 6",
+  stamina: "M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z",
+  recovery: "M12 20s-7-4.5-7-9a4 4 0 017-2.5A4 4 0 0119 11c0 4.5-7 9-7 9z",
+  temperament: "M12 3a9 9 0 100 18 9 9 0 000-18zM9 10h.01M15 10h.01M9 15h6",
+  soundness: "M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z",
+};
+
+function traitIcon(trait) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "ticon");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", TRAIT_ICONS[trait] ?? "M12 5v14");
+  path.setAttribute("fill", trait === "speed" ? "currentColor" : "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "2");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  svg.append(path);
+  return svg;
+}
+
 /** The race cards: every going, with the live weights the engine scores with. */
 function renderGoings(v) {
   const list = el("goings");
@@ -3590,16 +3633,36 @@ function renderGoings(v) {
     const head = document.createElement("h3");
     head.textContent = going.next ? `${going.label} · next up` : going.label;
     card.append(head);
+    // the immediate read: two chips that matter, one that does not, before any bar
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    const wants = document.createElement("span");
+    wants.className = "chiplabel";
+    wants.textContent = "wants";
+    chips.append(wants);
+    for (const trait of going.wins ?? []) {
+      const chip = document.createElement("span");
+      chip.className = "chip top";
+      chip.append(traitIcon(trait), document.createTextNode(trait));
+      chips.append(chip);
+    }
+    const least = document.createElement("span");
+    least.className = "chip least";
+    least.append(traitIcon(going.punishes), document.createTextNode(going.punishes));
+    chips.append(least);
+    card.append(chips);
 
     const weights = document.createElement("div");
     weights.className = "weights";
-    const top = new Set(going.wins ?? []);
     for (const row of going.weights ?? []) {
       const line = document.createElement("div");
-      line.className =
-        "w" + (top.has(row.trait) ? " top" : "") + (row.trait === going.punishes ? " bottom" : "");
+      line.className = `w ${row.tier ?? "mid"}`;
+      const marker = document.createElement("span");
+      marker.className = "dot";
+      marker.setAttribute("aria-hidden", "true");
       const name = document.createElement("span");
-      name.textContent = row.trait;
+      name.className = "tname";
+      name.append(traitIcon(row.trait), document.createTextNode(row.trait));
       const bar = document.createElement("div");
       bar.className = "bar";
       const fill = document.createElement("i");
@@ -3609,7 +3672,7 @@ function renderGoings(v) {
       bar.append(fill);
       const pct = document.createElement("span");
       pct.textContent = `${row.weight}%`;
-      line.append(name, bar, pct);
+      line.append(marker, name, bar, pct);
       weights.append(line);
     }
     card.append(weights);
