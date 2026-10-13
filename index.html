@@ -597,8 +597,24 @@ const UPKEEP_EXPONENT = 1.55;
 // A 100-fee entry with a thin pot was a poverty trap: a stable that could not
 // afford the fee could not earn, so it never recovered. A small fee and a real
 // subsidy make racing the income engine it is meant to be.
-const ENTRY_FEE = 40;
-const PURSE_SUBSIDY = 3.0; // the house tops the pot up
+/**
+ * Per meeting. A season is three of them, so 15 three times is the 40 a season used to
+ * cost to run: more chances to race without racing becoming a tax on having horses.
+ */
+const ENTRY_FEE = 15;
+/**
+ * A season is three meetings. The house's top-up is per meeting, and 1.0 three times is
+ * the 3.0 a season used to pay in one go: more chances to earn, the same money in play.
+ */
+const MEETINGS_PER_SEASON = 3;
+/**
+ * The house tops the pot up, per meeting. Three meetings mean three entry fees a season
+ * where one used to be, so the subsidy keeps the house's share of the season's racing
+ * the size it always was: 1.7 per meeting is 1 + 2/3, which leaves the house adding the
+ * same money over three meetings that 3.0 added over one. At 1.0 racing stopped paying
+ * and the simulation answered with five forced sales.
+ */
+const PURSE_SUBSIDY = 3.0;
 const PURSE_SPLIT = [0.45, 0.25, 0.18, 0.12]; // four places, as real meetings pay
 const FOAL_UPKEEP = 0.25; // board for a foal
 const PENSION_UPKEEP = 0.3; // board for a retired horse
@@ -945,7 +961,7 @@ function adviceFor(state, stable, field) {
     ? herd.reduce((sum, horse) => sum + horse.f, 0) / herd.length
     : 0;
   if (!stable.entries.length && herd.some((horse) => horse.age >= RACE_AGE)) {
-    return "Enter up to three runners, then run the season.";
+    return "Enter up to three runners, then run the meeting.";
   }
   if (herd.length > 8) {
     const bill = herd.reduce((sum, horse) => sum + horse.upkeep, 0);
@@ -958,7 +974,7 @@ function adviceFor(state, stable, field) {
     return "Your mares are due and you hold no coverings. Buy one from the catalogue, or post a request.";
   }
   if (!herd.length) return "Buy a horse from the catalogue, or breed one.";
-  return "Run the season when your runners are entered.";
+  return "Run the meeting when your runners are entered — a season is three of them.";
 }
 
 /**
@@ -1156,6 +1172,7 @@ function setup(players) {
     players: [...players],
     unowned: [],
     foaling: [],
+    meeting: 1,
   };
 
   players.forEach((playerId, index) => {
@@ -1659,22 +1676,33 @@ function applyAction(state, playerId, action) {
     return next;
   }
 
-  if (action.type === "advance") return runSeason(next);
+  if (action.type === "advance") {
+    const meeting = state.meeting ?? 1;
+    runMeeting(next);
+    if (meeting >= MEETINGS_PER_SEASON) return runTurnover(next);
+    next.meeting = meeting + 1;
+    log(
+      next,
+      `Meeting ${meeting} of ${MEETINGS_PER_SEASON} is run. Entries for meeting ${next.meeting} are open — up to three runners.`,
+      "season",
+    );
+    return next;
+  }
 
   return next;
 }
 
 // ── the season ────────────────────────────────────────────────────────────
-function runSeason(state) {
+/** One meeting: who runs, how they finish, who is paid. No bills, no ageing. */
+function runMeeting(state) {
   const condition = state.condition;
   const entrants = [];
 
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) {
-      // House money keeps rival stables solvent enough to trade, which is what
-      // gives a solo player counterparties in the straw market.
-      stable.guineas += AI_STIPEND;
-      aiPrepareSeason(state, stable);
+      // Only the entry side is per meeting. The house's money, its breeding and its
+      // listings are seasonal, and happen when the season turns.
+      aiEnterMeeting(state, stable);
     }
     for (const horseId of stable.entries.slice(0, 3)) {
       const horse = horseById(state, horseId);
@@ -1746,6 +1774,7 @@ function runSeason(state) {
     const winner = entrants[0];
     state.lastRace = {
       season: state.season,
+      meeting: state.meeting ?? 1,
       condition,
       pot,
       runners: entrants.length,
@@ -1789,6 +1818,20 @@ function runSeason(state) {
     }
   } else {
     state.lastRace = null;
+  }
+
+  return state;
+}
+
+/** The season's end: bills, ageing, the market, the foaling and the new year. */
+function runTurnover(state) {
+  state.meeting = 1;
+  for (const stable of state.stables) {
+    if (!stable.id.startsWith("ai")) continue;
+    // House money keeps rival stables solvent enough to trade, which is what gives a
+    // solo player counterparties in the straw market. Once a season, not per meeting.
+    stable.guineas += AI_STIPEND;
+    aiPrepareSeason(state, stable);
   }
 
   // upkeep, ageing, straws, retirement
@@ -2079,10 +2122,11 @@ function runSeason(state) {
 }
 
 // ── rival stables, so a solo player always has counterparties ─────────────
-function aiPrepareSeason(state, stable) {
-  const owned = stable.horses.map((id) => horseById(state, id)).filter(Boolean);
-  const runners = owned
-    .filter((horse) => !horse.retired && horse.age >= RACE_AGE)
+/** The entry side of a rival's meeting: who runs, and what they are told to do. */
+function aiEnterMeeting(state, stable) {
+  const runners = stable.horses
+    .map((id) => horseById(state, id))
+    .filter((horse) => horse && !horse.retired && horse.age >= RACE_AGE)
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
   stable.entries = runners.map((horse) => horse.id);
@@ -2097,6 +2141,11 @@ function aiPrepareSeason(state, stable) {
     stable.tactics[horse.id] = rollValue(state) < AI_TACTIC_ERROR ? misread : best;
   }
 
+}
+
+/** The season side of a rival's yard: breeding, and what it offers the market. */
+function aiPrepareSeason(state, stable) {
+  const owned = stable.horses.map((id) => horseById(state, id)).filter(Boolean);
   const mares = owned
     .filter((horse) => horse.sex === "F" && !horse.retired && horse.foals < MARE_CAREER_FOALS && horse.age <= MARE_MAX_AGE)
     .sort((a, b) => b.value - a.value);
@@ -2442,6 +2491,7 @@ function viewFor(state, playerId) {
     meeting: state.lastRace
       ? {
           season: state.lastRace.season,
+          round: state.lastRace.meeting ?? 1,
           condition: state.lastRace.condition,
           pot: state.lastRace.pot,
           runners: state.lastRace.runners,
@@ -2471,6 +2521,8 @@ function viewFor(state, playerId) {
     retirements: population.filter((horse) => horse.retired).length,
     certifyCost: CERTIFY_COST,
     strawStorage: STRAW_STORAGE,
+    round: state.meeting ?? 1,
+    meetingsPerSeason: MEETINGS_PER_SEASON,
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
     careChoices: CARE_CHOICES.map((care) => ({
@@ -2744,6 +2796,8 @@ const FOAL_KEY = "hf:studbook:foalSeen";
 let soundOn = readStore(SOUND_KEY) !== "off";
 let careChoice = readStore(CARE_KEY) || "plain";
 let shownFoal = readStore(FOAL_KEY) || "";
+let revealQueue = [];
+let revealIndex = 0;
 let revealTimers = [];
 let audio = null;
 const TIERS = ["ordinary", "promising", "excellent", "exceptional", "stakes class"];
@@ -2978,6 +3032,14 @@ let focusBeforeReveal = null;
 function closeReveal() {
   const box = el("reveal");
   if (box) box.hidden = true;
+  // Several foals can be born in the same turn: closing one opens the next, so a run of
+  // births is a run of moments rather than one card and a silent yard.
+  if (revealIndex + 1 < revealQueue.length) {
+    revealIndex += 1;
+    if (view) openReveal(revealQueue[revealIndex], view, { index: revealIndex, total: revealQueue.length });
+    return;
+  }
+  revealQueue = [];
   if (focusBeforeReveal && typeof focusBeforeReveal.focus === "function") focusBeforeReveal.focus();
   focusBeforeReveal = null;
 }
@@ -2999,7 +3061,7 @@ function mountDialog(card) {
   }
 }
 
-function openReveal(foal, v) {
+function openReveal(foal, v, progress) {
   const box = el("reveal");
   if (!box) return;
   for (const timer of revealTimers) clearTimeout(timer);
@@ -3098,6 +3160,13 @@ function openReveal(foal, v) {
   stamp.className = "stamp" + (event === "born" ? (tierIndex >= 2 ? " high" : "") : " miss");
   stamp.textContent = event === "born" ? foal.tier : "no foal";
   card.append(stamp);
+  if (progress && progress.total > 1) {
+    const many = document.createElement("span");
+    many.className = "hint";
+    many.style.marginLeft = "0.5rem";
+    many.textContent = `${progress.index + 1} of ${progress.total} this turn`;
+    card.append(many);
+  }
 
   const heading = document.createElement("h3");
   heading.textContent = event === "born" ? (foal.sex === "M" ? "A colt is born" : "A filly is born") : "The covering missed";
@@ -3226,11 +3295,15 @@ function openReveal(foal, v) {
 function maybeReveal(v) {
   const foal = v.lastFoal;
   if (!foal) return;
-  const stamp = `${foal.event ?? (foal.ok ? "born" : "miss")}:${foal.id ?? foal.damId}:${foal.bornSeason ?? foal.dueSeason ?? ""}`;
+  const batch = (v.lastFoals && v.lastFoals.length ? v.lastFoals : [foal]).filter(Boolean);
+  const ids = batch.map((row) => row.id ?? row.damId).join("|");
+  const stamp = `${foal.event ?? (foal.ok ? "born" : "miss")}:${ids}`;
   if (stamp === shownFoal) return;
   shownFoal = stamp;
   writeStore(FOAL_KEY, stamp);
-  openReveal(foal, v);
+  revealQueue = batch;
+  revealIndex = 0;
+  openReveal(revealQueue[0], v, { index: 0, total: batch.length });
 }
 
 /** The covering in hand and what goes into it, so the decision happens here. */
@@ -3386,6 +3459,8 @@ function draw() {
   renderFoals(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
+  const advanceButton = el("advance");
+  if (advanceButton) advanceButton.textContent = `Run meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}`;
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
   el("straw-count").textContent = v.strawStorage ? `${nf(v.straws.length)} of ${nf(v.strawStorage)}` : nf(v.straws.length);
   el("listing-count").textContent = nf(v.listings.length);
@@ -3592,7 +3667,7 @@ function draw() {
     }
     const note = document.createElement("p");
     note.className = "hint";
-    note.textContent = v.goingNote;
+    note.textContent = `Entries are open for meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}. Add or swap runners as long as you like — they run when you run the meeting. ${v.goingNote}`;
     entries.append(note);
   }
 
@@ -3829,7 +3904,7 @@ function draw() {
       }
     } else {
       const lanes = replay[replay.length - 1].order;
-      const stamp = `${v.meeting.season}:${lanes.map((row) => row.horseId).join(",")}`;
+      const stamp = `${v.meeting.season}.${v.meeting.round ?? 1}:${lanes.map((row) => row.horseId).join(",")}`;
       if (track.dataset.stamp !== stamp) {
         track.innerHTML = "";
         track.dataset.stamp = stamp;
