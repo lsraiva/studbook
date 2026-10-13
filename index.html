@@ -147,6 +147,17 @@
       .pairing.risk { background: rgba(255, 128, 128, 0.12); border-left-color: var(--red); }
       .select { font-size: 0.74rem; color: var(--brass); background: rgba(214, 178, 110, 0.12); border-left: 2px solid var(--brass); padding: 0.3rem 0.5rem; border-radius: 0.4rem; margin-top: 0.3rem; }
       .lineage { font-size: 0.68rem; color: var(--dim); margin-top: 0.15rem; }
+      .going { border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.6rem 0.7rem; margin-bottom: 0.55rem; background: var(--panel); }
+      .going.next { border-color: var(--brass); }
+      .going h3 { margin: 0 0 0.15rem; font-size: 0.95rem; }
+      .going .weights { display: grid; gap: 0.18rem; margin-top: 0.45rem; }
+      .going .w { display: grid; grid-template-columns: minmax(72px, 104px) 1fr 2.3rem; align-items: center; gap: 0.45rem; font-size: 0.72rem; color: var(--dim); }
+      .going .w .bar { height: 0.5rem; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+      .going .w .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--violet), var(--brass)); }
+      .going .w.top { color: var(--cream); font-weight: 700; }
+      .going .w.top .bar i { background: var(--brass); }
+      .going .w.bottom { opacity: 0.6; }
+      .going .profile { font-size: 0.8rem; color: var(--cream); margin: 0.5rem 0 0; }
       .why { font-size: 0.78rem; color: var(--dim); border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.35rem; margin-top: 0.35rem; }
       details.glossary { margin: 0.9rem 0 0; }
       details.glossary summary { cursor: pointer; color: var(--dim); font-size: 0.82rem; }
@@ -254,6 +265,7 @@
     <nav class="tabs" id="tabs" aria-label="Screens">
       <button class="tab" type="button" data-screen="yard">Yard <span class="badge" id="badge-yard">0</span></button>
       <button class="tab" type="button" data-screen="racing">Racing <span class="badge" id="badge-racing">0</span></button>
+      <button class="tab" type="button" data-screen="goings">Race cards</button>
       <button class="tab" type="button" data-screen="breeding">Breeding <span class="badge" id="badge-breeding">0</span></button>
       <button class="tab" type="button" data-screen="studs">Stud market <span class="badge" id="badge-studs">0</span></button>
       <button class="tab" type="button" data-screen="horses">Horse market <span class="badge" id="badge-horses">0</span></button>
@@ -316,6 +328,17 @@
             <button class="brass" id="watch" type="button">Watch the replay</button>
             <span class="hint" id="track-note"></span>
           </div>
+        </section>
+
+        <section class="panel" data-when="goings">
+          <h2>The race cards</h2>
+          <p class="hint">
+            Five goings, three meetings a season, so the calendar never runs the same card
+            twice in a row. The weights below are read live from the rules the engine scores
+            with rather than copied, and the card marked <b>next up</b> is the one your
+            entries will run on.
+          </p>
+          <div id="goings"></div>
         </section>
 
         <section class="panel" data-when="breeding">
@@ -563,6 +586,19 @@ const CONDITION_LABELS = {
   staying: "a staying race",
   flying: "a flying start",
   heavy: "heavy ground",
+};
+/**
+ * One line of prose per going, kept OUT of CONDITIONS: that table is read as pure numbers
+ * when horses are scored, and a word in it would poison the arithmetic. The numbers this
+ * describes are always published live beside it, so the claim and the weights are read
+ * together rather than taken on trust.
+ */
+const CONDITION_CHARACTER = {
+  sprint: "a fast horse with a sharp turn of foot",
+  classic: "a well-rounded horse with no obvious hole in it",
+  staying: "a stayer that can grind out the last furlong",
+  flying: "a fast horse with a cool head",
+  heavy: "a tough, sound horse that handles bad ground",
 };
 
 // ── game constants ────────────────────────────────────────────────────────
@@ -2414,6 +2450,24 @@ function viewFor(state, playerId) {
     season: state.season,
     condition: state.condition,
     conditionLabel: CONDITION_LABELS[state.condition] ?? state.condition,
+    // The card, read straight off the table the engine scores with, so the page cannot
+    // drift from the rules: it is the rules.
+    goings: CONDITION_ORDER.map((going) => {
+      const weights = CONDITIONS[going] ?? {};
+      const ranked = [...TRAITS].sort((a, b) => (weights[b] ?? 0) - (weights[a] ?? 0));
+      return {
+        key: going,
+        label: CONDITION_LABELS[going] ?? going,
+        character: CONDITION_CHARACTER[going] ?? null,
+        weights: ranked.map((trait) => ({
+          trait,
+          weight: Math.round((weights[trait] ?? 0) * 100),
+        })),
+        wins: ranked.slice(0, 2),
+        punishes: ranked[ranked.length - 1],
+        next: going === state.condition,
+      };
+    }),
     eliteCut: state.eliteCut,
     field,
     advice: adviceFor(state, stable, field),
@@ -2795,7 +2849,7 @@ let askedSeat = false;
 
 // ── screens ────────────────────────────────────────────────────────────────
 // One screen per job, routable by hash so a screen can be linked and reloaded.
-const SCREENS = ["yard", "racing", "breeding", "studs", "horses", "ledger"];
+const SCREENS = ["yard", "racing", "goings", "breeding", "studs", "horses", "ledger"];
 
 function screenFromHash() {
   const name = (location.hash || "").replace("#", "");
@@ -3476,6 +3530,49 @@ function renderFoals(v) {
   }
 }
 
+/** The race cards: every going, with the live weights the engine scores with. */
+function renderGoings(v) {
+  const list = el("goings");
+  if (!list) return;
+  list.innerHTML = "";
+  for (const going of v.goings ?? []) {
+    const card = document.createElement("div");
+    card.className = "going" + (going.next ? " next" : "");
+    const head = document.createElement("h3");
+    head.textContent = going.next ? `${going.label} · next up` : going.label;
+    card.append(head);
+
+    const weights = document.createElement("div");
+    weights.className = "weights";
+    const top = new Set(going.wins ?? []);
+    for (const row of going.weights ?? []) {
+      const line = document.createElement("div");
+      line.className =
+        "w" + (top.has(row.trait) ? " top" : "") + (row.trait === going.punishes ? " bottom" : "");
+      const name = document.createElement("span");
+      name.textContent = row.trait;
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("i");
+      // 2.2x so the biggest weight on the card (40) fills most of the rail and the
+      // smallest (2) is still a visible mark rather than nothing
+      fill.style.width = `${Math.max(2, row.weight * 2.2)}%`;
+      bar.append(fill);
+      const pct = document.createElement("span");
+      pct.textContent = `${row.weight}%`;
+      line.append(name, bar, pct);
+      weights.append(line);
+    }
+    card.append(weights);
+
+    const prose = document.createElement("p");
+    prose.className = "profile";
+    prose.textContent = `Favours ${going.character}. It rewards ${(going.wins ?? []).join(" and ")}; it punishes a horse short of ${going.punishes}.`;
+    card.append(prose);
+    list.append(card);
+  }
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -3510,6 +3607,7 @@ function draw() {
   renderCovering(v);
   renderFoaling(v);
   renderFoals(v);
+  renderGoings(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -4165,7 +4263,7 @@ for (const tab of document.querySelectorAll(".tab")) {
 // 1..6 switch screens, and a dialog owns the keyboard while it is open.
 window.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  const index = ["1", "2", "3", "4", "5", "6"].indexOf(event.key);
+  const index = ["1", "2", "3", "4", "5", "6", "7"].indexOf(event.key);
   if (index < 0 || index >= SCREENS.length) return;
   const box = el("reveal");
   if (box && !box.hidden) return;
