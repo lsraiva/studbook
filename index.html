@@ -556,6 +556,14 @@ const CONDITIONS = {
  * one before, while a list of six would hand back an identical season every second year.
  */
 const CONDITION_ORDER = ["sprint", "classic", "staying", "flying", "heavy"];
+/** How each going is said. 'A flying rewards...' is not English; 'a flying start' is. */
+const CONDITION_LABELS = {
+  sprint: "a sprint",
+  classic: "a classic",
+  staying: "a staying race",
+  flying: "a flying start",
+  heavy: "heavy ground",
+};
 
 // ── game constants ────────────────────────────────────────────────────────
 const SERVICES_PER_SEASON = 5; // the cap the study found matters, with careers
@@ -1025,7 +1033,9 @@ function conditionNote(condition) {
   if (ranked.length < 2) return `A ${condition} meeting.`;
   const top = ranked.slice(0, 2);
   const weak = ranked[ranked.length - 1];
-  return `A ${condition} rewards ${top.join(" and ")}; it punishes a horse short of ${weak}.`;
+  const label = CONDITION_LABELS[condition] ?? condition;
+  const said = label.charAt(0).toUpperCase() + label.slice(1);
+  return `${said} rewards ${top.join(" and ")}; it punishes a horse short of ${weak}.`;
 }
 
 /** The value line each tier sits on, read off the living field. */
@@ -2403,6 +2413,7 @@ function viewFor(state, playerId) {
     isYou: Boolean(stable),
     season: state.season,
     condition: state.condition,
+    conditionLabel: CONDITION_LABELS[state.condition] ?? state.condition,
     eliteCut: state.eliteCut,
     field,
     advice: adviceFor(state, stable, field),
@@ -3470,8 +3481,8 @@ function draw() {
   if (!v || !v.stable) return;
   el("guineas").textContent = nf(v.stable.guineas);
   el("season").textContent = nf(v.season);
-  el("condition").textContent = v.condition;
-  el("condition2").textContent = v.condition;
+  el("condition").textContent = v.conditionLabel ?? v.condition;
+  el("condition2").textContent = v.conditionLabel ?? v.condition;
   // the old single "stakes cut" pill was replaced by the richer field pill
   if (el("cut")) el("cut").textContent = nf(v.eliteCut, 2);
   if (el("field-mean")) el("field-mean").textContent = nf(v.field.mean, 2);
