@@ -4100,6 +4100,22 @@ if (revealBox) {
   });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeReveal();
+    if (event.key !== "Tab") return;
+    // a dialog that lets Tab walk out behind it is not modal, whatever role it carries
+    const box = el("reveal");
+    if (!box || box.hidden) return;
+    const focusable = [...box.querySelectorAll("button, input, a[href]")].filter((node) => !node.disabled);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !box.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !box.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
   });
 }
 
@@ -4111,11 +4127,29 @@ if (watchButton) {
 }
 
 for (const tab of document.querySelectorAll(".tab")) {
+  tab.setAttribute(
+    "aria-keyshortcuts",
+    String([...document.querySelectorAll(".tab")].indexOf(tab) + 1),
+  );
   tab.addEventListener("click", () => {
     showScreen(tab.dataset.screen);
     draw();
   });
 }
+
+// 1..6 switch screens, and a dialog owns the keyboard while it is open.
+window.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  const index = ["1", "2", "3", "4", "5", "6"].indexOf(event.key);
+  if (index < 0 || index >= SCREENS.length) return;
+  const box = el("reveal");
+  if (box && !box.hidden) return;
+  const target = document.querySelector(`.tab[data-screen="${SCREENS[index]}"]`);
+  if (!target) return;
+  event.preventDefault();
+  showScreen(SCREENS[index]);
+  draw();
+});
 showScreen(screen);
 
 connect();
