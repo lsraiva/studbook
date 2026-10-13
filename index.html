@@ -199,6 +199,8 @@
       .going .tips { margin-top: 0.5rem; border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.4rem; }
       .going .tip { margin: 0 0 0.22rem; font-size: 0.76rem; color: var(--dim); }
       .going .tip b { color: var(--brass); font-weight: 700; margin-right: 0.15rem; }
+      .panel input:not([type="checkbox"]) { font: inherit; padding: 0.4rem 0.55rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #0f0d1c; color: var(--cream); min-width: 0; }
+      #players input { width: 100%; }
       .why { font-size: 0.78rem; color: var(--dim); border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.35rem; margin-top: 0.35rem; }
       details.glossary { margin: 0.9rem 0 0; }
       details.glossary summary { cursor: pointer; color: var(--dim); font-size: 0.82rem; }
@@ -478,6 +480,15 @@
             price that sits unsold drops to clearance. Consign your own from the Yard.
           </p>
           <div class="cards" id="horse-lots"></div>
+        </section>
+
+        <section class="panel" data-when="ledger">
+          <h2>Your table</h2>
+          <p class="hint">
+            Who is at this table, and how to bring someone else to it. A room seats up to
+            four stables, and everyone in it shares the same seasons, markets and races.
+          </p>
+          <div id="players"></div>
         </section>
 
         <section class="panel" data-when="ledger">
@@ -1399,6 +1410,14 @@ function validateAction(state, playerId, action) {
 
   if (type === "advance") return { ok: true };
 
+  if (type === "nameStable") {
+    const name = String(action.name ?? "").trim().replace(/\s+/g, " ");
+    if (name.length < 2 || name.length > 24) {
+      return { ok: false, error: "a stable name is 2 to 24 characters" };
+    }
+    return { ok: true };
+  }
+
   if (type === "openWindow") {
     if (state.clock) return { ok: false, error: "entries are already open on a clock" };
     if (typeof action.endsAt !== "number" || !Number.isFinite(action.endsAt)) {
@@ -1859,6 +1878,14 @@ function applyAction(state, playerId, action) {
     // running it by hand supersedes any clock that is open
     next.clock = null;
     return runRound(next, "");
+  }
+
+  if (action.type === "nameStable") {
+    const name = String(action.name ?? "").trim().replace(/\s+/g, " ").slice(0, 24);
+    const was = stable.name;
+    stable.name = name;
+    log(next, `${was} is now ${name}.`, "season");
+    return next;
   }
 
   if (action.type === "openWindow") {
@@ -2704,6 +2731,13 @@ function viewFor(state, playerId) {
         select: Boolean(listing.select),
       };
     }),
+    players: state.stables
+      .filter((entry) => entry.player)
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        mine: Boolean(stable && entry.id === stable.id),
+      })),
     rivals: state.stables
       .filter((entry) => !entry.player)
       .map((entry) => ({
@@ -3815,6 +3849,83 @@ function renderGoings(v) {
 
 let clockTicker = null;
 
+/** Who is at this table, and how to bring someone else to it. */
+function renderPlayers(v) {
+  const list = el("players");
+  if (!list) return;
+  list.innerHTML = "";
+  // The single-file build replaces the socket with a local room, and a game with no server
+  // cannot have a second player. Say so rather than offering an invite that cannot work.
+  const local = Boolean(socket && socket.constructor && socket.constructor.name === "LocalSocket");
+
+  for (const row of v.players ?? []) {
+    const line = document.createElement("div");
+    line.className = "kv";
+    const who = document.createElement("span");
+    who.textContent = row.mine ? `${row.name} (you)` : row.name;
+    const seat = document.createElement("b");
+    seat.textContent = row.mine ? "your seat" : "another stable";
+    line.append(who, seat);
+    list.append(line);
+  }
+
+  const room = new URLSearchParams(location.search).get("room") || "main";
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent = local
+    ? "This build is one file with no server, so it is single-player by nature. The hosted build seats up to four stables in the same room."
+    : `Room “${room}”. Anyone opening the link below joins this table.`;
+  list.append(note);
+
+  if (!local) {
+    const link = document.createElement("input");
+    link.readOnly = true;
+    link.value = `${location.origin}${location.pathname}?room=${encodeURIComponent(room)}`;
+    link.setAttribute("aria-label", "Invite link");
+    list.append(link);
+    const row = document.createElement("div");
+    row.className = "row";
+    const copy = document.createElement("button");
+    copy.className = "tiny brass";
+    copy.textContent = "copy the link";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(link.value);
+        toast("invite link copied");
+      } catch {
+        link.select();
+        toast("the browser kept the clipboard — the link is selected to copy", true);
+      }
+    });
+    const other = document.createElement("input");
+    other.placeholder = "or another room";
+    other.setAttribute("aria-label", "Room name");
+    const go = document.createElement("button");
+    go.className = "tiny";
+    go.textContent = "switch room";
+    go.addEventListener("click", () => {
+      const next = String(other.value ?? "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+      if (next.length < 2) return toast("a room name is at least two characters", true);
+      location.href = `${location.pathname}?room=${encodeURIComponent(next)}`;
+    });
+    row.append(copy, other, go);
+    list.append(row);
+  }
+
+  const nameRow = document.createElement("div");
+  nameRow.className = "row";
+  const field = document.createElement("input");
+  field.value = v.stable.name;
+  field.maxLength = 24;
+  field.setAttribute("aria-label", "Stable name");
+  const save = document.createElement("button");
+  save.className = "tiny good";
+  save.textContent = "use this name";
+  save.addEventListener("click", () => act({ type: "nameStable", name: field.value }));
+  nameRow.append(field, save);
+  list.append(nameRow);
+}
+
 /** The room sets the deadline; the screen only reads it, once a second, while it is open. */
 function tickClock() {
   const node = el("clock-count");
@@ -3871,6 +3982,7 @@ function draw() {
   renderFoals(v);
   renderGoings(v);
   tickClock();
+  renderPlayers(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
