@@ -159,6 +159,33 @@
       .going .w .ticon { width: 0.82rem; height: 0.82rem; flex: none; }
       .going .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-top: 0.35rem; }
       .going .chiplabel { font-size: 0.68rem; color: var(--dim); }
+      /* On a phone the four-column row squeezes the bar into nothing, so the row becomes
+         two lines: mark, name and percentage on top, the bar full width underneath. Type
+         goes up rather than down, and the cards' tiers are tinted as well as dotted,
+         because a hue survives at small sizes where a 6px dot stops reading. */
+      @media (max-width: 620px) {
+        .going { padding: 0.75rem 0.7rem; }
+        .going h3 { font-size: 1.05rem; }
+        .going .chips { gap: 0.35rem; margin-top: 0.4rem; }
+        .going .chiplabel { font-size: 0.82rem; }
+        .going .chip { font-size: 0.86rem; padding: 0.22rem 0.62rem; }
+        .going .chip .ticon { width: 0.85rem; height: 0.85rem; }
+        .going .weights { gap: 0.3rem; margin-top: 0.5rem; }
+        .going .w {
+          grid-template-columns: 0.8rem 1fr auto;
+          grid-template-areas: "dot name pct" "bar bar bar";
+          row-gap: 0.25rem;
+          font-size: 0.9rem;
+        }
+        .going .w .dot { grid-area: dot; }
+        .going .w .tname { grid-area: name; }
+        .going .w .bar { grid-area: bar; height: 0.55rem; }
+        .going .w > span:last-child { grid-area: pct; text-align: right; }
+        .going .w .ticon { width: 0.95rem; height: 0.95rem; }
+        .going .w.top { background: rgba(214, 178, 110, 0.07); border-radius: 0.45rem; }
+        .going .w.bottom { opacity: 0.75; }
+        .going .tip { font-size: 0.88rem; }
+      }
       .going .chip { display: inline-flex; align-items: center; gap: 0.28rem; border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.45rem; font-size: 0.7rem; color: var(--dim); }
       .going .chip .ticon { width: 0.75rem; height: 0.75rem; }
       .going .chip.top { border-color: var(--brass); color: var(--cream); background: rgba(214, 178, 110, 0.12); }
@@ -187,6 +214,7 @@
       .panel[data-when] { display: none; }
       body[data-screen="yard"] .panel[data-when~="yard"],
       body[data-screen="racing"] .panel[data-when~="racing"],
+      body[data-screen="goings"] .panel[data-when~="goings"],
       body[data-screen="breeding"] .panel[data-when~="breeding"],
       body[data-screen="studs"] .panel[data-when~="studs"],
       body[data-screen="horses"] .panel[data-when~="horses"],
