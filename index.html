@@ -542,8 +542,20 @@ const CONDITIONS = {
   sprint: { speed: 0.35, accel: 0.3, recovery: 0.15, temperament: 0.1, stamina: 0.05, soundness: 0.05 },
   classic: { speed: 0.2, stamina: 0.2, accel: 0.15, recovery: 0.2, temperament: 0.1, soundness: 0.15 },
   staying: { stamina: 0.35, recovery: 0.25, speed: 0.1, accel: 0.05, temperament: 0.1, soundness: 0.15 },
+  // A flying start is won by a horse that can go fast AND keep its head: temperament is
+  // the second weight here, where every other going gives it a flat tenth and it can
+  // never be what separates one card from another.
+  flying: { speed: 0.4, accel: 0.25, temperament: 0.2, recovery: 0.1, stamina: 0.03, soundness: 0.02 },
+  // Heavy ground is the reverse: speed is nearly worthless and the tough horse wins, so
+  // soundness becomes a co-star rather than a footnote.
+  heavy: { stamina: 0.3, soundness: 0.25, temperament: 0.2, recovery: 0.15, speed: 0.07, accel: 0.03 },
 };
-const CONDITION_ORDER = ["sprint", "classic", "staying"];
+/**
+ * The rotation. A season is three meetings, so the LENGTH here has to be coprime with
+ * three: five goings step three per season and no season ever runs the same card as the
+ * one before, while a list of six would hand back an identical season every second year.
+ */
+const CONDITION_ORDER = ["sprint", "classic", "staying", "flying", "heavy"];
 
 // ── game constants ────────────────────────────────────────────────────────
 const SERVICES_PER_SEASON = 5; // the cap the study found matters, with careers
@@ -1191,7 +1203,7 @@ function setup(players) {
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) aiListStraws(state, stable);
   }
-  state.condition = CONDITION_ORDER[(state.season - 1) % CONDITION_ORDER.length];
+  setCondition(state);
   log(state, "Season 1 opens. Sales catalogues are live.", "season");
   return state;
 }
@@ -1219,6 +1231,8 @@ function strawsOf(state, stable) {
  * once, and a stable has to read the card again every time.
  */
 function conditionFor(season, round) {
+  // Stepping by MEETINGS_PER_SEASON rather than by one is what makes the card differ
+  // every season; the modulo then wraps it around the list.
   const index = (season - 1) * MEETINGS_PER_SEASON + ((round ?? 1) - 1);
   return CONDITION_ORDER[index % CONDITION_ORDER.length];
 }
