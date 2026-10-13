@@ -158,6 +158,9 @@
       .going .w.top .bar i { background: var(--brass); }
       .going .w.bottom { opacity: 0.6; }
       .going .profile { font-size: 0.8rem; color: var(--cream); margin: 0.5rem 0 0; }
+      .going .tips { margin-top: 0.5rem; border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.4rem; }
+      .going .tip { margin: 0 0 0.22rem; font-size: 0.76rem; color: var(--dim); }
+      .going .tip b { color: var(--brass); font-weight: 700; margin-right: 0.15rem; }
       .why { font-size: 0.78rem; color: var(--dim); border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.35rem; margin-top: 0.35rem; }
       details.glossary { margin: 0.9rem 0 0; }
       details.glossary summary { cursor: pointer; color: var(--dim); font-size: 0.82rem; }
@@ -599,6 +602,18 @@ const CONDITION_CHARACTER = {
   staying: "a stayer that can grind out the last furlong",
   flying: "a fast horse with a cool head",
   heavy: "a tough, sound horse that handles bad ground",
+};
+/**
+ * One line of breeding and buying advice per card. Editorial, and deliberately separate
+ * from the numbers: the page prints the weights beside it and derives the rest, so this
+ * is the opinion, not the arithmetic.
+ */
+const CONDITION_STRATEGY = {
+  sprint: "Breed for a turn of foot rather than stamina. A stayer here is a passenger.",
+  classic: "A horse with no hole in it beats a specialist. Read all six traits before you buy.",
+  staying: "Buy the bottomless horse: stamina and recovery first, speed last.",
+  flying: "A cool head is worth as much as raw speed. Temperament is this card's second weight.",
+  heavy: "Soundness first on this ground. A fast, fragile horse wastes the entry fee.",
 };
 
 // ── game constants ────────────────────────────────────────────────────────
@@ -1272,9 +1287,38 @@ function strawsOf(state, stable) {
 }
 
 /**
+ * Which instruction a card leans towards, from the same lean the pace model uses, so the
+ * advice on the page and the numbers the engine scores with cannot disagree.
+ */
+function instructionFor(going) {
+  const weights = CONDITIONS[going] ?? {};
+  const early = (weights.speed ?? 0) + (weights.accel ?? 0);
+  const late = (weights.stamina ?? 0) + (weights.recovery ?? 0);
+  const lean = early + late > 0 ? (early - late) / (early + late) : 0;
+  if (lean > 0.25) {
+    return {
+      lean: round(lean, 2),
+      best: "push",
+      why: "the card is won early, so a horse that can go fast is one to send",
+    };
+  }
+  if (lean < -0.25) {
+    return {
+      lean: round(lean, 2),
+      best: "hold",
+      why: "the card is won late, so sending one early spends what it needs at the finish",
+    };
+  }
+  return {
+    lean: round(lean, 2),
+    best: "steady",
+    why: "the card is balanced, so the instruction matters less than the horse",
+  };
+}
+
+/**
  * The going for a given season and meeting: three a season, cycling the list, so the
- * instruction that suits a horse is a decision taken three times a season rather than
- * once, and a stable has to read the card again every time.
+ * instruction that suits a horse is asked three times a season rather than once.
  */
 function conditionFor(season, round) {
   // Stepping by MEETINGS_PER_SEASON rather than by one is what makes the card differ
@@ -2455,10 +2499,15 @@ function viewFor(state, playerId) {
     goings: CONDITION_ORDER.map((going) => {
       const weights = CONDITIONS[going] ?? {};
       const ranked = [...TRAITS].sort((a, b) => (weights[b] ?? 0) - (weights[a] ?? 0));
+      const advice = instructionFor(going);
       return {
         key: going,
         label: CONDITION_LABELS[going] ?? going,
         character: CONDITION_CHARACTER[going] ?? null,
+        strategy: CONDITION_STRATEGY[going] ?? null,
+        lean: advice.lean,
+        bestInstruction: advice.best,
+        instructionWhy: advice.why,
         weights: ranked.map((trait) => ({
           trait,
           weight: Math.round((weights[trait] ?? 0) * 100),
@@ -3569,6 +3618,28 @@ function renderGoings(v) {
     prose.className = "profile";
     prose.textContent = `Favours ${going.character}. It rewards ${(going.wins ?? []).join(" and ")}; it punishes a horse short of ${going.punishes}.`;
     card.append(prose);
+    const tips = document.createElement("div");
+    tips.className = "tips";
+    const lines = [
+      ["Prioritise", `${(going.wins ?? []).join(" and ")} — the two weights that decide this card`],
+      ["Don't overpay for", `${going.punishes} — the cheapest part of the card`],
+      ["Instruction", `${going.bestInstruction ?? "steady"}: ${going.instructionWhy ?? ""}`],
+    ];
+    for (const [label, text] of lines) {
+      const row = document.createElement("p");
+      row.className = "tip";
+      const tag = document.createElement("b");
+      tag.textContent = label;
+      row.append(tag, document.createTextNode(` ${text}`));
+      tips.append(row);
+    }
+    if (going.strategy) {
+      const strategy = document.createElement("p");
+      strategy.className = "tip";
+      strategy.textContent = going.strategy;
+      tips.append(strategy);
+    }
+    card.append(tips);
     list.append(card);
   }
 }
