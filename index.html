@@ -725,6 +725,14 @@ const MEETINGS_PER_SEASON = 3;
  * and the simulation answered with five forced sales.
  */
 const PURSE_SUBSIDY = 3.0;
+/**
+ * The clock on the entries. A player opens it deliberately rather than every meeting
+ * carrying a timer, because a meeting that runs itself while a stable is away would race
+ * horses nobody instructed. The room owns the clock; these are the bounds it clamps to.
+ */
+const WINDOW_SECONDS = 90;
+const WINDOW_MIN_SECONDS = 10;
+const WINDOW_MAX_SECONDS = 300;
 const PURSE_SPLIT = [0.45, 0.25, 0.18, 0.12]; // four places, as real meetings pay
 const FOAL_UPKEEP = 0.25; // board for a foal
 const PENSION_UPKEEP = 0.3; // board for a retired horse
@@ -1285,6 +1293,7 @@ function setup(players) {
     unowned: [],
     foaling: [],
     meeting: 1,
+    clock: null,
   };
 
   players.forEach((playerId, index) => {
@@ -1389,6 +1398,19 @@ function validateAction(state, playerId, action) {
   if (!stable) return { ok: false, error: "take a seat first" };
 
   if (type === "advance") return { ok: true };
+
+  if (type === "openWindow") {
+    if (state.clock) return { ok: false, error: "entries are already open on a clock" };
+    if (typeof action.endsAt !== "number" || !Number.isFinite(action.endsAt)) {
+      return { ok: false, error: "a window needs a deadline" };
+    }
+    return { ok: true };
+  }
+
+  if (type === "closeWindow") {
+    if (!state.clock) return { ok: false, error: "no window is open" };
+    return { ok: true };
+  }
 
   if (type === "enter") {
     const ids = Array.isArray(action.horseIds) ? action.horseIds : [];
@@ -1834,23 +1856,48 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "advance") {
-    const meeting = state.meeting ?? 1;
-    runMeeting(next);
-    if (meeting >= MEETINGS_PER_SEASON) return runTurnover(next);
-    next.meeting = meeting + 1;
-    setCondition(next);
+    // running it by hand supersedes any clock that is open
+    next.clock = null;
+    return runRound(next, "");
+  }
+
+  if (action.type === "openWindow") {
+    next.clock = { endsAt: action.endsAt, round: next.meeting ?? 1 };
     log(
       next,
-      `Meeting ${meeting} of ${MEETINGS_PER_SEASON} is run. Entries for meeting ${next.meeting} are open — up to three runners.`,
+      `${stable.name} put entries for meeting ${next.meeting ?? 1} on a clock: they close when the time is up.`,
       "season",
     );
     return next;
+  }
+
+  if (action.type === "closeWindow") {
+    next.clock = null;
+    return runRound(next, "The clock ran out —");
   }
 
   return next;
 }
 
 // ── the season ────────────────────────────────────────────────────────────
+/**
+ * Run one meeting and move the round on, or turn the season over. The button and the
+ * clock both come through here, so a timed meeting and a manual one cannot diverge.
+ */
+function runRound(state, why) {
+  const meeting = state.meeting ?? 1;
+  runMeeting(state);
+  if (meeting >= MEETINGS_PER_SEASON) return runTurnover(state);
+  state.meeting = meeting + 1;
+  setCondition(state);
+  log(
+    state,
+    `${why ? `${why} ` : ""}Meeting ${meeting} of ${MEETINGS_PER_SEASON} is run. Entries for meeting ${state.meeting} are open — up to three runners.`,
+    "season",
+  );
+  return state;
+}
+
 /** One meeting: who runs, how they finish, who is paid. No bills, no ageing. */
 function runMeeting(state) {
   // The going is per meeting now, so this is where it is fixed.
@@ -2710,6 +2757,12 @@ function viewFor(state, playerId) {
     certifyCost: CERTIFY_COST,
     strawStorage: STRAW_STORAGE,
     round: state.meeting ?? 1,
+    clock: state.clock
+      ? { open: true, endsAt: state.clock.endsAt, round: state.clock.round }
+      : null,
+    windowSeconds: WINDOW_SECONDS,
+    windowMinSeconds: WINDOW_MIN_SECONDS,
+    windowMaxSeconds: WINDOW_MAX_SECONDS,
     meetingsPerSeason: MEETINGS_PER_SEASON,
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
@@ -2821,6 +2874,31 @@ class LocalSocket {
       this.game.state = applyAction(this.game.state, this.playerId, msg.action);
       this.save();
       this.broadcast();
+      return;
+    }
+    if (msg.type === "clock") {
+      // This local room is the room: it owns the clock exactly as the Durable Object does
+      // in production. A plain timer is right here because nothing hibernates in a tab.
+      const seconds = Math.min(3600, Math.max(1, Number(msg.seconds) || 0));
+      const endsAt = Date.now() + seconds * 1000;
+      const open = { type: "openWindow", endsAt };
+      const verdict = validateAction(this.game.state, this.playerId, open);
+      if (!verdict.ok) {
+        this.post({ type: "error", error: verdict.error || "invalid window" });
+        return;
+      }
+      this.game.state = applyAction(this.game.state, this.playerId, open);
+      this.save();
+      this.broadcast();
+      if (this.clockTimer) clearTimeout(this.clockTimer);
+      this.clockTimer = setTimeout(() => {
+        const close = { type: "closeWindow" };
+        const can = validateAction(this.game.state, this.playerId, close);
+        if (!can.ok) return;
+        this.game.state = applyAction(this.game.state, this.playerId, close);
+        this.save();
+        this.broadcast();
+      }, seconds * 1000);
       return;
     }
     if (msg.type === "reset") {
@@ -3735,6 +3813,28 @@ function renderGoings(v) {
   }
 }
 
+let clockTicker = null;
+
+/** The room sets the deadline; the screen only reads it, once a second, while it is open. */
+function tickClock() {
+  const node = el("clock-count");
+  if (!node) return;
+  const clock = view && view.clock;
+  if (!clock || !clock.open) {
+    if (clockTicker) {
+      clearInterval(clockTicker);
+      clockTicker = null;
+    }
+    return;
+  }
+  const secondsLeft = Math.max(0, Math.round((clock.endsAt - Date.now()) / 1000));
+  node.textContent =
+    secondsLeft > 0
+      ? `entries close in ${secondsLeft}s — the meeting then runs by itself`
+      : "time is up: the meeting is running";
+  if (!clockTicker) clockTicker = setInterval(tickClock, 1000);
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -3770,6 +3870,7 @@ function draw() {
   renderFoaling(v);
   renderFoals(v);
   renderGoings(v);
+  tickClock();
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -3982,6 +4083,25 @@ function draw() {
     note.className = "hint";
     note.textContent = `Entries are open for meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}. Add or swap runners as long as you like — they run when you run the meeting. ${v.goingNote}`;
     entries.append(note);
+
+    const when = document.createElement("div");
+    when.className = "row";
+    when.style.marginTop = "0.4rem";
+    const openWindow = document.createElement("button");
+    openWindow.className = "tiny";
+    openWindow.textContent = `Put entries on a ${nf(v.windowSeconds ?? 90)}s clock`;
+    openWindow.disabled = Boolean(v.clock && v.clock.open);
+    openWindow.addEventListener("click", () => send({ type: "clock", seconds: v.windowSeconds ?? 90 }));
+    when.append(openWindow);
+    const countdown = document.createElement("span");
+    countdown.className = "hint";
+    countdown.id = "clock-count";
+    countdown.textContent =
+      v.clock && v.clock.open
+        ? "entries are on the clock"
+        : "or just run the meeting when you are ready";
+    when.append(countdown);
+    entries.append(when);
   }
 
   // straws
