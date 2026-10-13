@@ -1213,9 +1213,23 @@ function strawsOf(state, stable) {
   return stable.straws;
 }
 
+/**
+ * The going for a given season and meeting: three a season, cycling the list, so the
+ * instruction that suits a horse is a decision taken three times a season rather than
+ * once, and a stable has to read the card again every time.
+ */
+function conditionFor(season, round) {
+  const index = (season - 1) * MEETINGS_PER_SEASON + ((round ?? 1) - 1);
+  return CONDITION_ORDER[index % CONDITION_ORDER.length];
+}
+
+/** Keep state.condition pointing at the meeting that is about to run. */
+function setCondition(state) {
+  state.condition = conditionFor(state.season ?? 1, state.meeting ?? 1);
+}
+
 function nextSeason(state) {
   state.season += 1;
-  state.condition = CONDITION_ORDER[(state.season - 1) % CONDITION_ORDER.length];
 }
 
 // ── action validation ─────────────────────────────────────────────────────
@@ -1681,6 +1695,7 @@ function applyAction(state, playerId, action) {
     runMeeting(next);
     if (meeting >= MEETINGS_PER_SEASON) return runTurnover(next);
     next.meeting = meeting + 1;
+    setCondition(next);
     log(
       next,
       `Meeting ${meeting} of ${MEETINGS_PER_SEASON} is run. Entries for meeting ${next.meeting} are open — up to three runners.`,
@@ -1695,6 +1710,8 @@ function applyAction(state, playerId, action) {
 // ── the season ────────────────────────────────────────────────────────────
 /** One meeting: who runs, how they finish, who is paid. No bills, no ageing. */
 function runMeeting(state) {
+  // The going is per meeting now, so this is where it is fixed.
+  setCondition(state);
   const condition = state.condition;
   const entrants = [];
 
@@ -1969,6 +1986,7 @@ function runTurnover(state) {
   }
 
   nextSeason(state);
+  setCondition(state);
   // A straw lot simply expires. A consigned HORSE cannot be left ownerless, so the
   // house buys it in at the floor — the auction's own answer to a lot nobody wanted.
   const expired = state.listings.filter((listing) => state.season - listing.season >= 3);
@@ -2880,6 +2898,11 @@ function traitBars(traits) {
     const cell = document.createElement("div");
     cell.className = "trait";
     cell.title = `${key}: ${traits ? traits[key] : "?"}`;
+    cell.setAttribute("role", "meter");
+    cell.setAttribute("aria-label", key);
+    cell.setAttribute("aria-valuemin", "0");
+    cell.setAttribute("aria-valuemax", "12");
+    cell.setAttribute("aria-valuenow", String(traits ? traits[key] : 0));
     const fill = document.createElement("i");
     fill.style.width = `${Math.min(100, ((traits ? traits[key] : 0) / 12) * 100)}%`;
     cell.append(fill);
@@ -3017,6 +3040,11 @@ function revealTraits(traits) {
     const cell = document.createElement("div");
     cell.className = "trait";
     cell.title = `${key}: ${traits ? traits[key] : "?"}`;
+    cell.setAttribute("role", "meter");
+    cell.setAttribute("aria-label", `${key} of 12`);
+    cell.setAttribute("aria-valuemin", "0");
+    cell.setAttribute("aria-valuemax", "12");
+    cell.setAttribute("aria-valuenow", String(traits ? traits[key] : 0));
     const fill = document.createElement("i");
     fill.style.width = "0%";
     cell.append(fill);
