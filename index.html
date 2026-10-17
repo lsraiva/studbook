@@ -812,6 +812,7 @@ const GESTATION_FATES = [
 /** What each fate does to a foal's vigour, which is where value is won and lost. */
 const FATE_VIGOUR = { twins: -0.08, scare: -0.12, strong: 0.13 };
 const START_HORSES = 4;
+const HOUSE_DRAFT = 3; // the ring's opening lot count, offered by the house itself
 const AI_STABLES = 3;
 const AI_STIPEND = 280; // house money that keeps rival stables solvent and buying
 const AI_ACTIVE_CAP = 10; // cap on rivals' horses IN TRAINING, not total
@@ -1360,6 +1361,38 @@ function setup(players) {
   scorePopulation(state);
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) aiListStraws(state, stable);
+  }
+  // A market the player cannot buy from is a wall, not a door. The ring opens with a draft
+  // of the house's own YOUNGSTOCK, scored before it is priced. Yearlings cannot race at all,
+  // which is the point: filling the ring must not quietly change who competes. Measured with
+  // racing-age stock: the player's wins halved (23 to 13 over five seeds) and mean bank fell
+  // from 3,971 to 2,337 - a real cost with no mechanism I could point at, so it is out.
+  const draft = [];
+  for (let i = 0; i < HOUSE_DRAFT; i += 1) {
+    const horse = makeFounder(
+      state,
+      LINEAGES[rollInt(state, LINEAGES.length)].id,
+      i % 2 === 0 ? "F" : "M",
+      rollInt(state, 2),
+    );
+    horse.owner = null;
+    state.horses.push(horse);
+    draft.push(horse.id);
+  }
+  scorePopulation(state);
+  for (const id of draft) {
+    const horse = horseById(state, id);
+    horse.listed = true;
+    const price = Math.max(25, Math.round(suggestedHorsePrice(horse) * 1.1));
+    state.listings.push({
+      id: `l${state.nextId++}`,
+      kind: "horse",
+      seller: "house",
+      horseId: horse.id,
+      price,
+      season: state.season,
+    });
+    log(state, `The house offers ${horse.name} at ${price} GNS.`, "market");
   }
   setCondition(state);
   log(state, "Season 1 opens. Sales catalogues are live.", "season");
@@ -2323,6 +2356,10 @@ function runTurnover(state) {
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) aiListStraws(state, stable);
   }
+  // One house a season sends a horse to the ring, rotating, so the market keeps living
+  // after the opening lots have aged out.
+  const sellers = state.stables.filter((entry) => entry.id.startsWith("ai"));
+  if (sellers.length) aiConsignHorse(state, sellers[state.season % sellers.length]);
 
   // Stale lots mark down. A market whose asks never move does not clear, which is
   // exactly what the design called for a Dutch lot to fix.
@@ -2557,6 +2594,36 @@ function aiPrepareSeason(state, stable) {
       stable.horses.push(candidate.horse.id);
     }
   }
+}
+
+/**
+ * A rival sends a young horse to the ring. YOUNGSTOCK ONLY: selling a horse out of the
+ * racing string raises the seller's own quality and the whole field with it, which quietly
+ * makes every rival harder to beat. Measured: the field went from 6.16 to 6.63 and the
+ * player's relative edge from 1.265x to 1.121x. A foal is tradeable without touching who
+ * runs, so the market lives and the racing does not move.
+ */
+function aiConsignHorse(state, stable) {
+  const young = stable.horses
+    .map((id) => horseById(state, id))
+    .filter((horse) => horse && !horse.listed && !horse.sold && !horse.retired && horse.age <= 1)
+    .sort((a, b) => a.value - b.value);
+  const spare = young[0];
+  if (!spare) return false;
+
+  const price = Math.max(25, Math.round(suggestedHorsePrice(spare) * 1.15));
+  stable.horses = stable.horses.filter((id) => id !== spare.id);
+  spare.listed = true;
+  state.listings.push({
+    id: `l${state.nextId++}`,
+    kind: "horse",
+    seller: stable.id,
+    horseId: spare.id,
+    price,
+    season: state.season,
+  });
+  log(state, `${stable.name} consigns ${spare.name} at ${price} GNS.`, "market");
+  return true;
 }
 
 function aiListStraws(state, stable) {
