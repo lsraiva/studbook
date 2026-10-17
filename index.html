@@ -4253,8 +4253,10 @@ function renderYardCards(v) {
     // The record. It is the one block a player reads to remember the horse by.
     const record = document.createElement("div");
     record.className = "kv";
+    const times = (count, one, many) => `${nf(count)} ${count === 1 ? one : many}`;
     record.textContent = horse.starts
-      ? `${nf(horse.starts)} runs · ${nf(horse.wins)} won · ${nf(horse.places)} placed · ₲ ${nf(horse.earnings)} earned` +
+      ? `${times(horse.starts, "run", "runs")} · ${times(horse.wins, "win", "wins")} · ` +
+        `${times(horse.places, "placing", "placings")} · ₲ ${nf(horse.earnings)} earned` +
         (horse.best
           ? ` · best: ${nf(horse.best.place)} of ${nf(horse.best.of)}, season ${nf(horse.best.season)}`
           : "")
