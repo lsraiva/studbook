@@ -4712,6 +4712,11 @@ function draw() {
       enter.className = "tiny" + (entered ? " brass" : "");
       enter.textContent = entered ? "entered" : "enter";
       enter.disabled = horse.age < 2;
+      enter.title = entered
+        ? "Withdraw from this meeting."
+        : horse.age < 2
+          ? "Too young to race: horses run from two."
+          : "Enter this meeting.";
       enter.addEventListener("click", () => {
         const next = entered
           ? v.stable.entries.filter((id) => id !== horse.id)
@@ -4855,6 +4860,10 @@ function draw() {
     openWindow.className = "tiny";
     openWindow.textContent = `Put entries on a ${nf(v.windowSeconds ?? 90)}s clock`;
     openWindow.disabled = Boolean(v.clock && v.clock.open);
+    openWindow.title =
+      v.clock && v.clock.open
+        ? "The entries are already on the clock."
+        : `Entries close by themselves after ${nf(v.windowSeconds ?? 90)} seconds.`;
     openWindow.addEventListener("click", () => send({ type: "clock", seconds: v.windowSeconds ?? 90 }));
     when.append(openWindow);
     const countdown = document.createElement("span");
@@ -4896,6 +4905,17 @@ function draw() {
   for (const straw of v.straws.slice(0, 24)) {
     const card = document.createElement("div");
     card.className = "lot" + (straw.id === (v.selectedStraw ?? selectedStraw) ? " mine" : "");
+    // The card itself is the target. Clicking it looked like it should pick the covering and
+    // did nothing, so a player had to hunt for a small button inside it. It lives at the card's
+    // own declaration, which also keeps it out of the next element's block.
+    card.style.cursor = "pointer";
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      const current = v.selectedStraw ?? selectedStraw;
+      selectedStraw = straw.id === current ? null : straw.id;
+      act({ type: "selectStraw", strawId: selectedStraw });
+      draw();
+    });
     const head = document.createElement("div");
     head.className = "name";
     head.textContent = straw.sireName;
@@ -4914,18 +4934,6 @@ function draw() {
       tag.textContent = "elite covering — from the select sale";
       card.append(tag);
     }
-    // The card itself is the target. Clicking the card looked like it should pick the
-    // covering and it did nothing, so a player had to find a small button inside it; on a
-    // phone that is a miss waiting to happen. Buttons inside swallow their own clicks, so
-    // "select" and "list" still do their own job.
-    card.style.cursor = "pointer";
-    card.addEventListener("click", (event) => {
-      if (event.target.closest("button")) return;
-      const current = v.selectedStraw ?? selectedStraw;
-      selectedStraw = straw.id === current ? null : straw.id;
-      act({ type: "selectStraw", strawId: selectedStraw });
-      draw();
-    });
     const row = document.createElement("div");
     row.className = "row";
     const select = document.createElement("button");
@@ -5033,6 +5041,10 @@ function draw() {
       buy.className = "tiny brass";
       buy.textContent = lot.kind === "horse" ? `buy horse ${nf(lot.price)}₲` : `buy ${nf(lot.price)}₲`;
       buy.disabled = v.stable.guineas < lot.price;
+      buy.title =
+        v.stable.guineas < lot.price
+          ? `Costs ₲ ${nf(lot.price)} and you hold ₲ ${nf(v.stable.guineas)}.`
+          : "Buy this lot.";
       buy.addEventListener("click", () =>
         act({ type: lot.kind === "horse" ? "buyHorse" : "buyStraw", listingId: lot.id }),
       );
@@ -5042,6 +5054,10 @@ function draw() {
         certify.className = "tiny";
         certify.textContent = "certify";
         certify.disabled = v.stable.guineas < v.certifyCost;
+        certify.title =
+          v.stable.guineas < v.certifyCost
+            ? `Revealing a genotype costs ₲ ${nf(v.certifyCost)}.`
+            : "Reveal this stallion's genotype and his hidden carriers.";
         certify.addEventListener("click", () => act({ type: "certify", horseId: lot.sireId }));
         row.append(certify);
       }
