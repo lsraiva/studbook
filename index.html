@@ -2372,7 +2372,10 @@ function runTurnover(state) {
     if (stable.guineas < 0) {
       const cheapest = [...stable.horses]
         .map((id) => horseById(state, id))
-        .filter((horse) => horse && !horse.retired)
+        // The gift horse is not collateral. The rules refuse to sell her and the screen promises
+        // she can never be sold, so the forced sale must refuse her too - it bypassed
+        // validateAction and took her, which is a promise broken by an internal path.
+        .filter((horse) => horse && !horse.retired && !horse.soulbound)
         .sort((a, b) => a.value - b.value)[0];
       if (cheapest) {
         cheapest.owner = null;
@@ -2380,6 +2383,14 @@ function runTurnover(state) {
         stable.horses = stable.horses.filter((id) => id !== cheapest.id);
         stable.forcedSales += 1;
         log(state, `${stable.name} could not meet the ${bill} GNS upkeep bill; ${cheapest.name} was sold off.`, "upkeep");
+      } else {
+        // Nothing the house may take. The clamp below already forgives the balance; this says so,
+        // because a debt that vanishes without a line reads like a bug.
+        log(
+          state,
+          `${stable.name} could not meet the ${bill} GNS bill, and the house will not take the gift horse: the debt is written off.`,
+          "upkeep",
+        );
       }
       stable.guineas = Math.max(stable.guineas, 0);
     }
