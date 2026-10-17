@@ -1304,6 +1304,8 @@ function freshStable(state, stableId, name, playerId) {
     foalsBred: [],
     starterOfferTaken: false,
     forcedSales: 0,
+    seasonOpen: null,
+    seasonReport: null,
   };
 }
 
@@ -1482,11 +1484,60 @@ function setCondition(state) {
   state.condition = conditionFor(state.season ?? 1, state.meeting ?? 1);
 }
 
+/** Where a stable stood when its season opened. */
+function snapshotSeason(stable, state) {
+  const horses = stable.horses.map((id) => horseById(state, id)).filter(Boolean);
+  return {
+    season: state.season,
+    guineas: stable.guineas,
+    horses: horses.length,
+    runs: horses.reduce((n, h) => n + (h.starts ?? 0), 0),
+    wins: horses.reduce((n, h) => n + (h.wins ?? 0), 0),
+    places: horses.reduce((n, h) => n + (h.places ?? 0), 0),
+    prizes: horses.reduce((n, h) => n + (h.earnings ?? 0), 0),
+    retired: horses.filter((h) => h.retired).length,
+    forced: stable.forcedSales ?? 0,
+  };
+}
+
+/**
+ * One closing moment per season. The bills, the births, the forced sales and the results all
+ * arrive as separate lines in the log, so the most repeated moment in the game had no shape of
+ * its own. This is that shape: what the season cost, paid, produced and took away, against
+ * where the yard stood when the season opened.
+ */
+function closeSeason(state) {
+  for (const stable of state.stables) {
+    const open = stable.seasonOpen ?? snapshotSeason(stable, state);
+    const now = snapshotSeason(stable, state);
+    const born = stable.horses
+      .map((id) => horseById(state, id))
+      .filter((horse) => horse && horse.age === 0)
+      .map((horse) => horse.name);
+    stable.seasonReport = {
+      season: open.season,
+      bank: now.guineas - open.guineas,
+      horses: now.horses - open.horses,
+      runs: now.runs - open.runs,
+      wins: now.wins - open.wins,
+      places: now.places - open.places,
+      prizes: now.prizes - open.prizes,
+      retired: now.retired - open.retired,
+      forced: now.forced - open.forced,
+      born,
+    };
+  }
+}
+
 function nextSeason(state) {
+  closeSeason(state);
   state.season += 1;
   // The season boundary is where entries belong: runners carry from one meeting to the next,
   // and clear only when the calendar turns, when some of them may also have retired.
-  for (const stable of state.stables) stable.entries = [];
+  for (const stable of state.stables) {
+    stable.entries = [];
+    stable.seasonOpen = snapshotSeason(stable, state);
+  }
 }
 
 // ── action validation ─────────────────────────────────────────────────────
@@ -3003,6 +3054,7 @@ function viewFor(state, playerId) {
     meetingsPerSeason: MEETINGS_PER_SEASON,
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
+    seasonReport: (stable && stable.seasonReport) || null,
     starterOffer: {
       available: Boolean(stable && !stable.starterOfferTaken),
       taken: Boolean(stable && stable.starterOfferTaken),
@@ -4519,6 +4571,37 @@ function renderYardCards(v) {
   table.parentElement.insertBefore(cards, table);
 }
 
+/**
+ * The closing moment. A season hands the player bills, births, sales and results as separate
+ * log lines; this says the whole of it in one breath, above the herd, and stays there as the
+ * recap of where the yard stands.
+ */
+function renderSeasonReport(v) {
+  const herd = el("herd");
+  const table = herd && herd.closest("table");
+  if (!table || !table.parentElement) return;
+  const old = document.getElementById("season-report");
+  if (old) old.remove();
+  const report = v.seasonReport;
+  if (!report) return;
+
+  const strip = document.createElement("div");
+  strip.id = "season-report";
+  strip.className = "kv";
+  const money =
+    report.bank >= 0 ? `₲ ${nf(report.bank)} up` : `₲ ${nf(-report.bank)} down`;
+  const foals = report.born.length === 1 ? "foal" : "foals";
+  strip.innerHTML =
+    `<div class="kv"><b>Season ${nf(report.season)} closed</b><span>` +
+    `the yard finished ${money} · ${nf(report.runs)} runs, ${nf(report.wins)} won, ` +
+    `${nf(report.places)} placed, ₲ ${nf(report.prizes)} in prizes` +
+    (report.born.length ? ` · ${nf(report.born.length)} ${foals} born: ${report.born.join(", ")}` : "") +
+    (report.retired ? ` · ${nf(report.retired)} retired` : "") +
+    (report.forced ? ` · ${nf(report.forced)} sold to pay debts` : "") +
+    `</span></div>`;
+  table.parentElement.insertBefore(strip, table);
+}
+
 function renderOpening(v) {
   const herd = el("herd");
   const anchor = herd && herd.closest("table");
@@ -4804,6 +4887,7 @@ function draw() {
   }
   renderOpening(v);
   renderYardCards(v);
+  renderSeasonReport(v);
 
   // the breeding screen shows only the mares, each carrying the pairing line the
   // rules sent for the covering currently selected
