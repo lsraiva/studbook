@@ -1416,6 +1416,9 @@ function setup(players) {
     });
     log(state, `The house offers ${horse.name} at ${price} GNS.`, "market");
   }
+  // Every stable records where it stood before the first meeting runs. Without this the first
+  // turn measured the yard against itself and its report came out as a row of zeros.
+  for (const stable of state.stables) stable.seasonOpen = snapshotSeason(stable, state);
   setCondition(state);
   log(state, "Season 1 opens. Sales catalogues are live.", "season");
   return state;
