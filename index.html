@@ -4908,6 +4908,18 @@ function draw() {
       tag.textContent = "elite covering — from the select sale";
       card.append(tag);
     }
+    // The card itself is the target. Clicking the card looked like it should pick the
+    // covering and it did nothing, so a player had to find a small button inside it; on a
+    // phone that is a miss waiting to happen. Buttons inside swallow their own clicks, so
+    // "select" and "list" still do their own job.
+    card.style.cursor = "pointer";
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      const current = v.selectedStraw ?? selectedStraw;
+      selectedStraw = straw.id === current ? null : straw.id;
+      act({ type: "selectStraw", strawId: selectedStraw });
+      draw();
+    });
     const row = document.createElement("div");
     row.className = "row";
     const select = document.createElement("button");
