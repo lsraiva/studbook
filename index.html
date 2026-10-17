@@ -2154,7 +2154,12 @@ function runMeeting(state) {
       // The house waives what a stable cannot pay. Without this a broke stable can
       // never race, so it can never earn — the trap that killed two playtests.
       // Real tracks grant hardship entries for exactly this reason.
-      const fee = Math.min(ENTRY_FEE, Math.max(0, stable.guineas));
+      // The house pays the first season's entries. A yard starts with one mare and no stallion,
+      // and it was paying three entry fees before it had earned a coin: the season report showed
+      // a lone unplaced mare closing season one ₲ 67 down, all of it entries. The waiver for a
+      // stable that cannot pay already existed; this extends it to the one season where nobody
+      // has anything to pay with yet.
+      const fee = state.season <= 1 ? 0 : Math.min(ENTRY_FEE, Math.max(0, stable.guineas));
       stable.guineas -= fee;
       entrants.push({ horse, stableId: stable.id });
     }
@@ -3089,7 +3094,9 @@ function viewFor(state, playerId) {
       };
     }),
     dueNextSeason: (state.foaling ?? []).filter((row) => row.dueSeason <= state.season + GESTATION_SEASONS).length,
-    entryFee: ENTRY_FEE,
+    // The fee a stable actually pays. Season one is on the house, so any screen reading this
+    // number agrees with what the meeting charges instead of promising 15 and taking nothing.
+    entryFee: state.season <= 1 ? 0 : ENTRY_FEE,
     servicesPerSeason: SERVICES_PER_SEASON,
     mareCareer: MARE_CAREER_FOALS,
     stakesShare: STAKES_SHARE,
