@@ -4211,6 +4211,123 @@ function tickClock() {
  * and the actions are declared as data attributes instead of being built again, so exactly
  * one place decides what each button does.
  */
+/**
+ * The Yard's filters. The state lives out here and the controls are built ONCE: rebuilding
+ * an input on every redraw is what steals a caret mid-word, and a search box that fights
+ * the person typing in it is worse than no search box.
+ */
+const yardFilters = { text: "", sex: "any", age: "any", wins: "any", value: "any" };
+
+const YARD_FILTERS = [
+  { key: "sex", label: "sex", options: [["any", "any"], ["f", "mares"], ["m", "colts"]] },
+  {
+    key: "age",
+    label: "age",
+    options: [["any", "any"], ["young", "0-1"], ["mid", "2-3"], ["prime", "4-6"], ["veteran", "7+"]],
+  },
+  {
+    key: "wins",
+    label: "wins",
+    options: [["any", "any"], ["unraced", "unraced"], ["none", "raced, none"], ["one", "1+"], ["three", "3+"]],
+  },
+  {
+    key: "value",
+    label: "value",
+    options: [["any", "any"], ["above", "above the field"], ["below", "below the field"], ["elite", "near elite"]],
+  },
+];
+
+function yardMatches(horse, v) {
+  const f = yardFilters;
+  if (f.text) {
+    const hay = `${horse.name} ${horse.sireName ?? ""} ${horse.damName ?? ""}`.toLowerCase();
+    if (!hay.includes(f.text.toLowerCase())) return false;
+  }
+  if (f.sex !== "any" && (f.sex === "f" ? horse.sex !== "F" : horse.sex !== "M")) return false;
+
+  const age = horse.age ?? 0;
+  if (f.age === "young" && age > 1) return false;
+  if (f.age === "mid" && (age < 2 || age > 3)) return false;
+  if (f.age === "prime" && (age < 4 || age > 6)) return false;
+  if (f.age === "veteran" && age < 7) return false;
+
+  const starts = horse.starts ?? 0;
+  const wins = horse.wins ?? 0;
+  if (f.wins === "unraced" && starts > 0) return false;
+  if (f.wins === "none" && !(starts > 0 && wins === 0)) return false;
+  if (f.wins === "one" && wins < 1) return false;
+  if (f.wins === "three" && wins < 3) return false;
+
+  // Value is read against the field, because that is how the card states it: an absolute
+  // number means nothing without the company a horse keeps.
+  const mean = (v.field && v.field.mean) || 0;
+  if (f.value !== "any" && mean) {
+    if (f.value === "above" && horse.value < mean) return false;
+    if (f.value === "below" && horse.value >= mean) return false;
+    if (f.value === "elite" && horse.value < (v.field.eliteCut ?? Infinity)) return false;
+  }
+  return true;
+}
+
+/** Built once, then only ever updated: see the note on yardFilters. */
+function yardFilterBar(v, total, shown) {
+  if (document.getElementById("yard-filters")) return;
+  const bar = document.createElement("div");
+  bar.id = "yard-filters";
+  bar.className = "kv";
+
+  const search = document.createElement("input");
+  search.type = "search";
+  search.value = yardFilters.text;
+  search.placeholder = "search by name, sire or dam";
+  search.setAttribute("data-filter", "text");
+  search.addEventListener("input", () => {
+    yardFilters.text = search.value;
+    renderYardCards(view);
+  });
+  bar.append(search);
+
+  for (const spec of YARD_FILTERS) {
+    const select = document.createElement("select");
+    select.setAttribute("data-filter", spec.key);
+    select.title = `filter by ${spec.label}`;
+    for (const [value, text] of spec.options) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = `${spec.label}: ${text}`;
+      if (yardFilters[spec.key] === value) option.selected = true;
+      select.append(option);
+    }
+    select.addEventListener("change", () => {
+      yardFilters[spec.key] = select.value;
+      renderYardCards(view);
+    });
+    bar.append(select);
+  }
+
+  const clear = document.createElement("button");
+  clear.className = "tiny";
+  clear.textContent = "clear";
+  clear.addEventListener("click", () => {
+    Object.assign(yardFilters, { text: "", sex: "any", age: "any", wins: "any", value: "any" });
+    for (const node of bar.querySelectorAll("[data-filter]")) {
+      if (node.tagName === "SELECT") node.value = "any";
+      else node.value = "";
+    }
+    renderYardCards(view);
+  });
+  bar.append(clear);
+
+  const count = document.createElement("span");
+  count.id = "yard-count";
+  count.className = "hint";
+  bar.append(count);
+  count.textContent = `showing ${shown} of ${total}`;
+
+  const table = el("herd") && el("herd").closest("table");
+  if (table && table.parentElement) table.parentElement.insertBefore(bar, table);
+}
+
 function renderYardCards(v) {
   const herd = el("herd");
   const table = herd && herd.closest("table");
@@ -4222,7 +4339,21 @@ function renderYardCards(v) {
   const cards = document.createElement("div");
   cards.id = "yard-cards";
 
-  for (const horse of v.horses) {
+  // The filters narrow what is DRAWN. Nothing is hidden from the rules, and the count says
+  // so rather than leaving a player to wonder where a horse went.
+  const shown = v.horses.filter((horse) => yardMatches(horse, v));
+  yardFilterBar(v, v.horses.length, shown.length);
+  const count = document.getElementById("yard-count");
+  if (count) count.textContent = `showing ${nf(shown.length)} of ${nf(v.horses.length)}`;
+
+  if (!shown.length) {
+    const none = document.createElement("p");
+    none.className = "hint";
+    none.textContent = "No horse matches those filters - clear them above to see the yard again.";
+    cards.append(none);
+  }
+
+  for (const horse of shown) {
     const card = document.createElement("div");
     card.className = "lot";
     if (horse.id === selectedHorse) card.classList.add("selected");
