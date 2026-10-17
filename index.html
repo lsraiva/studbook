@@ -4216,7 +4216,7 @@ function tickClock() {
  * an input on every redraw is what steals a caret mid-word, and a search box that fights
  * the person typing in it is worse than no search box.
  */
-const yardFilters = { text: "", sex: "any", age: "any", wins: "any", value: "any" };
+const yardFilters = { text: "", sex: "any", age: "any", wins: "any", value: "any", sort: "default" };
 
 const YARD_FILTERS = [
   { key: "sex", label: "sex", options: [["any", "any"], ["f", "mares"], ["m", "colts"]] },
@@ -4234,6 +4234,20 @@ const YARD_FILTERS = [
     key: "value",
     label: "value",
     options: [["any", "any"], ["above", "above the field"], ["below", "below the field"], ["elite", "near elite"]],
+  },
+  {
+    // Order rides the same machinery as the filters: one state object, one set of controls
+    // built once, one redraw. A second mechanism for the same job would drift apart.
+    key: "sort",
+    label: "order",
+    options: [
+      ["default", "as listed"],
+      ["young", "age: youngest first"],
+      ["old", "age: oldest first"],
+      ["wins", "wins: most first"],
+      ["value", "value: highest first"],
+      ["name", "name: A-Z"],
+    ],
   },
 ];
 
@@ -4309,9 +4323,18 @@ function yardFilterBar(v, total, shown) {
   clear.className = "tiny";
   clear.textContent = "clear";
   clear.addEventListener("click", () => {
-    Object.assign(yardFilters, { text: "", sex: "any", age: "any", wins: "any", value: "any" });
+    Object.assign(yardFilters, {
+      text: "",
+      sex: "any",
+      age: "any",
+      wins: "any",
+      value: "any",
+      sort: "default",
+    });
     for (const node of bar.querySelectorAll("[data-filter]")) {
-      if (node.tagName === "SELECT") node.value = "any";
+      // Each control's first option is its neutral value, so clearing cannot miss one that
+      // gets added later.
+      if (node.tagName === "SELECT") node.value = node.options[0].value;
       else node.value = "";
     }
     renderYardCards(view);
@@ -4342,6 +4365,17 @@ function renderYardCards(v) {
   // The filters narrow what is DRAWN. Nothing is hidden from the rules, and the count says
   // so rather than leaving a player to wonder where a horse went.
   const shown = v.horses.filter((horse) => yardMatches(horse, v));
+  // Ordering happens on the list that survived the filters: sorting the whole barn and then
+  // filtering would leave the top of the yard at the top of nothing. Ties fall back to the
+  // name, so two horses of the same age never swap places between redraws.
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name));
+  const order = yardFilters.sort;
+  if (order === "young") shown.sort((a, b) => (a.age ?? 0) - (b.age ?? 0) || byName(a, b));
+  if (order === "old") shown.sort((a, b) => (b.age ?? 0) - (a.age ?? 0) || byName(a, b));
+  if (order === "wins") shown.sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0) || byName(a, b));
+  if (order === "value") shown.sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || byName(a, b));
+  if (order === "name") shown.sort(byName);
+
   yardFilterBar(v, v.horses.length, shown.length);
   const count = document.getElementById("yard-count");
   if (count) count.textContent = `showing ${nf(shown.length)} of ${nf(v.horses.length)}`;
