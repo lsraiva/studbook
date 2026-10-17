@@ -14,9 +14,13 @@
     />
     <meta
       property="og:image"
-      content=""
+      content="https://d2ol7oe51mr4n9.cloudfront.net/user_3KJqLgRqaLH0OEDu9sNQJTnuyFg/ec24d1f1-3824-48d3-924e-4e4350051679.png"
     />
     <meta name="theme-color" content="#0d0b14" />
+    <link
+      rel="icon"
+      href="https://d2ol7oe51mr4n9.cloudfront.net/user_3KJqLgRqaLH0OEDu9sNQJTnuyFg/bafbfd17-806f-4a4e-a502-eebf4d6c294c.png"
+    />
     <style>
       :root {
         color-scheme: dark;
@@ -744,6 +748,23 @@ const PURSE_SUBSIDY = 3.0;
 const WINDOW_SECONDS = 90;
 const WINDOW_MIN_SECONDS = 10;
 const WINDOW_MAX_SECONDS = 300;
+/**
+ * The onboarding covering, sold by the protocol once per stable. Priced from measurement:
+ * coverings on the open market run from about 28, the fair-fee band I modelled is 10-63,
+ * and the free tier earns roughly 80 coins a season, so this is affordable inside one good
+ * season and obviously worth it against what a foal then sells for.
+ */
+const STARTER_COVERING_PRICE = 20;
+/**
+ * Coin packs. Amounts only: what they cost in real money is the store's business, and the
+ * rules have no business pretending to know a currency. A chain adapter settles the payment
+ * outside this file and hands the room the amount to credit.
+ */
+const COIN_PACKS = [
+  { pack: "handful", coins: 500 },
+  { pack: "bag", coins: 2500 },
+  { pack: "chest", coins: 10000 },
+];
 const PURSE_SPLIT = [0.45, 0.25, 0.18, 0.12]; // four places, as real meetings pay
 const FOAL_UPKEEP = 0.25; // board for a foal
 const PENSION_UPKEEP = 0.3; // board for a retired horse
@@ -988,6 +1009,9 @@ function upkeepFor(horse) {
   // herd is what turned the first playtest into a death spiral: breeding costs
   // nothing, so the herd grew while every foal was billed as a racer forever.
   if (horse.age < 1) return Math.round(full * FOAL_UPKEEP);
+  // A soulbound horse can never be sold, so a pension it cannot escape would be a debt
+  // trap: the starter mare costs nothing once she is finished.
+  if (horse.retired && horse.soulbound) return 0;
   if (horse.retired) return Math.round(full * PENSION_UPKEEP);
   return Math.round(full);
 }
@@ -1257,14 +1281,23 @@ function freshStable(state, stableId, name, playerId) {
     tactics: {},
     bestFoalValue: 0,
     foalsBred: [],
+    starterOfferTaken: false,
     forcedSales: 0,
   };
 }
 
-function giveStartingStock(state, stable) {
-  for (let i = 0; i < START_HORSES; i++) {
+function giveStartingStock(state, stable, withStud = true) {
+  // The free tier is ONE mare. Everything else a stable ever races or sells comes from a
+  // covering it bought and a foal it bred, so the first season is about the single horse
+  // and the market rather than about the four rivals who came free with the yard.
+  const count = withStud ? START_HORSES : 1;
+  for (let i = 0; i < count; i++) {
     const lineage = LINEAGES[rollInt(state, LINEAGES.length)].id;
-    const sex = i < 2 ? "F" : "M";
+    // A player's yard is mares only, deliberately: in bloodstock a covering is bought, so
+    // the free tier must not arrive with a stallion who hands out five of them a season.
+    // A rival keeps its stallions - they are where the stud market's supply comes from,
+    // and there has to be something worth buying.
+    const sex = withStud && i >= 2 ? "M" : "F";
     const horse = makeFounder(state, lineage, sex, 3 + rollInt(state, 3));
     horse.owner = stable.id;
     state.horses.push(horse);
@@ -1275,6 +1308,7 @@ function giveStartingStock(state, stable) {
       }
     }
   }
+  if (!withStud) return;
   // one extra mare so breeding is possible from turn one without trading
   const mare = makeFounder(state, LINEAGES[rollInt(state, LINEAGES.length)].id, "F", 4);
   mare.owner = stable.id;
@@ -1310,7 +1344,11 @@ function setup(players) {
   players.forEach((playerId, index) => {
     const stable = freshStable(state, `st${index + 1}`, index === 0 ? "Your stable" : `Stable ${index + 1}`, playerId);
     state.stables.push(stable);
-    giveStartingStock(state, stable);
+    giveStartingStock(state, stable, false);
+    const firstMare = stable.horses
+      .map((id) => horseById(state, id))
+      .find((horse) => horse && horse.sex === "F");
+    if (firstMare) firstMare.soulbound = true;
   });
   for (let i = 0; i < AI_STABLES; i++) {
     const stable = freshStable(state, `ai${i + 1}`, ["Ashgrove", "Ravensmoor", "Tarnfield"][i] ?? `Rival ${i + 1}`, null);
@@ -1418,6 +1456,23 @@ function validateAction(state, playerId, action) {
     return { ok: true };
   }
 
+  if (type === "takeStarterOffer") {
+    if (stable.starterOfferTaken) {
+      return { ok: false, error: "you have already taken the starter covering" };
+    }
+    if (stable.guineas < STARTER_COVERING_PRICE) {
+      return { ok: false, error: `the starter covering costs ${STARTER_COVERING_PRICE} coins` };
+    }
+    return { ok: true };
+  }
+
+  if (type === "addCoins") {
+    if (!COIN_PACKS.some((entry) => entry.pack === action.pack)) {
+      return { ok: false, error: "unknown coin pack" };
+    }
+    return { ok: true };
+  }
+
   if (type === "openWindow") {
     if (state.clock) return { ok: false, error: "entries are already open on a clock" };
     if (typeof action.endsAt !== "number" || !Number.isFinite(action.endsAt)) {
@@ -1482,6 +1537,12 @@ function validateAction(state, playerId, action) {
     const listing = state.listings.find((entry) => entry.id === action.listingId);
     if (!listing) return { ok: false, error: "listing is gone" };
     if (listing.seller === stable.id) return { ok: false, error: "that is your own lot" };
+    // A covering is only worth buying while its sire is still in the stud book. A lot
+    // whose stallion is gone could never be put to a mare, and a player must not pay for
+    // something unusable.
+    if (!listing.straw || !horseById(state, listing.straw.sire)) {
+      return { ok: false, error: "that lot is not a usable covering" };
+    }
     if (stable.guineas < listing.price) return { ok: false, error: "not enough guineas" };
     return { ok: true };
   }
@@ -1513,6 +1574,7 @@ function validateAction(state, playerId, action) {
   if (type === "listHorse") {
     const horse = horseById(state, action.horseId);
     if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (horse.soulbound) return { ok: false, error: `${horse.name} is soulbound and cannot be consigned` };
     if (horse.retired) return { ok: false, error: "that horse is retired" };
     if (stable.horses.length <= 1) return { ok: false, error: "you cannot consign your last horse" };
     if (!Number.isFinite(action.price) || action.price < 25) {
@@ -1574,6 +1636,7 @@ function validateAction(state, playerId, action) {
   if (type === "sell") {
     const horse = horseById(state, action.horseId);
     if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (horse.soulbound) return { ok: false, error: `${horse.name} is soulbound and cannot be sold` };
     if (stable.horses.length <= 1) return { ok: false, error: "you cannot sell your last horse" };
     return { ok: true };
   }
@@ -1885,6 +1948,43 @@ function applyAction(state, playerId, action) {
     const was = stable.name;
     stable.name = name;
     log(next, `${was} is now ${name}.`, "season");
+    return next;
+  }
+
+  if (action.type === "takeStarterOffer") {
+    // The onboarding purchase: a covering from the best stallion in the world, once per
+    // stable, at a price the first season can afford. This is the first thing coins buy.
+    stable.guineas -= STARTER_COVERING_PRICE;
+    stable.starterOfferTaken = true;
+    const best = next.horses
+      .filter((horse) => horse.sex === "M" && !horse.retired)
+      .sort((a, b) => b.value - a.value)[0];
+    stable.straws.push({
+      id: `s${next.nextStraw++}`,
+      sire: best ? best.id : null,
+      vintage: next.season,
+      elite: true,
+    });
+    next.ledger = [
+      { season: next.season, text: "Starter covering", amount: -STARTER_COVERING_PRICE },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(
+      next,
+      `The starter covering arrives, by ${best ? best.name : "a house stallion"}: put it to your mare.`,
+      "breeding",
+    );
+    return next;
+  }
+
+  if (action.type === "addCoins") {
+    const pack = COIN_PACKS.find((entry) => entry.pack === action.pack);
+    stable.guineas += pack.coins;
+    next.ledger = [
+      { season: next.season, text: `Coins: ${pack.pack}`, amount: pack.coins },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(next, `${pack.coins} coins were added to the stable.`, "market");
     return next;
   }
 
@@ -2543,6 +2643,7 @@ function viewFor(state, playerId) {
       sireName: horse.sire ? horseById(state, horse.sire)?.name ?? null : null,
       damName: horse.dam ? horseById(state, horse.dam)?.name ?? null : null,
       bornTier: horse.bornTier ?? null,
+      soulbound: Boolean(horse.soulbound),
       retired: horse.retired,
       entered: Boolean(stable && stable.entries.includes(horse.id)),
       tactic: (stable && stable.tactics && stable.tactics[horse.id]) || "steady",
@@ -2800,6 +2901,12 @@ function viewFor(state, playerId) {
     meetingsPerSeason: MEETINGS_PER_SEASON,
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
+    starterOffer: {
+      available: Boolean(stable && !stable.starterOfferTaken),
+      taken: Boolean(stable && stable.starterOfferTaken),
+      price: STARTER_COVERING_PRICE,
+    },
+    coinPacks: COIN_PACKS,
     careChoices: CARE_CHOICES.map((care) => ({
       care,
       cost: CARE_COST[care],
@@ -3032,6 +3139,34 @@ function connect() {
     setTimeout(connect, wait);
   });
 }
+
+/**
+ * THE WALLET SEAM. Nothing in the game asks about a wallet except here, at the moment a
+ * purchase starts - playing, breeding, racing, selling are all wallet-free. Swapping the
+ * sandbox below for a real chain adapter is the whole job: settle the payment, then tell
+ * the room which coin pack was paid for, exactly as this does.
+ */
+function connectWallet() {
+  // No chain is wired into this build. This authorises the purchase locally and says so on
+  // screen: it takes no money and promises no asset. Replace this body, keep this shape.
+  return Promise.resolve({ authorised: true, sandbox: true });
+}
+
+document.addEventListener("click", (event) => {
+  const offer = event.target.closest?.("[data-starter-offer]");
+  const pack = event.target.closest?.("[data-coin-pack]");
+  if (offer) {
+    act({ type: "takeStarterOffer" });
+    return;
+  }
+  if (!pack) return;
+  const name = pack.getAttribute("data-coin-pack");
+  connectWallet().then((settled) => {
+    if (!settled || !settled.authorised) return;
+    // The room credits the coins; the rules decide what a pack is worth.
+    act({ type: "addCoins", pack: name });
+  });
+});
 
 function send(msg) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
@@ -4104,14 +4239,18 @@ function draw() {
 
       const sell = document.createElement("button");
       sell.className = "tiny bad";
-      sell.textContent = "sell";
+      sell.textContent = horse.soulbound ? "soulbound" : "sell";
+      sell.disabled = Boolean(horse.soulbound);
+      sell.title = horse.soulbound
+        ? "A gift horse: she can never be sold or consigned, but her foals can."
+        : "Sell to the house at once.";
       sell.addEventListener("click", () => act({ type: "sell", horseId: horse.id }));
       row.append(sell);
 
       const consign = document.createElement("button");
       consign.className = "tiny";
       consign.textContent = "consign";
-      consign.disabled = v.horses.length <= 1;
+      consign.disabled = v.horses.length <= 1 || Boolean(horse.soulbound);
       consign.addEventListener("click", () =>
         act({
           type: "listHorse",
@@ -4228,7 +4367,17 @@ function draw() {
   if (!v.straws.length) {
     const empty = document.createElement("p");
     empty.className = "hint";
-    empty.textContent = "No coverings held. Buy one from the catalogue, or breed a stallion of your own.";
+    // A yard with no covering cannot grow at all: it can cover no mare and it breeds no
+    // foal. So the empty state names the next step, where it is and what it costs.
+    const starter =
+      v.starterOffer && v.starterOffer.available
+        ? `the first covering in your account at ₲ ${nf(v.starterOffer.price)}`
+        : null;
+    empty.textContent =
+      "No coverings held — without one no mare can be covered and the yard cannot grow. " +
+      (starter
+        ? `Start with ${starter}, or buy a rival's covering from the Stud market.`
+        : "Buy a rival's covering from the Stud market.");
     straws.append(empty);
   }
   for (const straw of v.straws.slice(0, 24)) {
@@ -4484,6 +4633,26 @@ function draw() {
     facts.innerHTML =
       `<div class="name">Your stable</div>` +
       `<div class="kv"><span>guineas</span><b>₲ ${nf(v.stable.guineas)}</b></div>` +
+      (v.starterOffer && v.starterOffer.available
+        ? `<div class="kv"><span>first covering</span><button class="tiny" data-starter-offer ` +
+          `title="A covering from the best stallion in the world, once per stable. This is what coins are for.">` +
+          `take it · ₲ ${nf(v.starterOffer.price)}</button></div>`
+        : v.starterOffer && v.starterOffer.taken
+          ? `<div class="kv"><span>first covering</span><b>taken</b></div>`
+          : "") +
+      (Array.isArray(v.coinPacks) && v.coinPacks.length
+        ? `<div class="kv"><span>coins</span><span>` +
+          v.coinPacks
+            .map(
+              (entry) =>
+                `<button class="tiny" data-coin-pack="${entry.pack}" ` +
+                `title="Adds coins. On this build the payment is a sandbox: no money moves.">` +
+                `${nf(entry.coins)}</button>`,
+            )
+            .join(" ") +
+          `</span></div><div class="hint">Sandbox payments: no card, no chain, no charge. ` +
+          `A real wallet would be asked for here and here only.</div>`
+        : "") +
       `<div class="kv"><span>season</span><b>${nf(v.season)}</b></div>` +
       `<div class="kv"><span>horses</span><b>${nf(v.horses.length)}</b></div>` +
       `<div class="kv"><span>forced sales</span><b>${nf(v.stable.forcedSales)}</b></div>`;
@@ -4671,7 +4840,6 @@ window.addEventListener("keydown", (event) => {
 showScreen(screen);
 
 connect();
-
     </script>
   </body>
 </html>
