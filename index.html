@@ -1493,6 +1493,24 @@ function setCondition(state) {
 }
 
 /** Where a stable stood when its season opened. */
+/**
+ * What a rival is short of, said plainly. The houses act every season - they list coverings,
+ * enter runners, buy blood and send youngstock to the ring - and a player never saw why
+ * anything moved, so the market and the field read as weather. This is the why, in one phrase,
+ * derived from the rival's own state rather than invented.
+ */
+function rivalIntent(stable, state) {
+  const horses = stable.horses.map((id) => horseById(state, id)).filter(Boolean);
+  const mares = horses.filter((horse) => horse.sex === "F" && !horse.retired);
+  const studs = horses.filter((horse) => horse.sex === "M" && !horse.retired);
+  if (studs.length === 0) return "short of a stallion";
+  if (mares.length < 2) return "short of mares";
+  if (stable.guineas < 400) return "short of coin";
+  if (stable.straws.length < 3) return "short of coverings";
+  if (horses.length > AI_ACTIVE_CAP) return "thinning the yard";
+  return "buying blood";
+}
+
 function snapshotSeason(stable, state) {
   const horses = stable.horses.map((id) => horseById(state, id)).filter(Boolean);
   return {
@@ -3016,6 +3034,16 @@ function viewFor(state, playerId) {
           Math.max(0, ...entry.horses.map((id) => horseById(state, id)?.value ?? 0)),
           2,
         ),
+        // The why, not just the what: what it did last season, and what it is short of now.
+        intent: rivalIntent(entry, state),
+        lastSeason: entry.seasonReport
+          ? {
+              season: entry.seasonReport.season,
+              runs: entry.seasonReport.runs,
+              wins: entry.seasonReport.wins,
+              bank: entry.seasonReport.bank,
+            }
+          : null,
       })),
     standings: population.slice(0, 8).map((horse) => ({
       name: horse.name,
@@ -5391,7 +5419,16 @@ function draw() {
   rivals.innerHTML = "";
   for (const rival of v.rivals) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${rival.name}</td><td class="num">${nf(rival.guineas)}</td><td class="num">${nf(rival.horses)}</td><td class="num">${nf(rival.best, 2)}</td>`;
+    const did = rival.lastSeason
+      ? `${nf(rival.lastSeason.runs)} runs, ${nf(rival.lastSeason.wins)} won, ` +
+        (rival.lastSeason.bank >= 0
+          ? `₲ ${nf(rival.lastSeason.bank)} up last season`
+          : `₲ ${nf(-rival.lastSeason.bank)} down last season`)
+      : "no season closed yet";
+    tr.innerHTML =
+      `<td>${rival.name}<div class="hint">${rival.intent ?? ""} · ${did}</div></td>` +
+      `<td class="num">${nf(rival.guineas)}</td><td class="num">${nf(rival.horses)}</td>` +
+      `<td class="num">${nf(rival.best, 2)}</td>`;
     rivals.append(tr);
   }
 
