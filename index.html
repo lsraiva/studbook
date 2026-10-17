@@ -4084,6 +4084,82 @@ function tickClock() {
   if (!clockTicker) clockTicker = setInterval(tickClock, 1000);
 }
 
+/**
+ * The opening, said in one place. A new stable holds one mare and no covering, and the
+ * three moves that turn that into a game each live on a different screen. This strip names
+ * them in order, ticks them off as they happen, and takes itself away once the first
+ * meeting has run: after that the player has a game, not a to-do list.
+ */
+function renderOpening(v) {
+  const herd = el("herd");
+  const anchor = herd && herd.closest("table");
+  if (!anchor || !anchor.parentElement) return;
+  const old = document.getElementById("opening");
+  if (old) old.remove();
+
+  const round = v.round ?? 1;
+  if (round > 1 || (v.season ?? 1) > 1) return; // the opening is over
+
+  const covering = v.straws.length;
+  const taken = Boolean(v.starterOffer && v.starterOffer.taken);
+  const mare = v.horses.find((horse) => horse.sex === "F" && !horse.retired);
+  const inFoal = Boolean(mare && mare.inFoal);
+  const price = v.starterOffer ? v.starterOffer.price : 20;
+
+  const strip = document.createElement("div");
+  strip.id = "opening";
+  strip.innerHTML =
+    `<div class="kv"><b>Getting started</b><span>One mare, no covering. The covering is what ` +
+    `makes her a breeding stable, and her foal is the first horse you may sell.</span></div>`;
+
+  const steps = [
+    {
+      done: taken || covering > 0,
+      label: taken || covering > 0 ? "a covering is in the barn" : `take the first covering in your account · ₲ ${nf(price)}`,
+      why: "Once per stable, at the cheapest price you will ever see.",
+      run: () => act({ type: "takeStarterOffer" }),
+    },
+    {
+      done: inFoal,
+      label: inFoal ? "she is in foal: the foal arrives when the season turns" : "cover her with it",
+      why: "The covering is spent and the foal is due next season.",
+      run: () => showScreen("breeding"),
+    },
+    {
+      done: false,
+      label: `run meeting ${nf(round)}`,
+      why: "The meeting pays the yard, and upkeep is charged when the season turns.",
+      run: () => showScreen("racing"),
+    },
+  ];
+
+  steps.forEach((step, index) => {
+    const row = document.createElement("div");
+    row.className = "kv";
+    const mark = document.createElement("b");
+    mark.textContent = step.done ? "✓" : `${index + 1}.`;
+    row.append(mark);
+    if (step.done) {
+      const text = document.createElement("span");
+      text.textContent = step.label;
+      row.append(text);
+    } else {
+      const button = document.createElement("button");
+      button.className = "tiny";
+      button.textContent = step.label;
+      button.title = step.why;
+      button.addEventListener("click", step.run);
+      const why = document.createElement("span");
+      why.className = "hint";
+      why.textContent = step.why;
+      row.append(button, why);
+    }
+    strip.append(row);
+  });
+
+  anchor.parentElement.insertBefore(strip, anchor);
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -4292,6 +4368,7 @@ function draw() {
     herd.innerHTML = "";
     for (const horse of v.horses) herd.append(herdRow(horse));
   }
+  renderOpening(v);
 
   // the breeding screen shows only the mares, each carrying the pairing line the
   // rules sent for the covering currently selected
