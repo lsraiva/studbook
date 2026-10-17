@@ -3885,7 +3885,7 @@ function renderCovering(v) {
   const line = document.createElement("div");
   line.className = "kv";
   line.innerHTML = straw
-    ? `<span>${straw.sireName} · vintage ${straw.vintage}</span><b>sire value ${nf(straw.sireValue, 2)}</b>`
+    ? `<span>${straw.sireName} · collected in season ${straw.vintage}</span><b>sire value ${nf(straw.sireValue, 2)}</b>`
     : `<span>no covering selected</span><b>pick one above</b>`;
   covering.append(line);
 
@@ -4656,7 +4656,7 @@ function draw() {
       pair.className = "pairing" + (risky ? " risk" : "");
       pair.textContent =
         `with ${horse.pairing.sireName}: ${horse.pairing.crossLineage ? "cross lineage +" + Math.round(horse.pairing.vigour * 100) + "% vigour" : "same lineage, no vigour"}` +
-        ` · sire F ${nf(horse.pairing.sireF, 3)}, mare F ${nf(horse.pairing.damF, 3)}` +
+        ` · inbreeding: sire ${nf(horse.pairing.sireF, 3)}, mare ${nf(horse.pairing.damF, 3)}` +
         ` · ${horse.pairing.foalsLeft} foals left`;
       name.append(pair);
     }
@@ -4926,12 +4926,12 @@ function draw() {
     card.append(meta);
     const meta2 = document.createElement("div");
     meta2.className = "kv";
-    meta2.innerHTML = `<span>vintage ${straw.vintage}</span><b>${straw.sireStakes ? "stakes" : "—"}</b>`;
+    meta2.innerHTML = `<span>collected in season ${straw.vintage}</span><b>${straw.sireStakes ? "stakes winner" : "—"}</b>`;
     card.append(meta2);
     if (straw.elite) {
       const tag = document.createElement("div");
       tag.className = "select";
-      tag.textContent = "elite covering — from the select sale";
+      tag.textContent = "elite covering — the house's best stallion, sold once a season";
       card.append(tag);
     }
     const row = document.createElement("div");
@@ -5010,12 +5010,12 @@ function draw() {
     card.append(meta);
     const meta2 = document.createElement("div");
     meta2.className = "kv";
-    meta2.innerHTML = `<span>${lot.sellerName} · ${isHorse ? "horse lot" : "v" + lot.vintage}${lot.age >= 1 ? " · clearance" : ""}</span><b>${nf(lot.price)} ₲</b>`;
+    meta2.innerHTML = `<span>${lot.sellerName} · ${isHorse ? "horse lot" : "season " + lot.vintage}${lot.age >= 1 ? " · price cut each season it sits" : ""}</span><b>${nf(lot.price)} ₲</b>`;
     card.append(meta2);
     if (lot.select) {
       const badge = document.createElement("div");
       badge.className = "select";
-      badge.textContent = `select sale · the house's best blood, ${nf(lot.price)} ₲`;
+      badge.textContent = `select sale: the house's best stallion, this season only · ${nf(lot.price)} ₲`;
       card.append(badge);
     }
     if (isHorse && lot.horseTraits) card.append(traitBars(lot.horseTraits));
