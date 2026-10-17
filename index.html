@@ -267,6 +267,20 @@
       .burst { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
       .burst i { position: absolute; width: 0.45rem; height: 0.45rem; border-radius: 2px; background: var(--brass); opacity: 0; animation: pop 0.95s ease-out forwards; }
       @keyframes pop { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(240deg); } }
+      /* Touch targets. The small controls were 34px tall, which is fine with a mouse and
+         short for a thumb; the tactic buttons and the filter selects were smaller still.
+         This block sits last on purpose, so it wins by order without editing the rules
+         above it. Nothing gets smaller than this at any width. */
+      @media (max-width: 620px) {
+        button, button.tiny, .tactic .tiny, select, input[type="search"] {
+          min-height: 44px;
+          padding: 0.55rem 0.7rem;
+          font-size: 0.85rem;
+        }
+        .tactic .tiny { font-size: 0.82rem; }
+        nav button { min-height: 44px; }
+        .lot { padding: 0.7rem; }
+      }
     </style>
   </head>
   <body>
