@@ -3434,15 +3434,9 @@ document.addEventListener(
   "click",
   (event) => {
     const run = event.target.closest?.("button");
-    // TEMPORARY TRACE. The off did not fire in the live build while the served file carried the
-    // code, so the trigger is instrumented until it is answered: is the click seen at all, does
-    // the block reach the DOM at capture, and does the render guard run.
-    console.log("[off] click seen; button:", run ? run.textContent.trim() : "(none)");
     if (!run || !/^Run meeting/.test(run.textContent.trim())) return;
     offAt = Date.now();
-    console.log("[off] armed at", offAt);
     theOffBlock(view);
-    console.log("[off] block in DOM after capture:", Boolean(document.getElementById("the-off")));
     if (offTimer) clearTimeout(offTimer);
     offTimer = setTimeout(() => {
       offAt = 0;
@@ -5381,11 +5375,8 @@ function draw() {
   // While the off is on screen the result waits, so the start gets its own moment. The race has
   // already been decided by the rules; this only decides when the player reads it.
   if (offAt && Date.now() - offAt < OFF_MILLISECONDS) {
-    console.log("[off] guard holding the result, age", Date.now() - offAt);
     theOffBlock(v);
-    console.log("[off] block after guard:", Boolean(document.getElementById("the-off")));
   } else if (v.meeting) {
-    console.log("[off] guard released; offAt", offAt);
     const line = document.createElement("div");
     line.innerHTML = `<span class="winner">${v.meeting.winner}</span> took the ${v.meeting.condition} — pot ${nf(v.meeting.pot)} ₲ from ${nf(v.meeting.runners)} runners`;
     meeting.append(line);
