@@ -1424,6 +1424,10 @@ function setup(players) {
   // Every stable records where it stood before the first meeting runs. Without this the first
   // turn measured the yard against itself and its report came out as a row of zeros.
   for (const stable of state.stables) stable.seasonOpen = snapshotSeason(stable, state);
+  // Meeting one needs a field as well, or the first race of the game is run against strangers.
+  for (const stable of state.stables) {
+    if (stable.id.startsWith("ai")) aiEnterMeeting(state, stable);
+  }
   setCondition(state);
   log(state, "Season 1 opens. Sales catalogues are live.", "season");
   return state;
@@ -1490,6 +1494,37 @@ function conditionFor(season, round) {
 /** Keep state.condition pointing at the meeting that is about to run. */
 function setCondition(state) {
   state.condition = conditionFor(state.season ?? 1, state.meeting ?? 1);
+}
+
+/**
+ * The field, before the off. A race day is mostly OTHER horses: you study the runners, size up
+ * the rival to beat, and only then does your own matter. The runners used to appear at the finish
+ * line - "finished 7 of 10" with nine faces never seen - so this publishes the declared field:
+ * every entrant, the stable, what he has done, and the instruction he is likely to run with.
+ */
+function paddockOf(state) {
+  const rows = [];
+  for (const stable of state.stables) {
+    for (const horseId of stable.entries.slice(0, 3)) {
+      const horse = horseById(state, horseId);
+      if (!horse || horse.retired || horse.age < RACE_AGE) continue;
+      rows.push({
+        horseId: horse.id,
+        name: horse.name,
+        stable: stable.name,
+        mine: Boolean(stable.player),
+        value: round(horse.value ?? 0, 2),
+        runs: horse.starts ?? 0,
+        wins: horse.wins ?? 0,
+        places: horse.places ?? 0,
+        // A rival declares an instruction, a player chooses one, and the house runs plain when
+        // nobody has said otherwise - the same default the race itself uses.
+        tactic: (stable.tactics && stable.tactics[horse.id]) || "steady",
+        stakes: Boolean(horse.stakes),
+      });
+    }
+  }
+  return rows;
 }
 
 /** Where a stable stood when its season opened. */
@@ -1563,6 +1598,7 @@ function nextSeason(state) {
   for (const stable of state.stables) {
     stable.entries = [];
     stable.seasonOpen = snapshotSeason(stable, state);
+    if (stable.id.startsWith("ai")) aiEnterMeeting(state, stable);
   }
 }
 
@@ -2149,6 +2185,14 @@ function runRound(state, why) {
   runMeeting(state);
   if (meeting >= MEETINGS_PER_SEASON) return runTurnover(state);
   state.meeting = meeting + 1;
+  // The field for the NEXT meeting is declared here, at the end of this one. That is the whole
+  // point of the paddock: a player studies the runners before the off instead of meeting nine
+  // strangers at the finish line. The season's first card is declared as the calendar turns.
+  if (state.meeting <= MEETINGS_PER_SEASON) {
+    for (const stable of state.stables) {
+      if (stable.id.startsWith("ai")) aiEnterMeeting(state, stable);
+    }
+  }
   setCondition(state);
   log(
     state,
@@ -2167,9 +2211,9 @@ function runMeeting(state) {
 
   for (const stable of state.stables) {
     if (stable.id.startsWith("ai")) {
-      // Only the entry side is per meeting. The house's money, its breeding and its
-      // listings are seasonal, and happen when the season turns.
-      aiEnterMeeting(state, stable);
+      // Rivals do NOT re-declare here any more. Their field is declared when the previous
+      // meeting ends, and the paddock publishes exactly that; picking a new field at the off
+      // would make the runners a player studied a different set from the ones that run.
     }
     for (const horseId of stable.entries.slice(0, 3)) {
       const horse = horseById(state, horseId);
@@ -3096,6 +3140,7 @@ function viewFor(state, playerId) {
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
     seasonReport: (stable && stable.seasonReport) || null,
+    paddock: paddockOf(state),
     starterOffer: {
       available: Boolean(stable && !stable.starterOfferTaken),
       taken: Boolean(stable && stable.starterOfferTaken),
@@ -4619,6 +4664,40 @@ function renderYardCards(v) {
  * log lines; this says the whole of it in one breath, above the herd, and stays there as the
  * recap of where the yard stands.
  */
+/**
+ * The paddock. The runners used to appear only in the result, so a player read "finished 7 of 10"
+ * without ever seeing the nine. This is the field as declared: who runs, for which stable, how he
+ * stands against this field, what he has done, and the instruction he is likely to run with.
+ */
+function renderPaddock(v) {
+  const box = el("meeting");
+  if (!box || !box.parentElement) return;
+  const old = document.getElementById("paddock");
+  if (old) old.remove();
+  const rows = Array.isArray(v.paddock) ? v.paddock : [];
+  if (!rows.length) return;
+
+  const mean = v.field && v.field.mean ? v.field.mean : 0;
+  const wrap = document.createElement("div");
+  wrap.id = "paddock";
+  wrap.innerHTML =
+    `<div class="kv"><b>THE FIELD · ${nf(rows.length)} DECLARED</b><span>` +
+    `who runs, before the off: study the rival now, not at the finish line</span></div>` +
+    rows
+      .map((row) => {
+        const against = mean ? `${nf(row.value / mean, 2)}x the field` : `value ${nf(row.value, 2)}`;
+        const record = row.runs ? `${nf(row.runs)} runs, ${nf(row.wins)} won` : "unraced";
+        return (
+          `<div class="kv${row.mine ? " mine" : ""}">` +
+          `<b>${row.mine ? "your " : ""}${row.name}</b>` +
+          `<span>${row.stable} · ${against} · ${record} · runs ${row.tactic}` +
+          `${row.stakes ? " · stakes" : ""}</span></div>`
+        );
+      })
+      .join("");
+  box.parentElement.insertBefore(wrap, box);
+}
+
 function renderSeasonReport(v) {
   const herd = el("herd");
   const table = herd && herd.closest("table");
@@ -5239,6 +5318,7 @@ function draw() {
   }
 
   // meeting
+  renderPaddock(v);
   const meeting = el("meeting");
   meeting.innerHTML = "";
   if (v.meeting) {
