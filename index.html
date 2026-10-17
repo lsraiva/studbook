@@ -3397,6 +3397,57 @@ function connectWallet() {
   return Promise.resolve({ authorised: true, sandbox: true });
 }
 
+/**
+ * The off. Racing has a clock, a card and now a field, but between clicking Run and seeing the
+ * result there was no moment at all: the race happened while the button was still under the
+ * finger. This holds the screen for a beat at the start, with the field just studied, then lets
+ * the result through. It decides nothing - the rules have already run - so it cannot move a
+ * placing. It only gives the start a moment of its own.
+ */
+let offAt = 0;
+let offTimer = null;
+const OFF_MILLISECONDS = 1600;
+
+function theOffBlock(v) {
+  const box = el("meeting");
+  if (!box || !box.parentElement) return;
+  let wrap = document.getElementById("the-off");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = "the-off";
+    box.parentElement.insertBefore(wrap, box);
+  }
+  const going = String(v.goingNote ?? "").replace(/\s+/g, " ").trim();
+  const field = Array.isArray(v.paddock) ? v.paddock : [];
+  const mine = field.filter((row) => row.mine);
+  wrap.innerHTML =
+    `<div class="kv"><b>THE OFF</b><span>` +
+    `${going ? `${going} · ` : ""}${nf(field.length)} declared · they are running</span></div>` +
+    (mine.length
+      ? `<div class="kv"><span>yours: ${mine
+          .map((row) => `${row.name} (${row.tactic})`)
+          .join(", ")}</span></div>`
+      : "");
+}
+
+document.addEventListener(
+  "click",
+  (event) => {
+    const run = event.target.closest?.("button");
+    if (!run || !/^Run meeting/.test(run.textContent.trim())) return;
+    offAt = Date.now();
+    theOffBlock(view);
+    if (offTimer) clearTimeout(offTimer);
+    offTimer = setTimeout(() => {
+      offAt = 0;
+      const gone = document.getElementById("the-off");
+      if (gone) gone.remove();
+      draw();
+    }, OFF_MILLISECONDS);
+  },
+  true,
+);
+
 document.addEventListener("click", (event) => {
   const offer = event.target.closest?.("[data-starter-offer]");
   const pack = event.target.closest?.("[data-coin-pack]");
@@ -5321,7 +5372,11 @@ function draw() {
   renderPaddock(v);
   const meeting = el("meeting");
   meeting.innerHTML = "";
-  if (v.meeting) {
+  // While the off is on screen the result waits, so the start gets its own moment. The race has
+  // already been decided by the rules; this only decides when the player reads it.
+  if (offAt && Date.now() - offAt < OFF_MILLISECONDS) {
+    theOffBlock(v);
+  } else if (v.meeting) {
     const line = document.createElement("div");
     line.innerHTML = `<span class="winner">${v.meeting.winner}</span> took the ${v.meeting.condition} — pot ${nf(v.meeting.pot)} ₲ from ${nf(v.meeting.runners)} runners`;
     meeting.append(line);
