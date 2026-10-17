@@ -1311,6 +1311,9 @@ function freshStable(state, stableId, name, playerId) {
     forcedSales: 0,
     seasonOpen: null,
     seasonReport: null,
+    // The firsts. A yard is mostly told what it IS - bank, horses, values - and rarely what it
+    // HAS DONE for the first time. These are written once and never overwritten.
+    firsts: { win: null, place: null, foal: null, stakes: null, sold: null },
   };
 }
 
@@ -1598,6 +1601,20 @@ function nextSeason(state) {
   for (const stable of state.stables) {
     stable.entries = [];
     stable.seasonOpen = snapshotSeason(stable, state);
+    // The foals of the season just turned are on the ground as this runs, and the population has
+    // been scored, so both firsts can be read here rather than watched for elsewhere.
+    const newborns = stable.horses
+      .map((id) => horseById(state, id))
+      .filter((horse) => horse && horse.age === 0);
+    if (newborns.length && !stable.firsts.foal) {
+      stable.firsts.foal = { season: state.season, name: newborns[0].name };
+    }
+    if (!stable.firsts.stakes) {
+      const stakes = stable.horses
+        .map((id) => horseById(state, id))
+        .find((horse) => horse && horse.stakes && horse.owner === stable.id);
+      if (stakes) stable.firsts.stakes = { season: state.season, name: stakes.name };
+    }
     if (stable.id.startsWith("ai")) aiEnterMeeting(state, stable);
   }
 }
@@ -2264,6 +2281,13 @@ function runMeeting(state) {
       if (index === 0) {
         horse.wins += 1;
         if (horse.stakes) horse.stakesWins += 1;
+        if (stable && !stable.firsts.win) {
+          stable.firsts.win = { season: state.season, meeting: state.meeting ?? 1, where: condition, horse: horse.name };
+        }
+      } else if (index === 1 || index === 2) {
+        if (stable && !stable.firsts.place) {
+          stable.firsts.place = { season: state.season, meeting: state.meeting ?? 1, where: condition, horse: horse.name, at: index + 1 };
+        }
       }
       const place = index + 1;
       if (place === 2 || place === 3) horse.places += 1;
@@ -3168,6 +3192,7 @@ function viewFor(state, playerId) {
     testGrant: TEST_GRANT,
     bankChoices: BANK_CHOICES,
     seasonReport: (stable && stable.seasonReport) || null,
+    firsts: (stable && stable.firsts) || null,
     paddock: paddockOf(state),
     starterOffer: {
       available: Boolean(stable && !stable.starterOfferTaken),
@@ -4748,6 +4773,32 @@ function renderYardCards(v) {
  * without ever seeing the nine. This is the field as declared: who runs, for which stable, how he
  * stands against this field, what he has done, and the instruction he is likely to run with.
  */
+/**
+ * The stable's firsts. A yard is mostly told what it IS - bank, horses, values - and rarely what
+ * it has DONE for the first time. This is the part of progress that never shows in a balance.
+ */
+function renderFirsts(v) {
+  const herd = el("herd");
+  const table = herd && herd.closest("table");
+  if (!table || !table.parentElement) return;
+  const old = document.getElementById("firsts");
+  if (old) old.remove();
+  const firsts = v.firsts;
+  if (!firsts) return;
+
+  const lines = [];
+  if (firsts.win) lines.push(`first win — season ${nf(firsts.win.season)}, ${firsts.win.where}, with ${firsts.win.horse}`);
+  if (firsts.place) lines.push(`first placing — ${firsts.place.at === 2 ? "2nd" : "3rd"} in season ${nf(firsts.place.season)}, ${firsts.place.where}`);
+  if (firsts.foal) lines.push(`first foal — season ${nf(firsts.foal.season)}, ${firsts.foal.name}`);
+  if (firsts.stakes) lines.push(`first stakes horse — ${firsts.stakes.name}, season ${nf(firsts.stakes.season)}`);
+  if (!lines.length) return;
+
+  const strip = document.createElement("div");
+  strip.id = "firsts";
+  strip.innerHTML = `<div class="kv"><b>FIRSTS · ${nf(lines.length)}</b><span>${lines.join(" · ")}</span></div>`;
+  table.parentElement.insertBefore(strip, table);
+}
+
 function renderPaddock(v) {
   const box = el("meeting");
   if (!box || !box.parentElement) return;
@@ -5089,6 +5140,7 @@ function draw() {
   renderOpening(v);
   renderYardCards(v);
   renderSeasonReport(v);
+  renderFirsts(v);
 
   // the breeding screen shows only the mares, each carrying the pairing line the
   // rules sent for the covering currently selected
