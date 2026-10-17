@@ -22,6 +22,10 @@
       href="https://d2ol7oe51mr4n9.cloudfront.net/user_3KJqLgRqaLH0OEDu9sNQJTnuyFg/bafbfd17-806f-4a4e-a502-eebf4d6c294c.png"
     />
     <style>
+      /* `hidden` loses to any display rule with higher specificity, and a <table> that
+         declares `display: table` beat it: the Yard's spreadsheet stayed on screen under
+         the cards. One rule fixes the whole class of bug. */
+      [hidden] { display: none !important; }
       :root {
         color-scheme: dark;
         --bg: #0d0b14;
