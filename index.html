@@ -2944,7 +2944,10 @@ function viewFor(state, playerId) {
    serves the SAME protocol in-page, so the rules and the screen above and below
    are untouched: only the transport differs, and progress saves to localStorage.
    ------------------------------------------------------------------------ */
-const SAVE_PREFIX = "studbook:standalone:";
+// Versioned on purpose. The rung the free tier gives a stable has changed (a full yard,
+// then mares, now one soulbound mare), so a save written by an earlier build would restore
+// a game the rules no longer describe. Bump this whenever the starting shape changes.
+const SAVE_PREFIX = "studbook:standalone:v2:";
 
 function localPlayerId() {
   const key = "hf:game:playerId";
@@ -4230,6 +4233,18 @@ function draw() {
       breed.className = "tiny good";
       breed.textContent = "breed";
       breed.disabled = horse.sex !== "F" || !selectedStraw || Boolean(horse.inFoal);
+      // A dead button with no reason is the worst kind of dead end: it is the one thing a
+      // new stable will click first, holding no covering at all.
+      breed.title =
+        horse.sex !== "F"
+          ? "Only a mare can be covered."
+          : horse.inFoal
+            ? "She is in foal: the foal arrives when the season turns."
+            : !selectedStraw
+              ? v.straws.length
+                ? "Pick a covering above, then breed her."
+                : "You hold no covering — take the first covering in your account, or buy one in the Stud market."
+              : "Cover her: the covering is spent and the foal arrives when the season turns.";
       breed.addEventListener("click", () => {
         if (!selectedStraw) return toast("pick a covering first", true);
         act({ type: "breed", mareId: horse.id, strawId: selectedStraw, care: careChoice });
@@ -4251,6 +4266,11 @@ function draw() {
       consign.className = "tiny";
       consign.textContent = "consign";
       consign.disabled = v.horses.length <= 1 || Boolean(horse.soulbound);
+      consign.title = horse.soulbound
+        ? "Soulbound: she cannot be consigned, but her foals can."
+        : v.horses.length <= 1
+          ? "This is your last horse: sell or breed another before consigning her."
+          : "Offer her in the ring at your price.";
       consign.addEventListener("click", () =>
         act({
           type: "listHorse",
