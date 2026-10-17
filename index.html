@@ -281,6 +281,11 @@
         nav button { min-height: 44px; }
         .lot { padding: 0.7rem; }
       }
+      /* Focus has to be visible where it lands. There was no focus rule at all, so a keyboard
+         user had only the browser default, which all but disappears against these dark panels.
+         Keyboard REACH still needs a real browser to test, and this project has not had one
+         since the artifact stopped running under jsdom - see the queue, tasks 2, 5 and 8. */
+      :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
     </style>
   </head>
   <body>
