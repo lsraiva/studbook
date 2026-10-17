@@ -1470,6 +1470,9 @@ function setCondition(state) {
 
 function nextSeason(state) {
   state.season += 1;
+  // The season boundary is where entries belong: runners carry from one meeting to the next,
+  // and clear only when the calendar turns, when some of them may also have retired.
+  for (const stable of state.stables) stable.entries = [];
 }
 
 // ── action validation ─────────────────────────────────────────────────────
@@ -2087,7 +2090,10 @@ function runMeeting(state) {
       stable.guineas -= fee;
       entrants.push({ horse, stableId: stable.id });
     }
-    stable.entries = [];
+    // Entries are NOT cleared here any more. A season is three meetings, and making the
+    // player re-enter the same runners three times was the most repeated friction in the
+    // game: measured by playing a season by hand, it cost three trips between screens for
+    // no decision the player wanted to make. They clear when the calendar turns instead.
   }
 
   if (entrants.length) {
