@@ -1260,6 +1260,8 @@ function makeHorse(state, genome, lineageId, sex, age, bornSeason, vigour = 0, s
     retired: false,
     starts: 0,
     wins: 0,
+    places: 0,
+    best: null,
     stakesWins: 0,
     earnings: 0,
     foals: 0,
@@ -2113,6 +2115,13 @@ function runMeeting(state) {
         horse.wins += 1;
         if (horse.stakes) horse.stakesWins += 1;
       }
+      const place = index + 1;
+      if (place === 2 || place === 3) horse.places += 1;
+      // The best result is kept as a fact rather than recomputed later: what a horse did
+      // once is the one number on his card that can never change again.
+      if (!horse.best || place < horse.best.place) {
+        horse.best = { place, of: entrants.length, season: state.season };
+      }
     });
     // The replay is derived from the result, never invented: at the finish the order
     // is exactly the placings, so the animation cannot contradict the race. Before
@@ -2752,6 +2761,8 @@ function viewFor(state, playerId) {
       f: horse.f,
       stakes: horse.stakes,
       starts: horse.starts,
+      places: horse.places ?? 0,
+      best: horse.best ?? null,
       wins: horse.wins,
       stakesWins: horse.stakesWins,
       earnings: horse.earnings,
@@ -3229,6 +3240,38 @@ document.addEventListener("click", (event) => {
     act({ type: "takeStarterOffer" });
     return;
   }
+  // Card actions are declared, not built: one handler decides what each one does, and the
+  // guards live in the button's own disabled/title state where the player can read them.
+  const horseButton = event.target.closest?.("[data-horse-act]");
+  if (horseButton && view && view.stable) {
+    const horseId = horseButton.getAttribute("data-horse-id");
+    const kind = horseButton.getAttribute("data-horse-act");
+    const horse = view.horses.find((row) => row.id === horseId);
+    if (!horse) return;
+    if (kind === "enter") {
+      const entered = view.stable.entries.includes(horse.id);
+      const next = entered
+        ? view.stable.entries.filter((id) => id !== horse.id)
+        : [...view.stable.entries, horse.id].slice(0, 3);
+      act({ type: "enter", horseIds: next });
+      return;
+    }
+    if (kind === "breed") {
+      if (!selectedStraw) return toast("pick a covering first", true);
+      act({ type: "breed", mareId: horse.id, strawId: selectedStraw, care: careChoice });
+      selectedStraw = null;
+      return;
+    }
+    if (kind === "sell") {
+      act({ type: "sell", horseId: horse.id });
+      return;
+    }
+    if (kind === "consign") {
+      act({ type: "listHorse", horseId: horse.id, price: Math.max(25, horse.suggestedPrice ?? 100) });
+      return;
+    }
+  }
+
   if (!pack) return;
   const name = pack.getAttribute("data-coin-pack");
   connectWallet().then((settled) => {
@@ -4157,6 +4200,134 @@ function tickClock() {
  * them in order, ticks them off as they happen, and takes itself away once the first
  * meeting has run: after that the player has a game, not a to-do list.
  */
+/**
+ * The Yard's cards. A spreadsheet row says what a horse IS; a card has to say what he has
+ * DONE, because that is the part a player owns emotionally. Every number here is already
+ * published by the rules - starts, wins, placings, earnings, the best result he ever ran -
+ * and the actions are declared as data attributes instead of being built again, so exactly
+ * one place decides what each button does.
+ */
+function renderYardCards(v) {
+  const herd = el("herd");
+  const table = herd && herd.closest("table");
+  if (!table || !table.parentElement) return;
+  const old = document.getElementById("yard-cards");
+  if (old) old.remove();
+  table.hidden = v.horses.length > 0; // the cards are the Yard now
+
+  const cards = document.createElement("div");
+  cards.id = "yard-cards";
+
+  for (const horse of v.horses) {
+    const card = document.createElement("div");
+    card.className = "lot";
+    if (horse.id === selectedHorse) card.classList.add("selected");
+
+    const head = document.createElement("div");
+    head.className = "name";
+    head.append(horseArt(horse.lineage));
+    const title = document.createElement("span");
+    title.textContent = horse.name;
+    head.append(title);
+    const tags = [
+      [horse.sex === "M" ? "colt" : "filly", ""],
+      [`age ${nf(horse.age)}`, ""],
+      [horse.stakes ? "stakes" : null, "stakes"],
+      [horse.retired ? "retired" : null, "retired"],
+      [horse.soulbound ? "soulbound" : null, "brass"],
+      [horse.inFoal ? "in foal" : null, "brass"],
+    ];
+    for (const [text, cls] of tags) {
+      if (!text) continue;
+      const tag = document.createElement("span");
+      tag.className = `tag ${cls}`.trim();
+      tag.textContent = text;
+      head.append(tag);
+    }
+    card.append(head);
+
+    // The record. It is the one block a player reads to remember the horse by.
+    const record = document.createElement("div");
+    record.className = "kv";
+    record.textContent = horse.starts
+      ? `${nf(horse.starts)} runs · ${nf(horse.wins)} won · ${nf(horse.places)} placed · ₲ ${nf(horse.earnings)} earned` +
+        (horse.best
+          ? ` · best: ${nf(horse.best.place)} of ${nf(horse.best.of)}, season ${nf(horse.best.season)}`
+          : "")
+      : "Unraced: nothing on his card yet.";
+    card.append(record);
+
+    const ratio = v.field && v.field.mean ? horse.value / v.field.mean : 1;
+    const stats = document.createElement("div");
+    stats.className = "kv";
+    stats.textContent =
+      `value ${nf(horse.value, 2)} = ${nf(ratio, 2)}x the field` +
+      (horse.condition ? ` · ${horse.condition}` : "") +
+      ` · upkeep ₲ ${nf(horse.upkeep)}`;
+    card.append(stats);
+
+    if (horse.traits) card.append(traitBars(horse.traits));
+
+    const actions = document.createElement("div");
+    actions.className = "kv";
+    const entered = v.stable.entries.includes(horse.id);
+    const action = (kind, label, off, why) => {
+      const node = document.createElement("button");
+      node.className = "tiny";
+      node.textContent = label;
+      node.disabled = Boolean(off);
+      node.title = why;
+      node.setAttribute("data-horse-act", kind);
+      node.setAttribute("data-horse-id", horse.id);
+      return node;
+    };
+    actions.append(
+      action(
+        "enter",
+        entered ? "entered" : "enter",
+        horse.age < 2 || horse.retired,
+        entered ? "Withdraw from this meeting." : "Enter this meeting.",
+      ),
+      action(
+        "breed",
+        "breed",
+        horse.sex !== "F" || !selectedStraw || Boolean(horse.inFoal),
+        horse.sex !== "F"
+          ? "Only a mare can be covered."
+          : horse.inFoal
+            ? "She is in foal: the foal arrives when the season turns."
+            : !selectedStraw
+              ? v.straws.length
+                ? "Pick a covering first."
+                : "You hold no covering - take the first covering in your account, or buy one in the Stud market."
+              : "Cover her: the covering is spent and the foal arrives when the season turns.",
+      ),
+      action(
+        "sell",
+        horse.soulbound ? "soulbound" : "sell",
+        horse.soulbound,
+        horse.soulbound
+          ? "A gift horse: she can never be sold or consigned, but her foals can."
+          : "Sell to the house at once.",
+      ),
+      action(
+        "consign",
+        "consign",
+        v.horses.length <= 1 || Boolean(horse.soulbound),
+        horse.soulbound
+          ? "Soulbound: she cannot be consigned, but her foals can."
+          : v.horses.length <= 1
+            ? "This is your last horse: sell or breed another before consigning her."
+            : `Offer her in the ring for ₲ ${nf(Math.max(25, horse.suggestedPrice ?? 100))}.`,
+      ),
+    );
+    card.append(actions);
+    cards.append(card);
+  }
+
+  table.parentElement.insertBefore(cards, table);
+}
+
 function renderOpening(v) {
   const herd = el("herd");
   const anchor = herd && herd.closest("table");
@@ -4436,6 +4607,7 @@ function draw() {
     for (const horse of v.horses) herd.append(herdRow(horse));
   }
   renderOpening(v);
+  renderYardCards(v);
 
   // the breeding screen shows only the mares, each carrying the pairing line the
   // rules sent for the covering currently selected
