@@ -2304,6 +2304,18 @@ function runMeeting(state) {
       condition,
       pot,
       runners: entrants.length,
+      // How far clear the winner was, and the whole table. The panel named the winner; a player
+      // also wants to read his own horse's race - where it finished, how far behind, what it won.
+      margin: entrants.length > 1 ? round(entrants[0].score - entrants[1].score, 2) : 0,
+      table: entrants.map((entry, index) => ({
+        horseId: entry.horse.id,
+        name: entry.horse.name,
+        stableId: entry.stableId,
+        place: index + 1,
+        behind: round(Math.max(0, entrants[0].score - entry.score), 2),
+        prize: PURSE_SPLIT[index] ? Math.round(pot * PURSE_SPLIT[index]) : 0,
+        tactic: entry.tactic,
+      })),
       replay: beats,
       tactics: entrants.map((entry) => ({
         horseId: entry.horse.id,
@@ -3110,6 +3122,11 @@ function viewFor(state, playerId) {
     meeting: state.lastRace
       ? {
           season: state.lastRace.season,
+          margin: state.lastRace.margin ?? null,
+          table: (state.lastRace.table ?? []).map((row) => ({
+            ...row,
+            mine: Boolean(stable) && row.stableId === stable.id,
+          })),
           round: state.lastRace.meeting ?? 1,
           condition: state.lastRace.condition,
           pot: state.lastRace.pot,
@@ -5391,6 +5408,26 @@ function draw() {
     const line = document.createElement("div");
     line.innerHTML = `<span class="winner">${v.meeting.winner}</span> took the ${v.meeting.condition} — pot ${nf(v.meeting.pot)} ₲ from ${nf(v.meeting.runners)} runners`;
     meeting.append(line);
+    // The margin, then your own horses: the result used to name one winner and leave a player to
+    // guess what happened to the rest of them.
+    if (typeof v.meeting.margin === "number" && v.meeting.margin > 0) {
+      const margin = document.createElement("div");
+      margin.className = "hint";
+      margin.textContent = `won by ${nf(v.meeting.margin, 2)} clear of the runner-up`;
+      meeting.append(margin);
+    }
+    const mine = (Array.isArray(v.meeting.table) ? v.meeting.table : []).filter((row) => row.mine);
+    for (const row of mine) {
+      const own = document.createElement("div");
+      own.className = "kv";
+      const placing =
+        row.place === 1 ? "won" : row.place === 2 ? "2nd" : row.place === 3 ? "3rd" : `${nf(row.place)}th`;
+      own.textContent =
+        `${placing} · ${row.name} — ` +
+        (row.place === 1 ? `took ${nf(row.prize)} ₲` : `beaten ${nf(row.behind, 2)}, won ${nf(row.prize)} ₲`) +
+        (row.tactic ? ` · ran ${row.tactic}` : "");
+      meeting.append(own);
+    }
     for (const placed of v.meeting.places) {
       const row = document.createElement("div");
       row.className = "kv";
