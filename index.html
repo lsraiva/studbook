@@ -280,6 +280,10 @@
         .tactic .tiny { font-size: 0.82rem; }
         nav button { min-height: 44px; }
         .lot { padding: 0.7rem; }
+        /* Two things the readability check caught on a phone: the table headers at 10.88px and the
+           stakes tag at 9.92px, both under the 11px floor. Legibility is measured here, not
+           intended, and a tag nobody can read is a tag that does not exist. */
+        th, .tag { font-size: 0.72rem; }
       }
       /* Focus has to be visible where it lands. There was no focus rule at all, so a keyboard
          user had only the browser default, which all but disappears against these dark panels.
