@@ -4791,11 +4791,18 @@ function renderFirsts(v) {
   if (firsts.place) lines.push(`first placing — ${firsts.place.at === 2 ? "2nd" : "3rd"} in season ${nf(firsts.place.season)}, ${firsts.place.where}`);
   if (firsts.foal) lines.push(`first foal — season ${nf(firsts.foal.season)}, ${firsts.foal.name}`);
   if (firsts.stakes) lines.push(`first stakes horse — ${firsts.stakes.name}, season ${nf(firsts.stakes.season)}`);
-  if (!lines.length) return;
 
   const strip = document.createElement("div");
   strip.id = "firsts";
-  strip.innerHTML = `<div class="kv"><b>FIRSTS · ${nf(lines.length)}</b><span>${lines.join(" · ")}</span></div>`;
+  // The strip ALWAYS renders. A stable with no firsts yet is not a stable with nothing to say:
+  // the empty state is where the aim belongs, and an aim is exactly what the opening seasons
+  // were missing - they offered a balance and no goal. It also makes the check for this
+  // feature deterministic, because the strip's presence no longer depends on luck.
+  const body = lines.length
+    ? lines.join(" · ")
+    : "none yet — win a meeting, or breed your first foal";
+  strip.innerHTML =
+    `<div class="kv"><b>FIRSTS${lines.length ? ` · ${nf(lines.length)}` : ""}</b><span>${body}</span></div>`;
   table.parentElement.insertBefore(strip, table);
 }
 
