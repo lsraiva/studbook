@@ -123,6 +123,16 @@ ok("...and the catalogue reveals it", Boolean(E.viewFor(shop, "t").listings.find
 const table = E.viewFor(E.setup(["t"], "rank"), "t").ranking;
 ok("the ranking lists every stable", table.length === 4 && table.every((row) => Number.isFinite(row.prizes)), `${table.length} rows`);
 
+/* ---------- 9f. a spent straw must not stay "selected" ---------- */
+let drift = E.setup(["t"], "drift");
+drift = E.applyAction(drift, "t", { type: "takeStarterOffer" });
+const chosen = E.stableOf(drift, "t").straws[0].id;
+drift = E.applyAction(drift, "t", { type: "selectStraw", strawId: chosen });
+const driftMare = E.stableOf(drift, "t").horses.map((id) => E.horseById(drift, id)).find((h) => h.sex === "F");
+drift = E.applyAction(drift, "t", { type: "breed", mareId: driftMare.id, strawId: chosen, care: "plain" });
+ok("breeding clears the straw selection", E.stableOf(drift, "t").selectedStraw === null);
+ok("...and the next breed is possible", E.validateAction(drift, "t", { type: "selectStraw", strawId: null }).ok);
+
 /* ---------- 10. fuzz: no action throws ---------- */
 const rnd = (n) => Math.floor(Math.random() * n);
 let f = E.setup(["t"], "fuzz"), crashes = 0;

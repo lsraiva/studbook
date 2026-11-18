@@ -1433,6 +1433,7 @@ function applyAction(state, playerId, action) {
       ].slice(0, 10);
     }
     stable.straws.splice(strawIndex, 1);
+    stable.selectedStraw = null; // the straw is gone: a stale selection blocked the next breed
     mare.foals += 1;
     log(next, `${mare.name} covered by ${sire.name} (vintage ${straw.vintage}).`, "breeding");
 

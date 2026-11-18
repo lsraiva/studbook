@@ -308,9 +308,9 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (kind === "breed") {
-      if (!selectedStraw) return toast("pick a covering first", true);
-      act({ type: "breed", mareId: horse.id, strawId: selectedStraw, care: careChoice });
-      selectedStraw = null;
+      const strawId = selectedStraw ?? view?.selectedStraw ?? null;
+      if (!strawId) return toast("pick a covering first", true);
+      act({ type: "breed", mareId: horse.id, strawId, care: careChoice });
       return;
     }
     if (kind === "sell") {
@@ -1762,6 +1762,12 @@ function shopTarget(v) {
   return v.horses.find((horse) => horse.id === id) ?? null;
 }
 
+/** A horse you do not own: what a catalogue page is actually for. */
+function marketTarget(v) {
+  const lot = (v.listings ?? []).find((entry) => entry.kind === "horse" && !entry.mine);
+  return lot ? { id: lot.horseId, name: lot.horseName, traits: lot.horseTraits } : null;
+}
+
 function renderShop(v) {
   const box = el("shop");
   if (box) {
@@ -1796,8 +1802,10 @@ function renderShop(v) {
           act({ type: "useItem", item: "pass" });
           return;
         }
-        const horse = shopTarget(v);
-        if (!horse) return toast("pick a horse in the yard first", true);
+        const horse = item.key === "catalogue" ? marketTarget(v) : shopTarget(v);
+        if (!horse) {
+          return toast(item.key === "catalogue" ? "open it on a lot in the horse market" : "pick a horse in the yard first", true);
+        }
         act({ type: "useItem", item: item.key, horseId: horse.id, trait: weakestTrait(horse.traits) });
       });
       row.append(buy, use);
@@ -1864,6 +1872,9 @@ function renderRanking(v) {
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
+  // The server owns the selection. Mirroring it here stops the card saying "selected" while the
+  // breed button believes nothing is selected — the drift that made breeding do nothing.
+  selectedStraw = v.selectedStraw ?? null;
   el("guineas").textContent = nf(v.stable.guineas);
   el("season").textContent = nf(v.season);
   el("condition").textContent = v.conditionLabel ?? v.condition;
@@ -2030,9 +2041,9 @@ function draw() {
                 : "You hold no covering — take the first covering in your account, or buy one in the Stud market."
               : "Cover her: the covering is spent and the foal arrives when the season turns.";
       breed.addEventListener("click", () => {
-        if (!selectedStraw) return toast("pick a covering first", true);
-        act({ type: "breed", mareId: horse.id, strawId: selectedStraw, care: careChoice });
-        selectedStraw = null;
+        const strawId = selectedStraw ?? view?.selectedStraw ?? null;
+        if (!strawId) return toast("pick a covering first", true);
+        act({ type: "breed", mareId: horse.id, strawId, care: careChoice });
       });
       row.append(breed);
 
