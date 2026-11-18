@@ -7,8 +7,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
+      - run: npm i --no-save jsdom@24
       - run: node tests/engine.test.mjs
       - run: node tests/token.test.mjs
+      - run: node tests/ui.test.mjs
       - run: node tests/design.test.mjs
       - run: node tests/server.test.mjs
       - run: node --check assets/engine.js && node --check assets/ui.js && node --check assets/net.js && node --check server/index.mjs
