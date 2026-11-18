@@ -1,19 +1,21 @@
 {
   "name": "studbook",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Studbook — a bloodstock breeding game: simulated genotypes, a stallion market, seasonal racing.",
   "scripts": {
     "start": "node server/index.mjs",
     "serve": "node tools/serve.mjs",
-    "test": "node tests/engine.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs",
+    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs",
     "test:engine": "node tests/engine.test.mjs",
     "test:design": "node tests/design.test.mjs",
     "test:server": "node tests/server.test.mjs",
     "gate": "node tools/release-gate.mjs index.html",
     "gate:prod": "node tools/release-gate.mjs https://lsraiva.github.io/studbook/",
-    "economy": "node tools/economy-report.mjs"
+    "economy": "node tools/economy-report.mjs",
+    "test:token": "node tests/token.test.mjs",
+    "contracts": "node tools/compile-contracts.mjs"
   },
   "license": "MIT"
 }

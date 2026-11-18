@@ -36,21 +36,26 @@ server's view. On-chain is what the animal is; off-chain is what it is worth now
 
 ## 1. State machine
 
-```
-                      covering consumed
-   COVERING ──────────────► PREGNANT ────────────► BORN (unminted)
-   (1155, burned)              │                     │
-                               │ slipped             │ mint tx
-                               ▼                     ▼
-                            NOTHING              ACTIVE ◄──────────────┐
-                                                  │  ▲                 │
-                                     list         │  │ sale / cancel   │
-                                                  ▼  │                 │
-                                               LISTED ─┘                │
-                                                  │                     │
-                                     house sale   │                     │
-                                                  ▼                     │
-                                               BURNED ── pedigree kept ─┘
+```mermaid
+stateDiagram-v2
+    [*] --> Covering: 5 minted per stallion per season
+    Covering --> Pregnant: breed (1155 burned = nullifier)
+    Pregnant --> Nothing: slipped / did not catch
+    Pregnant --> Born: season turnover (genome drawn)
+    Born --> Active: mint(to, core, creator, nullifier, nonce)
+    Active --> Listed: listHorse (escrow)
+    Listed --> Active: cancelHorse
+    Listed --> Active: buyHorse (settle + split)
+    Active --> Burned: house sale (50% appraisal)
+    Burned --> [*]
+    note right of Born
+        No wallet? Stays Born and playable
+        in-game until the account binds one.
+    end note
+    note right of Burned
+        coreOf and creatorOf are kept:
+        children still resolve their sire.
+    end note
 ```
 
 `RETIRED` is a flag, not a state: a retired horse still exists, still costs board, and can still be
@@ -277,3 +282,97 @@ recompute**. Everything else here could be a database.
 2. **Royalty split**: 2% to the dam's owner at birth (recommended), or shared with the sire's owner.
 3. **Unclaimed horses**: playable off-chain with a 12-month claim window (recommended), or
    mint-at-signup (forces a wallet on every player).
+
+---
+
+## 10. Sequence diagrams
+
+### 10.1 Mint, from a covering the game has already burned
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Player
+    participant C as Client
+    participant S as Server (rules)
+    participant CV as CoveringToken (1155)
+    participant N as HorseNFT (721)
+
+    P->>C: pick a straw, cover the mare
+    C->>S: action {type: "breed", mareId, strawId, care}
+    S->>S: validateAction: mare yours, not in foal, foals<8, straw held
+    S->>CV: burn(owner, sireId, vintage, 1)  [server role]
+    CV-->>S: CoveringBurned — the straw is spent
+    S->>S: pregnancy += {nullifier = keccak(coveringId, stableId, season)}
+    Note over S: one season of gestation, fate rolled from the committed seed
+    S->>S: turnover: one allele per locus from the sire, one from the dam
+    S->>N: mint(to, core, creator, nullifier, nonce, signature)
+    N->>N: require !spent[nullifier] · require nonce > lastNonce
+    N->>N: require ECDSA(digest) == server · require creator != 0
+    N-->>S: HorseMinted(tokenId, to, nullifier, creator, core)
+    S-->>C: view with the foal and its token id
+    C-->>P: "born — token #123, out of X by Y"
+```
+
+### 10.2 Listing and sale
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Sel as Seller
+    actor Buy as Buyer
+    participant M as HorseMarket
+    participant N as HorseNFT
+    participant S as Server (GNS ledger)
+
+    Sel->>M: listHorse(tokenId, price) + approve
+    M->>N: transferFrom(seller → market)   %% escrow: a listed horse cannot race
+    M-->>Sel: Listed(tokenId, price, season)
+
+    Buy->>S: buy (GNS debited in the ledger)
+    S->>S: validate: lot active, buyer balance, price = currentPrice
+    S-->>Buy: voucher = sign(tokenId, buyer, paid, season, nonce)
+    Buy->>M: buyHorse(tokenId, buyer, paid, season, nonce, voucher)
+    M->>M: price == currentPrice(listed, season) · verify voucher · nonce fresh
+    M->>M: quote: 5% rake, 2% royalty, 93% seller
+    M->>N: transferFrom(market → buyer)
+    M-->>S: Sold(tokenId, buyer, seller, price, fee, royalty)
+    S->>S: credit seller and creator, keep the rake
+    Note over M: a lot nobody buys decays 25% a season, floor 20 GNS
+```
+
+### 10.3 Transfer outside the market
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Owner
+    actor B as New owner
+    participant N as HorseNFT
+    participant S as Server
+
+    A->>N: transferFrom(A → B)
+    N-->>S: Transfer event (no Sale)
+    S->>S: horse marked foreign: identity and pedigree kept,
+    Note over S: it stops racing, breeding and earning until B binds<br/>the address in the game. Nothing is deleted.
+    B->>S: bind wallet
+    S->>S: reconcile: owner matches, horse becomes managed again
+```
+
+### 10.4 Burn
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor O as Owner
+    participant S as Server (GNS ledger)
+    participant N as HorseNFT
+
+    O->>S: sell (the house takes it)
+    S->>S: appraisal = suggestedHorsePrice × 0.5 (HOUSE_HORSE_FLOOR)
+    S->>S: credit owner, archive the animal in state.gone
+    S->>N: burn(tokenId, appraisal)  [server role]
+    N->>N: burned = true · _burn · coreOf and creatorOf KEPT
+    N-->>S: HorseBurned(tokenId, owner, appraisal)
+    Note over N: a banked straw still resolves its sire,<br/>and children still answer sireId forever.
+```
