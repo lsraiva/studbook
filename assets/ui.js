@@ -1901,6 +1901,95 @@ function renderShop(v) {
   }
 }
 
+
+/** The catalogue that spans rooms: only meaningful when there is a server. */
+let worldLots = null;
+let worldError = null;
+
+async function loadWorldMarket() {
+  if (!CLOUD() || !socket?.call) return;
+  try {
+    const base = cloudBase ?? "";
+    const out = await apiCall(base, "/api/market", {});
+    const here = view?.room?.id;
+    worldLots = (out.lots ?? []).filter((lot) => lot.roomId !== here);
+    worldError = null;
+  } catch (error) {
+    worldError = error.message;
+  }
+  renderWorldMarket();
+}
+
+function renderWorldMarket() {
+  const box = el("world-market");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!CLOUD()) {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "Offline: the world market needs the server. Play on studbook.fly.dev to trade across rooms.";
+    box.append(hint);
+    return;
+  }
+  if (worldError) {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = `Could not read the catalogue: ${worldError}`;
+    box.append(hint);
+    return;
+  }
+  if (!worldLots) {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "reading the catalogue…";
+    box.append(hint);
+    loadWorldMarket();
+    return;
+  }
+  if (!worldLots.length) {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "No lots from other rooms just now.";
+    box.append(hint);
+    return;
+  }
+  for (const lot of worldLots.slice(0, 24)) {
+    const card = document.createElement("div");
+    card.className = "lot";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = lot.horseName;
+    const meta = document.createElement("div");
+    meta.className = "kv";
+    meta.innerHTML = `<span>${esc(lot.kind)} · room ${esc(lot.roomCode)} · ${esc(lot.sellerName)}</span><b>₲ ${nf(lot.price)}</b>`;
+    const row = document.createElement("div");
+    row.className = "row";
+    const buy = document.createElement("button");
+    buy.className = "tiny brass";
+    buy.textContent = `buy · ${nf(lot.price)} ₲`;
+    buy.addEventListener("click", async () => {
+      buy.disabled = true;
+      try {
+        await apiCall(cloudBase ?? "", "/api/market/buy", {
+          method: "POST",
+          token: tokenStore.get(),
+          body: { roomId: lot.roomId, listingId: lot.listingId },
+        });
+        toast(`bought ${lot.horseName}`);
+        worldLots = null;
+        socket.send(JSON.stringify({ type: "join" })); // refresh the yard
+        loadWorldMarket();
+      } catch (error) {
+        buy.disabled = false;
+        toast(error.message, true);
+      }
+    });
+    row.append(buy);
+    card.append(name, meta, row);
+    box.append(card);
+  }
+}
+
 function renderRanking(v) {
   const box = el("ranking");
   if (!box) return;
@@ -2189,6 +2278,7 @@ function draw() {
   renderRanking(v);
   renderGallery(v);
   renderNextStep(v);
+  renderWorldMarket();
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
