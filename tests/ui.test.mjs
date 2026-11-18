@@ -91,11 +91,18 @@ ok("the hero shows the stable", /Studbook/.test(document.querySelector("h1")?.te
 const startGuineas = savedState()?.stables?.[0]?.guineas;
 ok("a fresh stable starts with 2000 guineas", startGuineas === 2000, String(startGuineas));
 
-/* ---------- 2. step one: take the first covering ---------- */
-const cover = byText(/take the first covering/i);
-ok("the onboarding offers the first covering", Boolean(cover), cover?.textContent?.trim());
-cover?.click();
-await wait(140);
+/* ---------- 1b. the guide: one instruction and the button that does it ---------- */
+const guide = document.getElementById("nextstep");
+ok("the next-step card is on screen", Boolean(guide) && !guide.hidden, guide?.textContent?.slice(0, 60));
+const go = document.getElementById("nextstep-go");
+ok("...with a button that executes it", Boolean(go), go?.textContent);
+go?.click();
+await wait(160);
+ok("...and the button bought the covering", savedState().stables[0].guineas === 1980, `${savedState().stables[0].guineas} GNS`);
+ok("...the card moved on to the next step", /cover|pick|select|enter/i.test(document.getElementById("nextstep")?.textContent ?? ""),
+  document.getElementById("nextstep")?.textContent?.slice(0, 80));
+
+/* ---------- 2. the straw is in the barn (bought by the guide above) ---------- */
 const afterCover = savedState();
 ok("the covering is bought", afterCover.stables[0].guineas === 1980, `${afterCover.stables[0].guineas} GNS`);
 ok("...and it is in the barn", afterCover.stables[0].straws.length === 1, `${afterCover.stables[0].straws.length} straw(s)`);

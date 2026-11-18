@@ -1914,7 +1914,12 @@ function renderGallery(v) {
     value.textContent = `₲ ${nf(horse.suggestedPrice)}`;
     card.append(value);
 
-    if (horse.traits) card.append(traitBars(horse.traits));
+    if (horse.verdict) {
+      const verdict = document.createElement("span");
+      verdict.className = "gverdict";
+      verdict.textContent = horse.verdict;
+      card.append(verdict);
+    }
     const band = document.createElement("span");
     band.className = "gband" + (horse.stakes ? " stakes" : "");
     band.textContent = horse.band ?? "";
@@ -1927,6 +1932,56 @@ function renderGallery(v) {
     empty.className = "hint";
     empty.textContent = "No horses in training. Buy one in the horse market, or cover a mare.";
     box.append(empty);
+  }
+}
+
+
+/** One instruction, one button. The tutorial that never ends, fed by the engine's own advice. */
+const STEP_LABEL = {
+  covering: "take it",
+  select: "select it",
+  breed: "cover her",
+  enter: "enter runners",
+  run: "run the meeting",
+  buy: "to the market",
+};
+
+function renderNextStep(v) {
+  const box = el("nextstep");
+  if (!box) return;
+  box.innerHTML = "";
+  const step = v.nextStep;
+  if (!step || !step.text) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const text = document.createElement("p");
+  text.className = "nextstep-text";
+  text.textContent = step.text;
+  box.append(text);
+  if (step.action) {
+    const go = document.createElement("button");
+    go.type = "button";
+    go.id = "nextstep-go";
+    go.className = "brass";
+    go.textContent = STEP_LABEL[step.key] ?? "do it";
+    go.addEventListener("click", () => act(step.action));
+    box.append(go);
+  }
+  const luck = (v.luck ?? []).slice(0, 5);
+  if (luck.length) {
+    const strip = document.createElement("div");
+    strip.className = "luck";
+    strip.innerHTML = luck
+      .map(
+        (row) =>
+          `<span class="${row.hit ? "hit" : "miss"}">${esc(row.kind)} · ${nf(Math.round(row.odds * 100))}% · ${
+            row.hit ? "hit" : "miss"
+          }${row.detail ? ` — ${esc(row.detail)}` : ""}</span>`,
+      )
+      .join("");
+    box.append(strip);
   }
 }
 
@@ -1973,6 +2028,7 @@ function draw() {
   renderShop(v);
   renderRanking(v);
   renderGallery(v);
+  renderNextStep(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -2485,7 +2541,7 @@ function draw() {
     if (typeof v.meeting.margin === "number" && v.meeting.margin > 0) {
       const margin = document.createElement("div");
       margin.className = "hint";
-      margin.textContent = `won by ${nf(v.meeting.margin, 2)} clear of the runner-up`;
+      margin.textContent = `won by ${v.meeting.marginLengths ?? nf(v.meeting.margin, 2)} clear of the runner-up`;
       meeting.append(margin);
     }
     const mine = (Array.isArray(v.meeting.table) ? v.meeting.table : []).filter((row) => row.mine);
@@ -2503,7 +2559,7 @@ function draw() {
     for (const placed of v.meeting.places) {
       const row = document.createElement("div");
       row.className = "kv";
-      row.innerHTML = `<span>${placed.place}. ${esc(placed.name)} <span class="hint">(${esc(placed.stable)})</span></span><b>${nf(placed.score, 2)}</b>`;
+      row.innerHTML = `<span>${placed.place}. ${esc(placed.name)} <span class="hint">(${esc(placed.stable)})</span></span><b>${esc(placed.behindLengths ?? nf(placed.score, 2))}</b>`;
       meeting.append(row);
     }
     for (const entry of v.log.filter((row) => row.kind === "race" && row.season === v.meeting.season).slice(0, 4)) {

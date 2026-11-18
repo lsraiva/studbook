@@ -276,7 +276,18 @@ const WANT_MIN_QUALITY = 0.6; // a sire must be at least this share of your best
 const DUTCH_DECAY = 0.75; // stale lots mark down each season until they clear
 const DUTCH_FLOOR = 20;
 const LOG_MAX = 12;
-const NOISE = 0.09; // race-day variance, as a share of the horse's score
+const NOISE = 0.09;
+/** One length, in score points. Racing is read in lengths, not in decimals. */
+const LENGTH = 0.25;
+/** The traits, said the way a breeder says them. */
+const TRAIT_WORD = {
+  speed: "speed",
+  stamina: "stamina",
+  accel: "a turn of foot",
+  recovery: "recovery",
+  temperament: "a level head",
+  soundness: "soundness",
+}; // race-day variance, as a share of the horse's score
 
 const PREFIXES = ["Ash", "Bel", "Cor", "Dun", "El", "Fen", "Gar", "Hol", "Ire", "Jar", "Kel", "Lorn", "Mor", "Nair", "Or", "Pell", "Quill", "Rav", "Sil", "Tarn"];
 const SUFFIXES = ["field", "mont", "brook", "stone", "ridge", "vale", "ford", "moor", "gate", "crest", "mere", "bay"];
@@ -450,11 +461,15 @@ function scorePopulation(state) {
     horse.upkeep = upkeepFor(horse);
   }
 
+  const wasStakes = new Map(state.horses.map((horse) => [horse.id, Boolean(horse.stakes)]));
   const ranked = [...state.horses].filter((h) => inPlay(h)).sort((a, b) => b.value - a.value);
   const eliteCount = Math.max(1, Math.round(ranked.length * STAKES_SHARE));
   for (const horse of state.horses) horse.stakes = false;
   for (const horse of ranked.slice(0, eliteCount)) horse.stakes = true;
   state.eliteCut = ranked.length ? ranked[Math.min(eliteCount, ranked.length - 1)].value : 0;
+  for (const horse of state.horses) {
+    if (horse.stakes && !wasStakes.get(horse.id)) recordLuck(state, "stakes class", STAKES_SHARE, true, horse.name);
+  }
 }
 
 function upkeepFor(horse) {
@@ -560,6 +575,85 @@ function raceDiagnosis(mine, theirs, condition) {
 }
 
 /** One line telling the player the most useful next thing, from the state itself. */
+/** Every roll that decides money goes on the record: odds and outcome, side by side. */
+function recordLuck(state, kind, odds, hit, detail = "") {
+  state.luck = [
+    { kind, odds: round(odds, 2), hit: Boolean(hit), detail, season: state.season },
+    ...(state.luck ?? []),
+  ].slice(0, 8);
+}
+
+/** A margin in lengths, the way a race is called. */
+function inLengths(delta) {
+  const n = Math.max(0, Number(delta) || 0) / LENGTH;
+  if (n < 0.12) return "a nose";
+  if (n < 0.37) return "a neck";
+  if (n < 0.62) return "half a length";
+  if (n < 0.87) return "three quarters of a length";
+  const whole = Math.round(n);
+  return `${whole} length${whole === 1 ? "" : "s"}`;
+}
+
+/** What this horse is, in one line — the screen's answer to six decimals. */
+function verdictFor(horse, field) {
+  const traits = traitsOf(horse.genome);
+  const ranked = Object.entries(traits).sort((a, b) => b[1] - a[1]);
+  const best = TRAIT_WORD[ranked[0][0]] ?? ranked[0][0];
+  const worst = TRAIT_WORD[ranked[ranked.length - 1][0]] ?? ranked[ranked.length - 1][0];
+  const band = valueBand(horse, field);
+  const stage = horse.age <= 1 ? "yearling" : horse.age >= 9 ? "veteran" : "racehorse";
+  if (ranked[0][1] - ranked[ranked.length - 1][1] > 5) return `${stage} with ${best}, short of ${worst} · ${band}`;
+  return `${stage}, no hole in it · ${band}`;
+}
+
+/** The single next thing to do, with the action that does it. */
+function nextStepFor(state, stable, field) {
+  if (!stable) return { key: "seat", text: "Take a seat to open a stable.", action: null };
+  const herd = (stable.horses ?? []).map((id) => horseById(state, id)).filter((horse) => inPlay(horse));
+  const straws = stable.straws ?? [];
+  const inFoal = new Set((state.foaling ?? []).map((row) => row.mareId));
+  const mares = herd.filter((horse) => horse.sex === "F" && horse.foals < MARE_CAREER_FOALS && !inFoal.has(horse.id));
+
+  if (!straws.length && !stable.starterOfferTaken) {
+    return {
+      key: "covering",
+      text: "Start here: take the first covering. Twenty guineas, once per stable, and the cheapest you will ever buy.",
+      action: { type: "takeStarterOffer" },
+    };
+  }
+  if (straws.length && mares.length && !stable.selectedStraw) {
+    const sire = straws[0].sire ? horseById(state, straws[0].sire) : null;
+    return {
+      key: "select",
+      text: `Pick the covering you mean to use — ${sire ? sire.name : "the straw in the barn"}.`,
+      action: { type: "selectStraw", strawId: straws[0].id },
+    };
+  }
+  if (straws.length && mares.length && stable.selectedStraw) {
+    return {
+      key: "breed",
+      text: `Cover ${mares[0].name} with it. The straw is spent, the foal arrives when the season turns, and that foal is the first horse you may sell.`,
+      action: { type: "breed", mareId: mares[0].id, strawId: stable.selectedStraw, care: "plain" },
+    };
+  }
+  const runners = herd.filter((horse) => horse.age >= RACE_AGE).slice(0, 3);
+  if (!stable.entries.length && runners.length) {
+    return {
+      key: "enter",
+      text: "Enter up to three runners — the meeting pays the yard, and upkeep is charged when the season turns.",
+      action: { type: "enter", horseIds: runners.map((horse) => horse.id) },
+    };
+  }
+  if (stable.entries.length) {
+    return {
+      key: "run",
+      text: `Run meeting ${state.meeting ?? 1} of ${MEETINGS_PER_SEASON}. A season is four, and the purse funds the yard.`,
+      action: { type: "advance" },
+    };
+  }
+  return { key: "buy", text: "Buy a horse from the market, or breed one.", action: null };
+}
+
 function adviceFor(state, stable, field) {
   if (!stable) return "Take a seat to open a stable.";
   if ((stable.straws ?? []).length >= STRAW_STORAGE) {
@@ -1441,7 +1535,9 @@ function applyAction(state, playerId, action) {
       0.99,
       Math.max(0.35, BASE_LIVE_RATE - INBREED_FERTILITY * ((sire.f + mare.f) / 2)) + CARE_CATCH[care],
     );
-    if (rollValue(next) > liveRate) {
+    const conceptionRoll = rollValue(next);
+    recordLuck(next, "covering", liveRate, conceptionRoll <= liveRate, mare.name);
+    if (conceptionRoll > liveRate) {
       next.lastFoal = {
         event: "miss",
         damId: mare.id,
@@ -1948,6 +2044,7 @@ function runMeeting(state) {
         stableId: entry.stableId,
         place: index + 1,
         behind: round(Math.max(0, entrants[0].score - entry.score), 2),
+        behindLengths: inLengths(entrants[0].score - entry.score),
         prize: PURSE_SPLIT[index] ? Math.round(pot * PURSE_SPLIT[index]) : 0,
         tactic: entry.tactic,
       })),
@@ -2267,6 +2364,10 @@ function runTurnover(state) {
         });
         continue;
       }
+      if (row.fate) {
+        const draw = GESTATION_FATES.find((entry) => entry.fate === row.fate);
+        recordLuck(state, `fate: ${row.fate}`, draw ? draw.rate : 0, true, mare.name);
+      }
       const twins = row.fate === "twins" ? 2 : 1;
       for (let index = 0; index < twins; index += 1) {
         const genome = {};
@@ -2555,6 +2656,7 @@ function viewFor(state, playerId) {
         };
       })(),
       value: horse.value,
+      verdict: verdictFor(horse, field),
       band: valueBand(horse, field),
       fLabel: inbreedingLabel(horse.f),
       pairing: horse.sex === "F" && !horse.retired && selectedSire
@@ -2627,6 +2729,8 @@ function viewFor(state, playerId) {
     eliteCut: state.eliteCut,
     field,
     advice: adviceFor(state, stable, field),
+    nextStep: nextStepFor(state, stable, field),
+    luck: state.luck ?? [],
     goingNote: conditionNote(state.condition),
     selectedStraw: stable ? stable.selectedStraw : null,
     eliteCount: Math.max(1, Math.round(population.length * STAKES_SHARE)),
@@ -2762,6 +2866,7 @@ function viewFor(state, playerId) {
       ? {
           season: state.lastRace.season,
           margin: state.lastRace.margin ?? null,
+          marginLengths: inLengths(state.lastRace.margin ?? 0),
           table: (state.lastRace.table ?? []).map((row) => ({
             ...row,
             mine: Boolean(stable) && row.stableId === stable.id,
