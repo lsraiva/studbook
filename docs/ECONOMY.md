@@ -45,3 +45,31 @@ straw still resolving its sire after he is gone. It is ~150 bytes a horse.
 The straw market carries ~90 lots permanently, because every stallion produces five straws a
 season and only three rivals buy two each. That is depth, not a bug — but it means the straw is a
 buyer's market unless a stallion is elite. Watch it if you tune supply.
+
+## After the global market (0.19.0)
+
+The catalogue now spans rooms and a horse can be sold from one to another, so the measurement had to
+be repeated. It holds:
+
+```
+season  money  rivals  alive  burnt  lots  save KB
+    20   10163    8388     30      84      87      87
+    40    9906    8131     31     192      68     129
+    60    9621    7846     30     286      95     174
+    80    9878    8103     31     394      91     218
+
+money drift over 40 seasons: -28 GNS (-0.7/season) · alive 31 → 31
+```
+
+Why it holds, in one sentence: **the cross-room sale is the same trade as the in-room sale**. The
+buyer pays the full price, the seller receives it less the 5% rake, and the rake is not credited to
+anyone — so every sale is a small sink, exactly as it already was inside a room. Moving an animal
+between rooms moves money *between* stables, not into the world; the total across rooms is unchanged
+apart from the rake.
+
+Two things this does not cover, and should be measured when they land:
+
+- **promotion and relegation** — a stable changing division carries its bank with it; the effect is
+  per-division, not global, but it can concentrate money in the top division over seasons.
+- **the on-chain layer** — a token sale for real value would introduce a second price for the same
+  horse, and that is the one change that can genuinely break this measurement.
