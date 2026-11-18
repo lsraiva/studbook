@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import {
   LOCI as LOCUS_ORDER,
   applyAction,
+  scorePopulation,
   horseById,
   meta,
   runRound,
@@ -371,6 +372,97 @@ function applyAuthoritative(userId, action) {
   return room;
 }
 
+/* ---------------------------------------------------------------- the market */
+
+/** Every lot in every room, keyed by room and lot id. Built by reading the rooms, never cached. */
+function catalogue() {
+  const rows = [];
+  for (const room of rooms.values()) {
+    for (const listing of room.state.listings ?? []) {
+      const horse = listing.kind === "horse" ? horseById(room.state, listing.horseId) : null;
+      const sire = listing.straw ? horseById(room.state, listing.straw.sire) : null;
+      rows.push({
+        key: `${room.id}:${listing.id}`,
+        roomId: room.id,
+        roomCode: room.code,
+        listingId: listing.id,
+        kind: listing.kind === "horse" ? "horse" : "covering",
+        price: listing.price,
+        season: listing.season,
+        seller: listing.seller,
+        sellerName: members(room).get(listing.seller) ?? "the house",
+        horseName: horse?.name ?? (sire ? `${sire.name} covering` : "lot"),
+        horseId: horse?.id ?? null,
+        lineage: horse?.lineage ?? sire?.lineage ?? null,
+        age: horse?.age ?? null,
+        value: horse?.value ?? sire?.value ?? null,
+      });
+    }
+  }
+  return rows.sort((a, b) => a.price - b.price);
+}
+
+/** Stable ids to the names a person reads. */
+function members(room) {
+  return new Map(room.state.stables.map((stable) => [stable.id, stable.name]));
+}
+
+/**
+ * A sale across rooms. Two states change at once, which is exactly what the engine's own actions
+ * cannot express — and exactly what a global market needs.
+ */
+function buyAcrossRooms(buyerId, roomId, listingId) {
+  const sellerRoom = rooms.get(roomId);
+  if (!sellerRoom) throw httpError(404, "no such room", "room");
+  const buyerRoom = roomOf(buyerId);
+  if (!buyerRoom) throw httpError(404, "no room for this account", "noroom");
+  if (buyerRoom.id === sellerRoom.id) throw httpError(400, "that lot is in your own room", "same");
+
+  const index = (sellerRoom.state.listings ?? []).findIndex((lot) => lot.id === listingId);
+  if (index < 0) throw httpError(404, "that lot is gone", "lot");
+  const listing = sellerRoom.state.listings[index];
+
+  const buyer = stableOf(buyerRoom.state, buyerId);
+  const seller = sellerRoom.state.stables.find((stable) => stable.id === listing.seller) ?? null;
+  if (!buyer) throw httpError(409, "take a seat first", "noseat");
+  if (seller && seller.player === buyerId) throw httpError(400, "that is your own lot", "own");
+  if (buyer.guineas < listing.price) throw httpError(400, "not enough guineas", "money");
+
+  const rake = Math.round(listing.price * 500 / 10_000); // the same 5% the in-room market charges
+
+  if (listing.kind === "horse") {
+    const horseIndex = sellerRoom.state.horses.findIndex((horse) => horse.id === listing.horseId);
+    if (horseIndex < 0) throw httpError(409, "that horse has left the room", "horse");
+    const [horse] = sellerRoom.state.horses.splice(horseIndex, 1);
+    horse.owner = buyer.id;
+    horse.listed = false;
+    buyerRoom.state.horses.push(horse);
+    buyer.horses.push(horse.id);
+  } else {
+    const straw = listing.straw;
+    if (!straw) throw httpError(409, "that covering is gone", "straw");
+    buyer.straws = [...(buyer.straws ?? []), { ...straw, id: `s${randStraw()}`, elite: Boolean(listing.select) }];
+  }
+
+  buyer.guineas -= listing.price;
+  if (seller) {
+    seller.guineas += listing.price - rake;
+    seller.tally = { ...(seller.tally ?? { wins: 0, bred: 0 }), sold: (seller.tally?.sold ?? 0) + 1 };
+  }
+  sellerRoom.state.listings.splice(index, 1);
+  buyer.tally = { ...(buyer.tally ?? { wins: 0, bred: 0 }) };
+
+  scorePopulation(sellerRoom.state);
+  scorePopulation(buyerRoom.state);
+  sellerRoom.version += 1;
+  buyerRoom.version += 1;
+  persistRoom(sellerRoom).catch(() => {});
+  persistRoom(buyerRoom).catch(() => {});
+  return { roomId: sellerRoom.id, listingId, price: listing.price, rake, seller: seller?.id ?? null, buyer: buyer.id };
+}
+
+const randStraw = () => Math.floor(Math.random() * 1_000_000);
+
 /* ---------------------------------------------------------------- routing */
 
 function staticType(path) {
@@ -576,6 +668,21 @@ const server = createServer(async (req, res) => {
       intent.tokenId = tokenId;
       intent.status = "minted";
       return send(res, 200, { mint: intent });
+    }
+
+    if (path === "/api/market" && req.method === "GET") {
+      const rows = catalogue();
+      return send(res, 200, { lots: rows, rooms: new Set(rows.map((row) => row.roomCode)).size });
+    }
+
+    if (path === "/api/market/buy" && req.method === "POST") {
+      const user = requireUser(req);
+      rateLimit(user.id);
+      const body = await readBody(req);
+      const roomId = String(body.roomId ?? "");
+      const listingId = String(body.listingId ?? "");
+      const sale = buyAcrossRooms(user.id, roomId, listingId);
+      return send(res, 200, { sale, state: frame(roomOf(user.id), user.id) });
     }
 
     if (path === "/api/room" && req.method === "GET") {

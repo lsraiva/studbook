@@ -230,6 +230,52 @@ try {
   const deadSession = await api("/api/me", { token: fresh.json.token });
   ok("and every old session died with it", deadSession.status === 401);
 
+  /* ---------- one market, two rooms ---------- */
+  const seller = await api("/api/register", { method: "POST", body: { email: "seller@studbook.test", password: "correct horse battery" } });
+  const buyer = await api("/api/register", { method: "POST", body: { email: "buyer@studbook.test", password: "correct horse battery" } });
+  const sellerToken = seller.json.token;
+  const buyerToken = buyer.json.token;
+  const sellerRoom = seller.json.state.room.code;
+  const buyerRoom = buyer.json.state.room.code;
+
+  // the seller needs a second horse to consign: buy one from the room's own ring
+  const houseLot = seller.json.state.view.listings.find((lot) => lot.kind === "horse" && lot.seller !== "st1");
+  await api("/api/action", { method: "POST", token: sellerToken, body: { action: { type: "buyHorse", listingId: houseLot.id } } });
+  const consigned = await api("/api/action", {
+    method: "POST",
+    token: sellerToken,
+    body: { action: { type: "listHorse", horseId: houseLot.horseId, price: 100 } },
+  });
+  ok("a lot is consigned in room A", consigned.status === 200, sellerRoom);
+
+  const market = await api("/api/market");
+  const crossLot = market.json.lots.find(
+    (lot) => lot.roomCode === sellerRoom && lot.kind === "horse" && lot.seller === "st1",
+  );
+  ok("the catalogue shows lots from every room", Boolean(crossLot) && market.json.rooms >= 2, `${market.json.lots.length} lots in ${market.json.rooms} rooms`);
+
+  const sellerBefore = (await api("/api/me", { token: sellerToken })).json.state.view.stable.guineas;
+  const buyerBefore = (await api("/api/me", { token: buyerToken })).json.state.view.stable.guineas;
+  const bought = await api("/api/market/buy", { method: "POST", token: buyerToken, body: { roomId: crossLot.roomId, listingId: crossLot.listingId } });
+  ok("a player in room B buys from room A", bought.status === 200, JSON.stringify(bought.json.sale));
+  ok("...paying the full price", bought.json.sale.price === 100);
+  ok("...and the seller receives it less the 5% rake",
+     (await api("/api/me", { token: sellerToken })).json.state.view.stable.guineas === sellerBefore + 95,
+     `${sellerBefore} → ${(await api("/api/me", { token: sellerToken })).json.state.view.stable.guineas}`);
+  ok("...the buyer pays in full",
+     (await api("/api/me", { token: buyerToken })).json.state.view.stable.guineas === buyerBefore - 100);
+  const buyerHerd = (await api("/api/me", { token: buyerToken })).json.state.view.horses;
+  ok("...and the horse arrives in room B", buyerHerd.some((horse) => horse.id === crossLot.horseId), `${buyerHerd.length} horses`);
+  const afterMarket = await api("/api/market");
+  ok("...and the lot leaves the catalogue", !afterMarket.json.lots.some((lot) => lot.roomId === crossLot.roomId && lot.listingId === crossLot.listingId));
+  const againBuy = await api("/api/market/buy", { method: "POST", token: buyerToken, body: { roomId: crossLot.roomId, listingId: crossLot.listingId } });
+  ok("a sold lot cannot be bought twice", againBuy.status === 404);
+  const ownRoomLot = afterMarket.json.lots.find((lot) => lot.roomCode === buyerRoom);
+  if (ownRoomLot) {
+    const ownBuy = await api("/api/market/buy", { method: "POST", token: buyerToken, body: { roomId: ownRoomLot.roomId, listingId: ownRoomLot.listingId } });
+    ok("a lot in your own room is bought the normal way", ownBuy.status === 400 && /own room/i.test(ownBuy.json.error), ownBuy.json.error);
+  }
+
   /* ---------- the transport the page actually uses ---------- */
   const { CloudSocket } = await import("../assets/net.js");
   const sock = new CloudSocket(base, token);
