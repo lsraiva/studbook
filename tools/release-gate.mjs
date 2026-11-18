@@ -39,14 +39,14 @@ const load = async (url) => {
 async function manifest(entryUrl) {
   const page = await load(entryUrl);
   const assets = new Map();
-  const queue = [...page.text.matchAll(/(?:src|href)\s*=\s*["']([^"'#?]+\.(?:js|css))["']/gi)].map((m) => new URL(m[1], entryUrl).href);
+  const queue = [...page.text.matchAll(/(?:src|href)\s*=\s*["']([^"'#]+\.(?:js|css)(?:\?[^"']*)?)["']/gi)].map((m) => new URL(m[1], entryUrl).href);
   while (queue.length) {
     const url = queue.shift();
     if (assets.has(url)) continue;
     const res = await load(url);
     if (res.status !== 200) throw new Error(`${url} → ${res.status}`);
     assets.set(url, res.text);
-    if (url.endsWith(".js")) {
+    if (new URL(url).pathname.endsWith(".js")) {
       for (const m of res.text.matchAll(/from\s+["'](\.{1,2}\/[^"']+)["']/g)) queue.push(new URL(m[1], url).href);
     }
   }
@@ -85,7 +85,7 @@ const thin = [...served.assets.entries()].filter(([, text]) => text.length < 100
 gate("G3 assets resolve", refs.length >= 3 && thin === 0, `${refs.length} file(s) loaded, ${thin} empty`);
 
 let syntax = true;
-const mods = refs.filter((u) => u.endsWith(".js"));
+const mods = refs.filter((u) => new URL(u).pathname.endsWith(".js"));
 for (const url of mods) {
   const dir = await mkdtemp(join(tmpdir(), "studbook-syntax-"));
   const file = join(dir, "m.mjs");
@@ -101,7 +101,7 @@ gate("G4 syntax", syntax, `${mods.length} module(s) parse`);
 const dir = await mkdtemp(join(tmpdir(), "studbook-served-"));
 await writeFile(join(dir, "index.html"), html);
 for (const [url, text] of served.assets) {
-  const name = url.split("/").pop();
+  const name = new URL(url).pathname.split("/").pop();
   await mkdir(join(dir, "assets"), { recursive: true });
   await writeFile(join(dir, "assets", name), text);
 }

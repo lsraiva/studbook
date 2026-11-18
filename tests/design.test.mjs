@@ -56,7 +56,7 @@ ok("the account gate is styled", /\.gate-card \{/.test(css) && /\.gate-error \{/
 ok("braces balance", (css.match(/\{/g) ?? []).length === (css.match(/\}/g) ?? []).length, `${(css.match(/\{/g) ?? []).length} open`);
 
 ok("the page has no inline style or script", !/<style[\s>]/.test(html) && !/<script(?![^>]*src=)[^>]*>[\s\S]*?[a-zA-Z]{3}/.test(html));
-ok("the page loads one stylesheet and one module", (html.match(/rel="stylesheet"/g) ?? []).length === 1 && /<script type="module" src="assets\/ui\.js">/.test(html));
+ok("the page loads one stylesheet and one module", (html.match(/rel="stylesheet"/g) ?? []).length === 1 && /<script type="module" src="assets\/ui\.js(?:\?[^"]*)?">/.test(html));
 
 console.log(bad ? `\n${bad} failing` : "\nall green");
 process.exit(bad ? 1 : 0);
