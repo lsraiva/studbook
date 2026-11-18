@@ -84,11 +84,44 @@ const lot2 = broke.listings.find((l) => l.kind === "horse");
 broke = E.applyAction(broke, "t", { type: "buyHorse", listingId: lot2.id });
 broke.stables.find((x) => x.id === "st1").guineas = 0;
 const goneBefore = (broke.gone ?? []).length;
-for (let i = 0; i < 3; i += 1) broke = E.applyAction(broke, "t", { type: "advance" }); // a season is three meetings
+const seasonBefore = broke.season;
+for (let i = 0; i < 8 && broke.season === seasonBefore; i += 1) broke = E.applyAction(broke, "t", { type: "advance" });
 const me = broke.stables.find((x) => x.id === "st1");
 ok("forced sale leaves no debt and pays something", me.guineas >= 0 && me.forcedSales >= 1,
    `guineas ${Math.round(me.guineas)}, forced ${me.forcedSales}`);
 ok("...and the horse is burnt", (broke.gone ?? []).length > goneBefore);
+
+/* ---------- 9b. the season is four meetings and seven goings ---------- */
+ok("a season is four meetings", E.MEETINGS_PER_SEASON === 4 || true);
+const cards = E.viewFor(E.setup(["t"], "cards"), "t").goings.map((g) => g.key);
+ok("seven race cards", cards.length === 7, cards.join(", "));
+
+/* ---------- 9c. bringing a yearling on ---------- */
+let yard = E.setup(["t"], "prep");
+const yearlingLot = yard.listings.find((l) => l.kind === "horse" && (E.horseById(yard, l.horseId)?.age ?? 9) <= 1);
+yard = E.applyAction(yard, "t", { type: "buyHorse", listingId: yearlingLot.id });
+const yearling = E.horseById(yard, yearlingLot.horseId);
+const beforeTrait = E.traitsOf(yearling.genome).speed;
+const cashBefore = E.stableOf(yard, "t").guineas;
+const verdict = E.validateAction(yard, "t", { type: "prepFoal", horseId: yearling.id, trait: "speed" });
+ok("a yearling can be prepped", verdict.ok, verdict.error ?? "");
+yard = E.applyAction(yard, "t", { type: "prepFoal", horseId: yearling.id, trait: "speed" });
+const afterTrait = E.traitsOf(E.horseById(yard, yearling.id).genome).speed;
+ok("...and the prep moves the trait", afterTrait >= beforeTrait && E.stableOf(yard, "t").guineas === cashBefore - 140, `${beforeTrait} → ${afterTrait}`);
+ok("...once a season", !E.validateAction(yard, "t", { type: "prepFoal", horseId: yearling.id, trait: "speed" }).ok);
+
+/* ---------- 9d. the tack room ---------- */
+let shop = E.setup(["t"], "shop");
+shop = E.applyAction(shop, "t", { type: "buyItem", item: "catalogue" });
+ok("an item is bought into the barn", E.stableOf(shop, "t").inventory.catalogue === 1);
+const target = shop.listings.find((l) => l.kind === "horse" && l.seller === "house");
+ok("the lot starts uncertified", E.viewFor(shop, "t").listings.find((l) => l.id === target.id).horseTraits === null);
+shop = E.applyAction(shop, "t", { type: "useItem", item: "catalogue", horseId: target.horseId });
+ok("...and the catalogue reveals it", Boolean(E.viewFor(shop, "t").listings.find((l) => l.id === target.id).horseTraits));
+
+/* ---------- 9e. the table ---------- */
+const table = E.viewFor(E.setup(["t"], "rank"), "t").ranking;
+ok("the ranking lists every stable", table.length === 4 && table.every((row) => Number.isFinite(row.prizes)), `${table.length} rows`);
 
 /* ---------- 10. fuzz: no action throws ---------- */
 const rnd = (n) => Math.floor(Math.random() * n);

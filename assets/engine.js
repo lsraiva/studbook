@@ -63,13 +63,15 @@ const CONDITIONS = {
   // Heavy ground is the reverse: speed is nearly worthless and the tough horse wins, so
   // soundness becomes a co-star rather than a footnote.
   heavy: { stamina: 0.3, soundness: 0.25, temperament: 0.2, recovery: 0.15, speed: 0.07, accel: 0.03 },
+  mile: { speed: 0.25, stamina: 0.2, accel: 0.2, recovery: 0.2, temperament: 0.1, soundness: 0.05 },
+  yielding: { stamina: 0.25, soundness: 0.2, recovery: 0.2, temperament: 0.15, speed: 0.1, accel: 0.1 },
 };
 /**
  * The rotation. A season is three meetings, so the LENGTH here has to be coprime with
  * three: five goings step three per season and no season ever runs the same card as the
  * one before, while a list of six would hand back an identical season every second year.
  */
-const CONDITION_ORDER = ["sprint", "classic", "staying", "flying", "heavy"];
+const CONDITION_ORDER = ["sprint", "classic", "staying", "flying", "heavy", "mile", "yielding"];
 /** How each going is said. 'A flying rewards...' is not English; 'a flying start' is. */
 const CONDITION_LABELS = {
   sprint: "a sprint",
@@ -77,6 +79,8 @@ const CONDITION_LABELS = {
   staying: "a staying race",
   flying: "a flying start",
   heavy: "heavy ground",
+  mile: "a mile",
+  yielding: "yielding ground",
 };
 /**
  * One line of prose per going, kept OUT of CONDITIONS: that table is read as pure numbers
@@ -90,6 +94,8 @@ const CONDITION_CHARACTER = {
   staying: "a stayer that can grind out the last furlong",
   flying: "a fast horse with a cool head",
   heavy: "a tough, sound horse that handles bad ground",
+  mile: "the horse that can do both: speed and a finish",
+  yielding: "a sound mover with a turn of foot on dead ground",
 };
 /**
  * One line of breeding and buying advice per card. Editorial, and deliberately separate
@@ -102,6 +108,8 @@ const CONDITION_STRATEGY = {
   staying: "Buy the bottomless horse: stamina and recovery first, speed last.",
   flying: "A cool head is worth as much as raw speed. Temperament is this card's second weight.",
   heavy: "Soundness first on this ground. A fast, fragile horse wastes the entry fee.",
+  mile: "The most complete card of the seven. A hole in any trait shows here.",
+  yielding: "Between a classic and heavy ground: stamina with a finishing kick.",
 };
 
 // ── game constants ────────────────────────────────────────────────────────
@@ -165,7 +173,7 @@ const ENTRY_FEE = 15;
  * A season is three meetings. The house's top-up is per meeting, and 1.0 three times is
  * the 3.0 a season used to pay in one go: more chances to earn, the same money in play.
  */
-const MEETINGS_PER_SEASON = 3;
+const MEETINGS_PER_SEASON = 4; // a season is four meetings: three ordinary and a final
 /**
  * The house tops the pot up, per meeting. Three meetings mean three entry fees a season
  * where one used to be, so the subsidy keeps the house's share of the season's racing
@@ -207,6 +215,14 @@ const PENSION_UPKEEP = 0.3; // board for a retired horse
 const HOUSE_HORSE_FLOOR = 0.5; // the house always takes a horse at half appraisal
 const MARKET_RAKE = 0.05;
 const CERTIFY_COST = 60;
+/** The tack room: three consumables with one job each. */
+const ITEMS = {
+  catalogue: { name: "Sales catalogue", price: 45, blurb: "Read one horse's traits without paying the certifier." },
+  feed: { name: "Conditioning feed", price: 90, blurb: "One trait, one step. Once per horse." },
+  pass: { name: "Meeting pass", price: 60, blurb: "No entry fees for the rest of this meeting." },
+};
+/** What it costs to bring a yearling on. */
+const PREP_COST = 140;
 const START_BANK = 2000;
 /**
  * Testing funds. Not part of the tuned economy and never earned — a button for
@@ -865,6 +881,39 @@ function stableOf(state, playerId) {
   return state.stables.find((stable) => stable.player === playerId) ?? null;
 }
 
+/** Conditioning: one allele of one trait goes up a step. Capped, so no horse is made. */
+function boostTrait(horse, trait) {
+  const loci = [`${trait}0`, `${trait}1`];
+  const weakest = loci.sort((a, b) => horse.genome[a][0] + horse.genome[a][1] - (horse.genome[b][0] + horse.genome[b][1]))[0];
+  const pair = horse.genome[weakest];
+  const side = pair[0] <= pair[1] ? 0 : 1;
+  if (pair[side] >= 3) return false;
+  pair[side] += 1;
+  return true;
+}
+
+/** Every stable, by prize money: the table a stud book is judged on. */
+function rankingOf(state) {
+  return state.stables
+    .map((stable) => {
+      const horses = (stable.horses ?? []).map((id) => horseById(state, id)).filter(Boolean);
+      const prizes = horses.reduce((sum, horse) => sum + (horse.earnings ?? 0), 0);
+      const wins = horses.reduce((sum, horse) => sum + (horse.wins ?? 0), 0);
+      const best = horses.reduce((top, horse) => Math.max(top, horse.value ?? 0), 0);
+      return {
+        id: stable.id,
+        name: stable.name,
+        prizes: Math.round(prizes),
+        wins,
+        horses: horses.length,
+        best: round(best, 2),
+        rival: stable.id.startsWith("ai"),
+      };
+    })
+    .sort((a, b) => b.prizes - a.prizes || b.wins - a.wins)
+    .slice(0, 12);
+}
+
 function horseById(state, horseId) {
   // Horses that left the yard live on in a compact archive, because a banked straw
   // must still resolve its sire after he is gone.
@@ -1200,6 +1249,38 @@ function validateAction(state, playerId, action) {
     return { ok: true };
   }
 
+  if (type === "buyItem") {
+    const item = ITEMS[action.item];
+    if (!item) return { ok: false, error: "no such item" };
+    if (stable.guineas < item.price) return { ok: false, error: `${item.name} costs ${item.price} GNS` };
+    return { ok: true };
+  }
+
+  if (type === "useItem") {
+    const item = ITEMS[action.item];
+    if (!item) return { ok: false, error: "no such item" };
+    if (!(stable.inventory?.[action.item] > 0)) return { ok: false, error: `you hold no ${item.name.toLowerCase()}` };
+    if (action.item === "pass") return { ok: true };
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (action.item === "feed") {
+      if (horse.fedAt) return { ok: false, error: `${horse.name} has already been fed` };
+      if (!TRAITS.includes(action.trait)) return { ok: false, error: "pick a trait" };
+    }
+    return { ok: true };
+  }
+
+  if (type === "prepFoal") {
+    const horse = horseById(state, action.horseId);
+    if (!horse || horse.owner !== stable.id) return { ok: false, error: "not your horse" };
+    if (horse.age > 1) return { ok: false, error: `${horse.name} is past the yearling stage` };
+    if (horse.retired) return { ok: false, error: "that horse is retired" };
+    if (!TRAITS.includes(action.trait)) return { ok: false, error: "pick a trait" };
+    if (horse.prepSeason === state.season) return { ok: false, error: `${horse.name} has been prepped this season` };
+    if (stable.guineas < PREP_COST) return { ok: false, error: `prep costs ${PREP_COST} GNS` };
+    return { ok: true };
+  }
+
   if (type === "certify") {
     const horse = horseById(state, action.horseId);
     if (!horse) return { ok: false, error: "no such horse" };
@@ -1450,6 +1531,56 @@ function applyAction(state, playerId, action) {
       ...next.ledger,
     ].slice(0, 10);
     log(next, `${stable.name} bought a ${listing.sireName} straw for ${listing.price} GNS.`, "market");
+    return next;
+  }
+
+  if (action.type === "buyItem") {
+    const item = ITEMS[action.item];
+    stable.guineas -= item.price;
+    stable.inventory = { ...(stable.inventory ?? {}), [action.item]: (stable.inventory?.[action.item] ?? 0) + 1 };
+    next.ledger = [
+      { season: next.season, text: `Bought ${item.name}`, amount: -item.price },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(next, `${stable.name} bought ${item.name} for ${item.price} GNS.`, "market");
+    return next;
+  }
+
+  if (action.type === "useItem") {
+    const item = ITEMS[action.item];
+    stable.inventory = { ...(stable.inventory ?? {}), [action.item]: Math.max(0, (stable.inventory?.[action.item] ?? 0) - 1) };
+    if (action.item === "pass") {
+      stable.passMeeting = `${next.season}:${next.meeting ?? 1}`;
+      log(next, `${stable.name} put a meeting pass on the gate: no entry fees this meeting.`, "race");
+      return next;
+    }
+    const horse = horseById(next, action.horseId);
+    if (action.item === "catalogue") {
+      if (!horse.certifiedBy.includes(stable.id)) horse.certifiedBy = [...horse.certifiedBy, stable.id];
+      log(next, `${stable.name} read ${horse.name} in the catalogue.`, "market");
+      return next;
+    }
+    if (action.item === "feed") {
+      horse.fedAt = next.season;
+      const raised = boostTrait(horse, action.trait);
+      log(next, raised ? `${horse.name} is fed for ${action.trait}.` : `${horse.name} is already at the top of ${action.trait}.`, "breeding");
+      scorePopulation(next);
+      return next;
+    }
+    return next;
+  }
+
+  if (action.type === "prepFoal") {
+    const horse = horseById(next, action.horseId);
+    stable.guineas -= PREP_COST;
+    horse.prepSeason = next.season;
+    const raised = boostTrait(horse, action.trait);
+    next.ledger = [
+      { season: next.season, text: `Prep for ${horse.name}`, amount: -PREP_COST },
+      ...next.ledger,
+    ].slice(0, 10);
+    log(next, raised ? `${horse.name} is prepped for ${action.trait}.` : `${horse.name} has nothing left to gain in ${action.trait}.`, "breeding");
+    scorePopulation(next);
     return next;
   }
 
@@ -1721,7 +1852,8 @@ function runMeeting(state) {
       // a lone unplaced mare closing season one ₲ 67 down, all of it entries. The waiver for a
       // stable that cannot pay already existed; this extends it to the one season where nobody
       // has anything to pay with yet.
-      const fee = state.season <= 1 ? 0 : Math.min(ENTRY_FEE, Math.max(0, stable.guineas));
+      const freePass = stable.passMeeting === `${state.season}:${state.meeting ?? 1}`;
+      const fee = state.season <= 1 || freePass ? 0 : Math.min(ENTRY_FEE, Math.max(0, stable.guineas));
       stable.guineas -= fee;
       entrants.push({ horse, stableId: stable.id });
     }
@@ -2662,6 +2794,15 @@ function viewFor(state, playerId) {
     ledger: state.ledger,
     retirements: population.filter((horse) => horse.retired).length,
     certifyCost: CERTIFY_COST,
+    prepCost: PREP_COST,
+    items: Object.entries(ITEMS).map(([key, item]) => ({
+      key,
+      name: item.name,
+      price: item.price,
+      blurb: item.blurb,
+      held: stable?.inventory?.[key] ?? 0,
+    })),
+    ranking: rankingOf(state),
     strawStorage: STRAW_STORAGE,
     round: state.meeting ?? 1,
     clock: state.clock

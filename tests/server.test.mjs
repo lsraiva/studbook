@@ -139,6 +139,12 @@ try {
   const early = await api("/api/action", { method: "POST", token, body: { action: { type: "closeWindow" } } });
   ok("nor close it before the deadline", early.status === 400, early.json.error);
 
+  /* ---------- the public table ---------- */
+  const board = await api("/api/ranking");
+  ok("the ranking is public and has rows", board.status === 200 && board.json.ranking.length >= 2,
+     `${board.json.ranking?.length} rows`);
+  ok("...and it does not leak emails", !JSON.stringify(board.json).includes("@studbook.test"));
+
   /* ---------- the transport the page actually uses ---------- */
   const { CloudSocket } = await import("../assets/net.js");
   const sock = new CloudSocket(base, token);

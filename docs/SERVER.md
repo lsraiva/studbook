@@ -24,6 +24,21 @@ start. Data lives in `server/data/` (users, sessions, one JSON per game).
 
 ## Host it
 
+Two configs are in the repo, ready: `fly.toml` (Fly.io, with a volume and a health check) and
+`render.yaml` (Render blueprint). Both expect this Dockerfile and mount the save volume at `/data`.
+
+```bash
+# Fly.io
+fly launch --no-deploy --copy-config
+fly volumes create studbook_data --size 1
+fly deploy
+
+# Render: New > Blueprint > this repo > Apply. Nothing to type.
+```
+
+I cannot create the account for you — Fly and Render both require a verified billing identity — so
+these two files are the deploy, minus the account.
+
 Anything that runs Node 22 with a disk will do; the app has zero dependencies.
 
 ```bash

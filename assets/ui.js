@@ -359,7 +359,7 @@ let askedSeat = false;
 
 // ── screens ────────────────────────────────────────────────────────────────
 // One screen per job, routable by hash so a screen can be linked and reloaded.
-const SCREENS = ["yard", "racing", "goings", "breeding", "studs", "horses", "ledger"];
+const SCREENS = ["yard", "racing", "goings", "breeding", "studs", "horses", "shop", "ranking", "ledger"];
 
 function screenFromHash() {
   const name = (location.hash || "").replace("#", "");
@@ -416,15 +416,16 @@ const COATS = {
 };
 
 /** A code-drawn horse, coloured by lineage. Placeholder art pending credits. */
-function horseArt(lineage) {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("class", "horseart");
-  svg.setAttribute("viewBox", "0 0 120 90");
-  svg.style.color = COATS[lineage] ?? "#a8703f";
-  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
-  use.setAttribute("href", "#horse");
-  svg.append(use);
-  return svg;
+function horseArt(lineage, age = null) {
+  // The commissioned plate, drawn for the catalogue: a foal under two, a stallion above it.
+  const img = document.createElement("img");
+  img.className = "horseart";
+  img.alt = "";
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.src = age !== null && age <= 1 ? "assets/art/foal.webp" : "assets/art/stallion.webp";
+  img.style.color = COATS[lineage] ?? "#a8703f";
+  return img;
 }
 
 function iconArt(id, colour) {
@@ -1476,7 +1477,7 @@ function renderYardCards(v) {
 
     const head = document.createElement("div");
     head.className = "name";
-    head.append(horseArt(horse.lineage));
+    head.append(horseArt(horse.lineage, horse.age));
     const title = document.createElement("span");
     title.textContent = horse.name;
     head.append(title);
@@ -1749,6 +1750,117 @@ function renderOpening(v) {
   anchor.parentElement.insertBefore(strip, anchor);
 }
 
+/** The weakest trait a horse has: what conditioning should fix first. */
+function weakestTrait(traits) {
+  const entries = Object.entries(traits ?? {});
+  if (!entries.length) return "speed";
+  return entries.sort((a, b) => a[1] - b[1])[0][0];
+}
+
+function shopTarget(v) {
+  const id = selectedHorse ?? v.horses.find((horse) => !horse.retired)?.id ?? null;
+  return v.horses.find((horse) => horse.id === id) ?? null;
+}
+
+function renderShop(v) {
+  const box = el("shop");
+  if (box) {
+    box.innerHTML = "";
+    for (const item of v.items ?? []) {
+      const card = document.createElement("div");
+      card.className = "lot";
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = item.name;
+      const blurb = document.createElement("div");
+      blurb.className = "hint";
+      blurb.textContent = item.blurb;
+      const price = document.createElement("div");
+      price.className = "kv";
+      price.innerHTML = `<span>price</span><b>${nf(item.price)} ₲</b>`;
+      const held = document.createElement("div");
+      held.className = "kv";
+      held.innerHTML = `<span>in the barn</span><b>${nf(item.held)}</b>`;
+      const row = document.createElement("div");
+      row.className = "row";
+      const buy = document.createElement("button");
+      buy.className = "tiny brass";
+      buy.textContent = `buy · ${nf(item.price)} ₲`;
+      buy.addEventListener("click", () => act({ type: "buyItem", item: item.key }));
+      const use = document.createElement("button");
+      use.className = "tiny";
+      use.textContent = "use";
+      use.disabled = !(item.held > 0);
+      use.addEventListener("click", () => {
+        if (item.key === "pass") {
+          act({ type: "useItem", item: "pass" });
+          return;
+        }
+        const horse = shopTarget(v);
+        if (!horse) return toast("pick a horse in the yard first", true);
+        act({ type: "useItem", item: item.key, horseId: horse.id, trait: weakestTrait(horse.traits) });
+      });
+      row.append(buy, use);
+      card.append(name, blurb, price, held, row);
+      box.append(card);
+    }
+  }
+
+  const yard = el("yearlings");
+  if (!yard) return;
+  yard.innerHTML = "";
+  const young = (v.horses ?? []).filter((horse) => horse.age <= 1 && !horse.retired);
+  const head = document.createElement("h3");
+  head.textContent = young.length ? "Yearlings: bring one on" : "No yearlings in the yard";
+  yard.append(head);
+  if (!young.length) {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "A foal arrives when the season turns. Cover a mare and wait for it.";
+    yard.append(hint);
+    return;
+  }
+  for (const horse of young) {
+    const row = document.createElement("div");
+    row.className = "entry";
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = `${horse.name} · age ${nf(horse.age)}`;
+    const prep = document.createElement("button");
+    prep.className = "tiny";
+    prep.textContent = `prep ${weakestTrait(horse.traits)} · ${nf(v.prepCost)} ₲`;
+    prep.addEventListener("click", () => act({ type: "prepFoal", horseId: horse.id, trait: weakestTrait(horse.traits) }));
+    row.append(who, prep);
+    yard.append(row);
+  }
+}
+
+function renderRanking(v) {
+  const box = el("ranking");
+  if (!box) return;
+  box.innerHTML = "";
+  const table = document.createElement("table");
+  table.setAttribute("aria-label", "Stables ranked by prize money");
+  table.innerHTML =
+    `<thead><tr><th scope="col">#</th><th scope="col">stable</th><th scope="col">wins</th>` +
+    `<th scope="col">prizes</th><th scope="col">best horse</th><th scope="col">horses</th></tr></thead>`;
+  const body = document.createElement("tbody");
+  (v.ranking ?? []).forEach((row, index) => {
+    const tr = document.createElement("tr");
+    if (row.id === v.stable?.id) tr.className = "entered";
+    tr.innerHTML =
+      `<td class="num">${index + 1}</td>` +
+      `<td>${esc(row.name)}${row.rival ? ' <span class="hint">house</span>' : ""}</td>` +
+      `<td class="num">${nf(row.wins)}</td>` +
+      `<td class="num">₲ ${nf(row.prizes)}</td>` +
+      `<td class="num">${nf(row.best, 2)}</td>` +
+      `<td class="num">${nf(row.horses)}</td>`;
+    body.append(tr);
+  });
+  table.append(body);
+  box.append(table);
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -1786,6 +1898,8 @@ function draw() {
   renderGoings(v);
   tickClock();
   renderPlayers(v);
+  renderShop(v);
+  renderRanking(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -1803,7 +1917,7 @@ function draw() {
     const name = document.createElement("td");
     const nameline = document.createElement("div");
     nameline.className = "nameline";
-    nameline.append(horseArt(horse.lineage));
+    nameline.append(horseArt(horse.lineage, horse.age));
     const nameSpan = document.createElement("span");
     nameSpan.className = "name";
     nameSpan.textContent = horse.name;
@@ -2585,7 +2699,7 @@ for (const tab of document.querySelectorAll(".tab")) {
 // 1..6 switch screens, and a dialog owns the keyboard while it is open.
 window.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  const index = ["1", "2", "3", "4", "5", "6", "7"].indexOf(event.key);
+  const index = ["1", "2", "3", "4", "5", "6", "7", "8", "9"].indexOf(event.key);
   if (index < 0 || index >= SCREENS.length) return;
   const box = el("reveal");
   if (box && !box.hidden) return;

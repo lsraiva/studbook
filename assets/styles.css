@@ -265,6 +265,8 @@
       body[data-screen="breeding"] .panel[data-when~="breeding"],
       body[data-screen="studs"] .panel[data-when~="studs"],
       body[data-screen="horses"] .panel[data-when~="horses"],
+      body[data-screen="shop"] .panel[data-when~="shop"],
+      body[data-screen="ranking"] .panel[data-when~="ranking"],
       body[data-screen="ledger"] .panel[data-when~="ledger"] { display: block; }
       .entry { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.45rem 0.6rem; margin-bottom: 0.4rem; background: var(--panel); }
       .entry .who { font-size: 0.85rem; }
@@ -697,3 +699,50 @@
       .band { color: var(--muted); font-size: 0.66rem; }
       .band.stakes { color: var(--brass); }
       .tag { border-color: currentColor; opacity: 0.95; }
+      /* the tack room and the table */
+      #shop { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+      #yearlings { margin-top: 0.8rem; display: grid; gap: 0.4rem; }
+      #yearlings h3 { font-family: var(--font-display); font-size: 1rem; margin: 0.5rem 0 0.2rem; color: var(--cream); font-weight: 600; }
+      #ranking table { font-size: 0.84rem; }
+      #ranking tr.entered td { background: rgba(217, 169, 78, 0.08); box-shadow: inset 2px 0 0 var(--brass); }
+      /* ---- the commissioned plates ---- */
+      .hero { position: relative; }
+      .hero .crest {
+        position: absolute;
+        right: 0.2rem;
+        top: 0.1rem;
+        width: clamp(54px, 7vw, 92px);
+        height: auto;
+        opacity: 0.92;
+        filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
+        animation: rise var(--dur-3) var(--ease) both;
+      }
+      .horseart {
+        width: 38px;
+        height: 30px;
+        object-fit: contain;
+        margin-right: 0.4rem;
+        flex: none;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+      }
+      /* paper, laid under everything, quiet enough to read on */
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.07;
+        background-image: url("../assets/art/paper.webp");
+        background-size: 380px 380px;
+        mix-blend-mode: soft-light;
+      }
+      @media (max-width: 620px) {
+        .hero .crest { width: 54px; top: 0.35rem; }
+        .horseart { width: 34px; height: 26px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hero .crest { animation: none; }
+      }
+      /* the race lane draws the plate too */
+      .lane .runner img { width: 2rem; height: 1.2rem; object-fit: contain; }

@@ -110,7 +110,7 @@ const suite = spawnSync(process.execPath, [join(root, "tests/engine.test.mjs"), 
 });
 const pass = (suite.stdout.match(/^PASS /gm) ?? []).length;
 const fail = (suite.stdout.match(/^FAIL /gm) ?? []).length;
-gate("G5 suite", suite.status === 0 && fail === 0 && pass === 20, `${pass} pass, ${fail} fail`);
+gate("G5 suite", suite.status === 0 && fail === 0 && pass >= 20, `${pass} pass, ${fail} fail`);
 if (fail) console.log(suite.stdout.split("\n").filter((l) => l.startsWith("FAIL")).map((l) => "   " + l).join("\n"));
 
 const expectAt = process.argv.indexOf("--expect");

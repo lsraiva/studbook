@@ -21,7 +21,7 @@
       rel="icon"
       href="https://d2ol7oe51mr4n9.cloudfront.net/user_3KJqLgRqaLH0OEDu9sNQJTnuyFg/bafbfd17-806f-4a4e-a502-eebf4d6c294c.png"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=0.5.1" />
+    <link rel="stylesheet" href="assets/styles.css?v=0.6.0" />
   
   </head>
   <body>
@@ -76,6 +76,8 @@
       <button class="tab" type="button" data-screen="breeding">Breeding <span class="badge" id="badge-breeding">0</span></button>
       <button class="tab" type="button" data-screen="studs">Stud market <span class="badge" id="badge-studs">0</span></button>
       <button class="tab" type="button" data-screen="horses">Horse market <span class="badge" id="badge-horses">0</span></button>
+      <button class="tab" type="button" data-screen="shop">Tack room <span class="badge" id="badge-shop">0</span></button>
+      <button class="tab" type="button" data-screen="ranking">Ranking</button>
       <button class="tab" type="button" data-screen="ledger">Ledger</button>
     </nav>
 
@@ -89,6 +91,7 @@
     <p class="advice" id="advice" hidden aria-live="polite"></p>
 
     <header class="hero" id="hero" hidden>
+      <img class="crest" src="assets/art/crest.webp" alt="" width="92" height="92" decoding="async" />
       <p class="eyebrow">Bloodstock · season <span id="hero-season">1</span></p>
       <h1>Studbook</h1>
       <p class="lede" id="hero-line">Breed the line. Sell the coverings. Win the meeting.</p>
@@ -251,6 +254,23 @@
           <div class="cards" id="horse-lots"></div>
         </section>
 
+        <section class="panel" data-when="shop">
+          <h2>The tack room</h2>
+          <p class="hint">
+            Three things money can buy that the market does not sell: a catalogue page to read a
+            horse, feed to move one trait a step, and a pass that waives this meeting's entry fees.
+            Yearlings on the last row can be brought on before they ever see a racecourse.
+          </p>
+          <div class="cards" id="shop"></div>
+          <div id="yearlings"></div>
+        </section>
+
+        <section class="panel" data-when="ranking">
+          <h2>The stud book table</h2>
+          <p class="hint">Stables ranked by prize money won. Rivals are the house's own yards.</p>
+          <div id="ranking"></div>
+        </section>
+
         <section class="panel" data-when="ledger">
           <h2>Your table</h2>
           <p class="hint">
@@ -334,6 +354,6 @@
     <div id="reveal" class="reveal" hidden role="dialog" aria-modal="true" aria-label="Breeding result" aria-live="polite"></div>
 
     <div id="toasts" aria-live="polite"></div>
-    <script type="module" src="assets/ui.js?v=0.5.1"></script>
+    <script type="module" src="assets/ui.js?v=0.6.0"></script>
   </body>
 </html>

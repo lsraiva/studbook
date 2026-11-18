@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   applyAction,
+  horseById,
   meta,
   setup,
   stableOf,
@@ -292,6 +293,26 @@ const server = createServer(async (req, res) => {
       if (!user || !checkPassword(user, body.password)) throw httpError(401, "wrong email or password", "credentials");
       const token = openSession(user);
       return send(res, 200, { token, user: { id: user.id, email: user.email }, state: frame(user.id, games.get(user.id)) });
+    }
+
+    if (path === "/api/ranking" && req.method === "GET") {
+      // Across every account: the table is public, the emails are not.
+      const rows = [];
+      for (const [userId, game] of games) {
+        for (const stable of game.state.stables) {
+          const horses = (stable.horses ?? []).map((id) => horseById(game.state, id)).filter(Boolean);
+          rows.push({
+            stable: stable.name,
+            household: stable.id.startsWith("ai"),
+            wins: horses.reduce((n, horse) => n + (horse.wins ?? 0), 0),
+            prizes: Math.round(horses.reduce((n, horse) => n + (horse.earnings ?? 0), 0)),
+            horses: horses.length,
+            account: users.has(userId) ? `#${userId.slice(-4)}` : null,
+          });
+        }
+      }
+      rows.sort((a, b) => b.prizes - a.prizes || b.wins - a.wins);
+      return send(res, 200, { ranking: rows.slice(0, 20), accounts: users.size });
     }
 
     if (path === "/api/me" && req.method === "GET") {
