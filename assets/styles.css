@@ -18,7 +18,8 @@
         /* text */
         --fg: #f4f0fa;
         --dim: #9a91b4;
-        --faint: #6f6790;
+        --muted: #b6adc9; /* secondary copy that must still read at 13px */
+        --faint: #8d84ab;
 
         /* one accent (brass), one support (violet), two verdicts */
         --brass: #d9a541;
@@ -128,7 +129,7 @@
       .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0.9rem; padding: 0.85rem; }
       .panel h2 { margin: 0 0 0.5rem; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
       .stack { display: grid; gap: 0.7rem; }
-      .hint { font-size: 0.75rem; color: var(--dim); }
+      .hint { font-size: 0.8rem; color: var(--muted); line-height: 1.45; }
 
       table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
       th { text-align: left; font-weight: 600; color: var(--dim); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.25rem 0.3rem; border-bottom: 1px solid var(--line); }
@@ -161,7 +162,7 @@
       .cards { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
       .lot { background: var(--panel2); border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.55rem; display: grid; gap: 0.35rem; }
       .lot.mine { border-color: var(--note-line); }
-      .kv { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; color: var(--dim); }
+      .kv { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; color: var(--muted); }
       .kv b { color: var(--cream); }
       ul.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.8rem; color: var(--dim); }
       ul.log li::before { content: "·"; color: var(--brass); margin-right: 0.4rem; }
@@ -176,7 +177,7 @@
         .panel { padding: 0.7rem; border-radius: 0.8rem; }
         table { font-size: 0.78rem; }
       }
-      .foot { margin: 0.9rem 0 0; font-size: 0.72rem; color: #6f6790; max-width: 74ch; }
+      .foot { margin: 0.9rem 0 0; font-size: 0.78rem; color: var(--muted); max-width: 74ch; }
       .spine { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; font-size: 0.78rem; color: var(--dim); margin: 0 0 0.5rem; }
       .spine .step { border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem 0.6rem; background: var(--panel); }
       .spine .step b { color: var(--brass); }

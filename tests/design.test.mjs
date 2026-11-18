@@ -30,6 +30,27 @@ ok("motion is short and eased", /--dur-2: 220ms/.test(tokens) && /--ease: cubic-
 ok("reduced motion switches animation off", /@media \(prefers-reduced-motion: reduce\)/.test(css) && /animation-duration: 0\.001ms !important/.test(css));
 ok("the tab strip becomes a sticky scroller on a phone", /@media \(max-width: 620px\)[\s\S]*?\.tabs \{[\s\S]*?position: sticky/.test(css));
 ok("touch targets are at least 44px on a phone", /min-height: 44px/.test(css));
+const token = (name) => (tokens.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`)) ?? [])[1];
+const lum = (hex) => {
+  const [r, g, b] = hex.match(/[0-9a-fA-F]{2}/g).map((h) => parseInt(h, 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratio = (a, b) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+const pairs = [
+  ["fg", "ink-0", 4.5],
+  ["muted", "ink-2", 4.5],
+  ["muted", "ink-0", 4.5],
+  ["dim", "ink-2", 4.5],
+  ["brass", "ink-2", 3],
+];
+for (const [text, surface, floor] of pairs) {
+  const value = ratio(token(text) ?? "#000000", token(surface) ?? "#ffffff");
+  ok(`${text} on ${surface} clears ${floor}:1`, value >= floor, `${value.toFixed(1)}:1`);
+}
+
 ok("focus is visible", /:focus-visible \{ outline: var\(--ring\)/.test(css) || /outline: var\(--ring\)/.test(css));
 ok("the account gate is styled", /\.gate-card \{/.test(css) && /\.gate-error \{/.test(css));
 ok("braces balance", (css.match(/\{/g) ?? []).length === (css.match(/\}/g) ?? []).length, `${(css.match(/\{/g) ?? []).length} open`);
