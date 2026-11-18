@@ -1,8 +1,8 @@
 // Studbook screen — renders the view and talks to the game socket.
 // The rules live in engine.js; this file only draws them and sends actions.
 
-import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js";
-import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js";
+import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2";
+import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 
 import {
   applyAction,
