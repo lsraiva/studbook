@@ -1925,6 +1925,23 @@ function renderRanking(v) {
   });
   table.append(body);
   box.append(table);
+
+  const board = v.honours ?? [];
+  if (board.length) {
+    const head = document.createElement("h3");
+    head.textContent = "Champions";
+    head.className = "board-head";
+    box.append(head);
+    const list = document.createElement("ul");
+    list.className = "board";
+    list.innerHTML = board
+      .map(
+        (row) =>
+          `<li><b>S${nf(row.season)}</b> ${esc(row.name)} <span class="hint">· ₲ ${nf(row.prizes)} · ${nf(row.wins)} won</span></li>`,
+      )
+      .join("");
+    box.append(list);
+  }
 }
 
 

@@ -145,6 +145,11 @@ goalsRun = E.applyAction(goalsRun, "t", { type: "selectStraw", strawId: goalsStr
 goalsRun = E.applyAction(goalsRun, "t", { type: "breed", mareId: goalsMare.id, strawId: goalsStraw, care: "plain" });
 ok("covering a mare ticks its goal", E.viewFor(goalsRun, "t").seasonGoals.find((g) => g.key === "breed").done === true);
 
+/* ---------- 9h. a finished season remembers its champion ---------- */
+ok("a season crowns a champion", Array.isArray(broke.honours) && broke.honours.length === 1,
+   JSON.stringify((broke.honours ?? [])[0] ?? null).slice(0, 90));
+ok("...with the season it belongs to", broke.honours?.[0]?.season === seasonBefore, `${broke.honours?.[0]?.season}`);
+
 /* ---------- 10. fuzz: no action throws ---------- */
 const rnd = (n) => Math.floor(Math.random() * n);
 let f = E.setup(["t"], "fuzz"), crashes = 0;

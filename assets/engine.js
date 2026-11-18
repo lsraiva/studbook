@@ -1201,6 +1201,23 @@ function closeSeason(state) {
       born,
     };
   }
+  // The season's champion: whoever took the most prize money while it was open. The board is the
+  // league's memory — promotion between rooms needs a global market first, but a champion is real today.
+  const table = state.stables
+    .map((stable) => ({ stable, report: stable.seasonReport }))
+    .filter((row) => row.report)
+    .sort((a, b) => (b.report.prizes ?? 0) - (a.report.prizes ?? 0) || (b.report.wins ?? 0) - (a.report.wins ?? 0));
+  const best = table[0];
+  state.honours = [
+    {
+      season: best?.report?.season ?? state.season,
+      stableId: best?.stable?.id ?? null,
+      name: best?.stable?.name ?? "—",
+      prizes: best?.report?.prizes ?? 0,
+      wins: best?.report?.wins ?? 0,
+    },
+    ...(state.honours ?? []),
+  ].slice(0, 12);
 }
 
 function nextSeason(state) {
@@ -2929,6 +2946,7 @@ function viewFor(state, playerId) {
       held: stable?.inventory?.[key] ?? 0,
     })),
     ranking: rankingOf(state),
+    honours: state.honours ?? [],
     strawStorage: STRAW_STORAGE,
     round: state.meeting ?? 1,
     clock: state.clock
