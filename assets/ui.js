@@ -2842,4 +2842,27 @@ async function start() {
 }
 
 
+/* ------------------------------------------------------------------ diagnosis */
+
+// A click that does nothing is the worst bug report there is. Anything that throws, here or in a
+// rejected promise, is written on screen instead of into a console nobody has open.
+function surfaceError(where, error) {
+  const text = `${where}: ${error && error.message ? error.message : String(error)}`;
+  const status = el("status");
+  if (status) {
+    status.textContent = text;
+    status.classList.add("bad");
+  }
+  const box = el("toasts");
+  if (box) {
+    const node = document.createElement("div");
+    node.className = "toast bad";
+    node.textContent = text;
+    box.append(node); // no timer: a diagnostic must not vanish before it is read
+  }
+}
+
+window.addEventListener("error", (event) => surfaceError("error", event.error ?? event.message));
+window.addEventListener("unhandledrejection", (event) => surfaceError("promise", event.reason));
+
 start();
