@@ -458,6 +458,27 @@ function act(action) {
   send({ type: "action", action });
 }
 
+/** The first screen should say what this is and how the stable stands, in one look. */
+function renderHero() {
+  const hero = el("hero");
+  if (!hero || !view || !view.stable) return;
+  hero.hidden = false;
+  if (el("hero-season")) el("hero-season").textContent = nf(view.season);
+  if (el("hero-line")) el("hero-line").textContent = view.advice ?? "";
+  const stats = el("hero-stats");
+  if (!stats) return;
+  const rows = [
+    ["guineas", `₲ ${nf(view.stable.guineas)}`],
+    ["in training", nf(view.horses.length)],
+    ["season", `${nf(view.season)} · m${nf(view.round)}`],
+    ["going", view.conditionLabel ?? view.condition],
+    ["the field", `${nf(view.field.mean, 2)} avg`],
+  ];
+  stats.innerHTML = rows
+    .map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`)
+    .join("");
+}
+
 function onState(msg) {
   view = msg.view;
   seats = msg.seats ?? [];
@@ -478,6 +499,7 @@ function onState(msg) {
     send({ type: "action", action: { type: "takeSeat" } });
   }
   draw();
+  renderHero();
 }
 
 function traitBars(traits) {

@@ -8,42 +8,38 @@
       :root {
         color-scheme: dark;
 
-        /* surfaces, darkest first */
-        --ink-0: #0b0912;
-        --ink-1: #12101c;
-        --ink-2: #191627;
-        --ink-3: #211d33;
-        --hairline: #2f2840;
+        /* a warm, inky green — the colour of a catalogue printed on good stock */
+        --ink-0: #090c0a;
+        --ink-1: #0f1411;
+        --ink-2: #151b16;
+        --ink-3: #1c241d;
+        --hairline: #2a332b;
 
-        /* text */
-        --fg: #f4f0fa;
-        --dim: #9a91b4;
-        --muted: #b6adc9; /* secondary copy that must still read at 13px */
-        --faint: #8d84ab;
+        --fg: #f4f1e6;
+        --dim: #a9aa9c;
+        --muted: #c6c6b6;
+        --faint: #8d8f80;
 
-        /* one accent (brass), one support (violet), two verdicts */
-        --brass: #d9a541;
-        --brass-deep: #b4831f;
-        --brass-ink: #241a05;
-        --cream: #f6e7c8;
-        --violet: #9a7bff;
-        --green: #7fd48a;
-        --red: #ff8080;
+        --brass: #d9a94e;
+        --brass-deep: #b0802c;
+        --brass-ink: #1a1204;
+        --cream: #f7ecd2;
+        /* the support hue: a faded sage, because brass and violet never agreed */
+        --violet: #8fb6a9;
+        --green: #93d69c;
+        --red: #ff9b8b;
 
-        /* aliases kept so older rules keep working */
         --bg: var(--ink-0);
         --panel: var(--ink-2);
         --panel2: var(--ink-3);
         --line: var(--hairline);
 
-        /* type scale, fluid at the top */
         --step--1: 0.75rem;
         --step-0: 0.9375rem;
         --step-1: 1.0625rem;
-        --step-2: clamp(1.15rem, 0.9rem + 0.9vw, 1.45rem);
-        --step-3: clamp(1.5rem, 1.1rem + 1.6vw, 2.15rem);
+        --step-2: clamp(1.2rem, 0.95rem + 0.9vw, 1.5rem);
+        --step-3: clamp(2.1rem, 1.3rem + 3.4vw, 3.4rem);
 
-        /* rhythm */
         --space-1: 0.25rem;
         --space-2: 0.5rem;
         --space-3: 0.75rem;
@@ -54,25 +50,32 @@
         --radius-3: 1rem;
         --radius-pill: 999px;
 
-        /* motion: short, easing out, never longer than a blink */
         --dur-1: 120ms;
         --dur-2: 220ms;
         --dur-3: 380ms;
         --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
         --ring: 2px solid var(--brass);
 
-        /* semantic surfaces the older rules spelled in hex */
-        --select: #2a2350;
-        --hover: #272137;
-        --hover-line: #443a72;
-        --track: #241f31;
-        --ink-input: #0f0d1c;
-        --note-bg: #221b12;
+        /* display type: a book face, not a dashboard sans */
+        --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, ui-serif, serif;
+        --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+        --select: #26302a;
+        --hover: #212a23;
+        --hover-line: #3d4a3f;
+        --track: #232b25;
+        --ink-input: #0b0f0c;
+        --note-bg: #1f1a10;
         --note-line: #4a3a1c;
-        --ok-bg: #1f3a24; --ok-line: #33643c; --ok-fg: #cdf3d3;
-        --bad-bg: #3a1f22; --bad-line: #6b3438; --bad-fg: #ffd6d6;
-        --card-top: #1b1732; --card-bottom: #131020;
-        --glow-1: #241d33; --glow-2: #1a1526;
+        --ok-bg: #1e3423; --ok-line: #33643c; --ok-fg: #d3f0d8;
+        --bad-bg: #331f1c; --bad-line: #6b3a34; --bad-fg: #ffd9d2;
+        --card-top: #182019; --card-bottom: #101511;
+        --glow-1: #2a2416; --glow-2: #16201a;
+        --ink-top: #0c110d;
+        --brass-lit: #e7bd63; --brass-hi: #f0c972; --brass-mid: #dfb256;
+        --brass-lo: #b98a30; --brass-edge: #8a6118; --brass-glow: #a2741f;
+        --mine-line: #4a3d1d; --card-line: #3b4438;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
@@ -447,4 +450,204 @@
           scroll-behavior: auto !important;
         }
         .lot:hover, .going:hover { transform: none; }
+      }
+
+      /* ================================================================
+         Art direction. The first version dressed a spreadsheet: correct,
+         legible, forgettable. This one behaves like the catalogue it is —
+         a book face for the wordmark, brass on ink-green, hairlines instead
+         of boxes, and a hero that says what the stable is worth before you
+         scroll.
+         ================================================================ */
+
+      body {
+        background:
+          radial-gradient(1200px 620px at 50% -12%, rgba(217, 169, 78, 0.16), transparent 62%),
+          radial-gradient(900px 520px at 92% 4%, rgba(143, 182, 169, 0.10), transparent 58%),
+          linear-gradient(180deg, var(--ink-top) 0%, var(--ink-0) 46%);
+        font-family: var(--font-body);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.35;
+        background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px);
+        mix-blend-mode: overlay;
+      }
+      main, .bar, .tabs, .hero { position: relative; z-index: 1; }
+
+      /* ---- hero ---- */
+      .hero {
+        padding: clamp(1.1rem, 3vw, 2.2rem) 0 clamp(0.9rem, 2vw, 1.4rem);
+        border-bottom: 1px solid var(--hairline);
+        margin-bottom: clamp(1rem, 2.4vw, 1.6rem);
+        display: grid;
+        gap: 0.55rem;
+      }
+      .hero[hidden] { display: none; }
+      body:not([data-screen="yard"]) .hero { display: none; }
+      .hero .eyebrow {
+        margin: 0;
+        font-size: 0.68rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--brass);
+      }
+      .hero h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: var(--step-3);
+        line-height: 0.95;
+        letter-spacing: -0.02em;
+        color: var(--fg);
+      }
+      .hero .lede {
+        margin: 0.15rem 0 0;
+        max-width: 54ch;
+        color: var(--muted);
+        font-size: var(--step-0);
+        line-height: 1.5;
+      }
+      .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 0.6rem;
+        margin: 0.8rem 0 0;
+        padding: 0;
+      }
+      .hero-stats div { border-top: 1px solid var(--hairline); padding-top: 0.45rem; }
+      .hero-stats dt {
+        font-size: 0.6rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .hero-stats dd {
+        margin: 0.15rem 0 0;
+        font-family: var(--font-num);
+        font-variant-numeric: tabular-nums;
+        font-size: 1rem;
+        color: var(--cream);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* ---- the utility strip ---- */
+      .bar {
+        gap: 0.35rem 0.55rem;
+        padding-bottom: 0.55rem;
+        border-bottom: 1px solid var(--hairline);
+        margin-bottom: 0.8rem;
+        font-size: 0.78rem;
+      }
+      .bar .brand { display: none; }
+      .pill { color: var(--muted); }
+
+      /* ---- panels and cards ---- */
+      .panel, .lot, .going, .entry {
+        background: linear-gradient(180deg, var(--ink-2), var(--ink-1));
+        border: 1px solid var(--hairline);
+        border-radius: 0.85rem;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 14px 34px rgba(0, 0, 0, 0.28);
+      }
+      .panel { padding: clamp(0.8rem, 1.6vw, 1.15rem); }
+      .panel h2 {
+        font-family: var(--font-display);
+        font-size: 0.95rem;
+        letter-spacing: 0.02em;
+        text-transform: none;
+        color: var(--cream);
+        font-weight: 600;
+      }
+      .panel h2::after { width: 2.6rem; background: linear-gradient(90deg, var(--brass), transparent); }
+      .lot, .going { padding: 0.75rem 0.8rem; }
+      .lot .name, .lot .nameline .name { font-family: var(--font-display); font-size: 1.02rem; letter-spacing: 0.01em; }
+      .lot.mine { border-color: var(--mine-line); box-shadow: inset 0 1px 0 rgba(217, 169, 78, 0.18), 0 12px 30px rgba(0, 0, 0, 0.3); }
+      .advice {
+        border: 1px solid var(--note-line);
+        border-left: 3px solid var(--brass);
+        background: linear-gradient(90deg, rgba(217, 169, 78, 0.12), rgba(217, 169, 78, 0.03));
+        border-radius: 0.7rem;
+        color: var(--cream);
+      }
+
+      /* ---- tables ---- */
+      table { font-size: 0.86rem; }
+      thead th {
+        font-size: 0.62rem;
+        letter-spacing: 0.14em;
+        color: var(--faint);
+        border-bottom: 1px solid var(--hairline);
+        padding: 0.4rem 0.4rem;
+      }
+      tbody td { border-bottom: 1px solid rgba(42, 51, 43, 0.75); padding: 0.45rem 0.4rem; }
+      tbody tr:hover td { background: rgba(255, 255, 255, 0.022); }
+      tr.entered td { background: rgba(217, 169, 78, 0.07); box-shadow: inset 2px 0 0 var(--brass); }
+
+      /* ---- buttons ---- */
+      button { background: var(--ink-3); border-color: var(--hairline); color: var(--fg); }
+      button.brass {
+        background: linear-gradient(180deg, var(--brass-lit), var(--brass) 45%, var(--brass-deep));
+        border-color: var(--brass-edge);
+        color: var(--brass-ink);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(176, 128, 44, 0.25);
+        letter-spacing: 0.02em;
+      }
+      @media (hover: hover) { button.brass:hover:not(:disabled) { background: linear-gradient(180deg, var(--brass-hi), var(--brass-mid) 45%, var(--brass-lo)); border-color: var(--brass-glow); } }
+
+      /* ---- tabs ---- */
+      .tab {
+        background: transparent;
+        border-color: transparent;
+        border-bottom: 1px solid transparent;
+        border-radius: 0.45rem 0.45rem 0 0;
+        color: var(--dim);
+        font-size: 0.79rem;
+        letter-spacing: 0.02em;
+      }
+      .tab[aria-current="true"] {
+        background: linear-gradient(180deg, rgba(217, 169, 78, 0.14), rgba(217, 169, 78, 0.02));
+        border-color: transparent;
+        border-bottom-color: var(--brass);
+        color: var(--cream);
+      }
+      .badge { color: var(--brass); opacity: 0.8; }
+
+      /* ---- the race ---- */
+      .lane .rail {
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.055));
+        box-shadow: inset 0 0 0 1px rgba(42, 51, 43, 0.9);
+      }
+      .lane .rail::after {
+        content: "";
+        position: absolute;
+        top: 6%;
+        bottom: 6%;
+        right: 4%;
+        border-right: 2px dashed rgba(217, 169, 78, 0.5);
+      }
+      .lane.mine .rail {
+        box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.55);
+        background: linear-gradient(90deg, rgba(217, 169, 78, 0.1), rgba(255, 255, 255, 0.04));
+      }
+      .lane .runner svg { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)); }
+      .winner { font-family: var(--font-display); font-size: 1.05rem; }
+
+      /* ---- meters ---- */
+      .trait { background: var(--track); height: 7px; border-radius: 3px; }
+      .trait i { background: linear-gradient(90deg, var(--violet), var(--brass)); }
+      .reveal .card { border-color: var(--card-line); }
+      .reveal h3 { font-family: var(--font-display); font-size: 1.45rem; }
+
+      @media (max-width: 620px) {
+        .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .hero-stats div:nth-child(n + 4) { display: none; }
+        .hero h1 { font-size: clamp(1.9rem, 8vw, 2.6rem); }
+        .panel h2 { font-size: 0.9rem; }
+        .bar { font-size: 0.74rem; }
       }
