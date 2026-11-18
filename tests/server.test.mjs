@@ -150,6 +150,31 @@ try {
   const early = await api("/api/action", { method: "POST", token, body: { action: { type: "closeWindow" } } });
   ok("nor close it before the deadline", early.status === 400, early.json.error);
 
+  /* ---------- a horse becomes a token: intent, wallet, one mint ---------- */
+  const holder = await api("/api/register", { method: "POST", body: { email: "holder@studbook.test", password: "correct horse battery" } });
+  const holderToken = holder.json.token;
+  const intents = await api("/api/mints", { token: holderToken });
+  ok("every horse in the yard has a mint intent", intents.json.mints.length >= 1, `${intents.json.mints.length} intent(s)`);
+  ok("...unclaimed, because there is no wallet yet", intents.json.mints[0].status === "unclaimed", intents.json.mints[0].status);
+  ok("the genotype is packed for the token", /^\d+$/.test(String(intents.json.mints[0].genome)), intents.json.mints[0].genome.slice(0, 12));
+
+  const badWallet = await api("/api/wallet", { method: "POST", token: holderToken, body: { address: "0x123" } });
+  ok("a malformed address is refused", badWallet.status === 400);
+  const wallet = await api("/api/wallet", { method: "POST", token: holderToken, body: { address: "0x00000000000000000000000000000000000a11ce" } });
+  ok("a wallet can be bound", wallet.status === 200);
+  const claimable = await api("/api/mints", { token: holderToken });
+  ok("...and the intent becomes claimable", claimable.json.mints[0].status === "pending" && claimable.json.pending >= 1,
+     `${claimable.json.pending} pending`);
+
+  const nullifier = claimable.json.mints[0].nullifier;
+  const confirmed = await api("/api/mints/confirm", { method: "POST", token: holderToken, body: { nullifier, tokenId: 7 } });
+  ok("the mint is confirmed once", confirmed.status === 200 && confirmed.json.mint.tokenId === 7);
+  const twice = await api("/api/mints/confirm", { method: "POST", token: holderToken, body: { nullifier, tokenId: 8 } });
+  ok("...and only once", twice.status === 409, twice.json.error);
+  const outsider = await api("/api/register", { method: "POST", body: { email: "outsider@studbook.test", password: "correct horse battery" } });
+  const stranger = await api("/api/mints/confirm", { method: "POST", token: outsider.json.token, body: { nullifier, tokenId: 9 } });
+  ok("someone else cannot confirm your horse", stranger.status === 404);
+
   /* ---------- the public table ---------- */
   const board = await api("/api/ranking");
   ok("the ranking is public and has rows", board.status === 200 && board.json.ranking.length >= 2,

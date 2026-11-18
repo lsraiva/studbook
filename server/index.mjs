@@ -19,6 +19,7 @@ import { extname, join, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  LOCI as LOCUS_ORDER,
   applyAction,
   horseById,
   meta,
@@ -45,6 +46,7 @@ const users = new Map();   // id -> { id, email, salt, hash, createdAt }
 const emails = new Map();  // email -> id
 const sessions = new Map(); // token -> { userId, expiresAt }
 const rooms = new Map();   // roomId -> { id, code, state, closesAt, version }
+const mints = new Map();   // nullifier -> { roomId, horseId, owner, address, bornSeason, tokenId|null, status }
 const userRoom = new Map(); // userId -> roomId
 const traffic = new Map(); // userId -> number[] (action timestamps)
 
@@ -102,6 +104,67 @@ const persistRoom = (room) => writeJsonAtomic(join(roomDir, `${room.id}.json`), 
 
 const newCode = () => randomBytes(3).toString("hex").toUpperCase();
 
+/**
+ * The nullifier of a horse is its identity, not a counter: the same animal can be presented twice
+ * and still produce one token. Rebuilding it from the state means it survives a restart.
+ */
+const nullifierOf = (room, horse) =>
+  createHash("sha256")
+    .update(`studbook:${room.id}:${horse.id}:${horse.sire ?? 0}:${horse.dam ?? 0}:${horse.bornSeason ?? 0}`)
+    .digest("hex");
+
+const isAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(String(value ?? ""));
+
+/**
+ * Every horse a human owns gets one mint intent. Pending means the chain has not confirmed it;
+ * unclaimed means the account has no wallet yet, so the animal is playable but not withdrawable.
+ */
+function issueMints(room) {
+  const fresh = [];
+  for (const stable of room.state.stables) {
+    if (!stable.player) continue; // the house's own yards are not tokenized
+    for (const horseId of stable.horses) {
+      const horse = horseById(room.state, horseId);
+      if (!horse) continue;
+      const nullifier = nullifierOf(room, horse);
+      if (mints.has(nullifier)) continue;
+      const address = users.get(stable.player)?.wallet ?? null;
+      const intent = {
+        nullifier,
+        roomId: room.id,
+        horseId: horse.id,
+        name: horse.name,
+        owner: stable.player,
+        address: isAddress(address) ? address : null,
+        bornSeason: horse.bornSeason ?? 0,
+        genome: packGenome(horse.genome),
+        lineage: horse.lineage,
+        sex: horse.sex === "F" ? 0 : 1,
+        sireId: horse.sire ?? 0,
+        damId: horse.dam ?? 0,
+        tokenId: null,
+        status: "unclaimed",
+      };
+      mints.set(nullifier, intent);
+      fresh.push(intent);
+    }
+  }
+  return fresh;
+}
+
+/** The genotype as the token stores it: 12 loci x 2 alleles x 2 bits, low bit first. */
+function packGenome(genome) {
+  let word = 0n;
+  let bit = 0n;
+  for (const locus of Object.keys(genome).sort((a, b) => LOCUS_ORDER.indexOf(a) - LOCUS_ORDER.indexOf(b))) {
+    for (const allele of genome[locus]) {
+      word |= BigInt(allele & 3) << bit;
+      bit += 2n;
+    }
+  }
+  return word.toString();
+}
+
 /** A seat in a room is a stable: the engine already knew how to add one mid-game. */
 function openRoom(userId) {
   const id = `r${randomBytes(5).toString("hex")}`;
@@ -114,6 +177,7 @@ function openRoom(userId) {
   };
   rooms.set(id, room);
   userRoom.set(userId, id);
+  issueMints(room);
   return room;
 }
 
@@ -468,6 +532,48 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { state: frame(room, user.id) });
     }
 
+    if (path === "/api/wallet" && req.method === "POST") {
+      const user = requireUser(req);
+      const body = await readBody(req);
+      const address = String(body.address ?? "").trim();
+      if (!isAddress(address)) throw httpError(400, "that is not an address", "address");
+      user.wallet = address;
+      await persistUsers();
+      // whatever was unclaimed for this account becomes claimable now
+      for (const intent of mints.values()) {
+        if (intent.owner === user.id && !intent.address) {
+          intent.address = address;
+          intent.status = "pending";
+        }
+      }
+      return send(res, 200, { wallet: address });
+    }
+
+    if (path === "/api/mints" && req.method === "GET") {
+      const user = requireUser(req);
+      const mine = [...mints.values()].filter((intent) => intent.owner === user.id);
+      return send(res, 200, {
+        mints: mine,
+        pending: mine.filter((intent) => intent.status === "pending").length,
+        minted: mine.filter((intent) => intent.status === "minted").length,
+      });
+    }
+
+    if (path === "/api/mints/confirm" && req.method === "POST") {
+      const user = requireUser(req);
+      const body = await readBody(req);
+      const nullifier = String(body.nullifier ?? "");
+      const tokenId = Number(body.tokenId);
+      const intent = mints.get(nullifier);
+      if (!intent || intent.owner !== user.id) throw httpError(404, "no such mint", "mint");
+      if (intent.status === "minted") throw httpError(409, "that horse is already on chain", "done");
+      if (!intent.address) throw httpError(409, "bind a wallet first", "unclaimed");
+      if (!Number.isInteger(tokenId) || tokenId <= 0) throw httpError(400, "a token id is required", "token");
+      intent.tokenId = tokenId;
+      intent.status = "minted";
+      return send(res, 200, { mint: intent });
+    }
+
     if (path === "/api/room" && req.method === "GET") {
       const user = requireUser(req);
       const room = roomOf(user.id);
@@ -528,6 +634,7 @@ async function tick() {
     if (room.closesAt > now) continue;
     try {
       room.state = runRound(room.state, "The clock ran out —");
+      issueMints(room); // a foal born this turn becomes an intent, once
       room.version += 1;
       rearm(room);
       await persistRoom(room);
