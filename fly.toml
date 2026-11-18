@@ -1,28 +1,39 @@
-# fly.io — one machine, one volume, one command: fly launch --no-deploy && fly deploy
-app = "studbook"
-primary_region = "iad"
+# fly.toml app configuration file generated for studbook on 2026-11-18T21:15:47Z
+#
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
+
+app = 'studbook'
+primary_region = 'ams'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  PORT = "8080"
-  DATA_DIR = "/data"
+  DATA_DIR = '/data'
+  PORT = '8080'
 
-[mounts]
-  source = "studbook_data"
-  destination = "/data"
+[[mounts]]
+  source = 'studbook_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
-[checks.health]
-  type = "http"
-  path = "/api/health"
-  interval = "30s"
-  timeout = "5s"
+[checks]
+  [checks.health]
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    path = '/api/health'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
