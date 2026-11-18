@@ -627,6 +627,9 @@
 
 const meta = { game: "Studbook", minPlayers: 1, maxPlayers: 4 };
 
+/** Coin packs and testing grants exist to balance a run, not to earn. Off in a real build. */
+const TEST_TOOLS = false;
+
 // ── genetics constants (mirrored from the study) ──────────────────────────
 const TRAITS = ["speed", "stamina", "accel", "recovery", "temperament", "soundness"];
 const LOCI = [];
@@ -1659,6 +1662,7 @@ function validateAction(state, playerId, action) {
   }
 
   if (type === "addCoins") {
+    if (!TEST_TOOLS) return { ok: false, error: "coin packs are not sold in this build" };
     if (!COIN_PACKS.some((entry) => entry.pack === action.pack)) {
       return { ok: false, error: "unknown coin pack" };
     }
@@ -1722,6 +1726,7 @@ function validateAction(state, playerId, action) {
   if (type === "unlistStraw") {
     const listing = state.listings.find((entry) => entry.id === action.listingId);
     if (!listing || listing.seller !== stable.id) return { ok: false, error: "not your listing" };
+    if (!listing.straw) return { ok: false, error: "that is not a covering lot" };
     return { ok: true };
   }
 
@@ -1797,12 +1802,16 @@ function validateAction(state, playerId, action) {
   }
 
   if (type === "testGrant") {
+    if (!TEST_TOOLS) return { ok: false, error: "testing funds are disabled in this build" };
     return BANK_CHOICES.includes(action.amount)
       ? { ok: true }
       : { ok: false, error: "unknown testing amount" };
   }
 
   if (type === "startOver") {
+    if (!TEST_TOOLS && action.bank !== START_BANK) {
+      return { ok: false, error: "only the standard bank is offered in this build" };
+    }
     return BANK_CHOICES.includes(action.bank)
       ? { ok: true }
       : { ok: false, error: "unknown starting bank" };
@@ -1844,6 +1853,13 @@ function validateAction(state, playerId, action) {
 }
 
 // ── action application ────────────────────────────────────────────────────
+/** Take a lot by id. splice(-1, 1) would silently eat the last lot, so guard the miss. */
+function takeLot(list, id) {
+  const index = list.findIndex((entry) => entry.id === id);
+  if (index < 0) return null;
+  return list.splice(index, 1)[0];
+}
+
 function applyAction(state, playerId, action) {
   const next = copy(state);
   if (action && action.type === "takeSeat") {
@@ -1865,7 +1881,8 @@ function applyAction(state, playerId, action) {
   if (action.type === "breed") {
     const mare = horseById(next, action.mareId);
     const strawIndex = stable.straws.findIndex((entry) => entry.id === action.strawId);
-    const straw = stable.straws[strawIndex];
+    const straw = strawIndex < 0 ? null : stable.straws[strawIndex];
+    if (!straw) return next;
     const sire = horseById(next, straw.sire);
     const care = CARE_CHOICES.includes(action.care) ? action.care : "plain";
     const careCost = CARE_COST[care];
@@ -1934,8 +1951,8 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "listStraw") {
-    const index = stable.straws.findIndex((entry) => entry.id === action.strawId);
-    const straw = stable.straws.splice(index, 1)[0];
+    const straw = takeLot(stable.straws, action.strawId);
+    if (!straw) return next;
     const sire = horseById(next, straw.sire);
     next.listings.push({
       id: `l${next.nextId++}`,
@@ -1952,15 +1969,15 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "unlistStraw") {
-    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
-    const listing = next.listings.splice(index, 1)[0];
+    const listing = takeLot(next.listings, action.listingId);
+    if (!listing || !listing.straw) return next;
     stable.straws.push(listing.straw);
     return next;
   }
 
   if (action.type === "buyStraw") {
-    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
-    const listing = next.listings.splice(index, 1)[0];
+    const listing = takeLot(next.listings, action.listingId);
+    if (!listing || !listing.straw) return next;
     const seller = next.stables.find((entry) => entry.id === listing.seller);
     const rake = Math.round(listing.price * MARKET_RAKE);
     stable.guineas -= listing.price;
@@ -2028,8 +2045,8 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "unlistHorse") {
-    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
-    const lot = next.listings.splice(index, 1)[0];
+    const lot = takeLot(next.listings, action.listingId);
+    if (!lot || !lot.horseId) return next;
     const horse = horseById(next, lot.horseId);
     if (horse) {
       horse.owner = stable.id;
@@ -2041,8 +2058,8 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "buyHorse") {
-    const index = next.listings.findIndex((entry) => entry.id === action.listingId);
-    const lot = next.listings.splice(index, 1)[0];
+    const lot = takeLot(next.listings, action.listingId);
+    if (!lot || !lot.horseId) return next;
     const horse = horseById(next, lot.horseId);
     const seller = next.stables.find((entry) => entry.id === lot.seller);
     const rake = Math.round(lot.price * MARKET_RAKE);
@@ -2072,6 +2089,7 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "testGrant") {
+    if (!TEST_TOOLS) return next;
     stable.guineas += action.amount;
     log(next, `Testing funds added: ${action.amount} GNS, a testing tool rather than an earning.`, "market");
     return next;
@@ -2170,6 +2188,7 @@ function applyAction(state, playerId, action) {
   }
 
   if (action.type === "addCoins") {
+    if (!TEST_TOOLS) return next;
     const pack = COIN_PACKS.find((entry) => entry.pack === action.pack);
     stable.guineas += pack.coins;
     next.ledger = [
@@ -2402,13 +2421,17 @@ function runTurnover(state) {
     aiPrepareSeason(state, stable);
   }
 
+  // Rivals breed before the bills, and a newborn has no upkeep or value yet: billing
+  // `undefined` turned every rival balance into NaN from season two on.
+  scorePopulation(state);
+
   // upkeep, ageing, straws, retirement
   for (const stable of state.stables) {
     let bill = 0;
     for (const horseId of [...stable.horses]) {
       const horse = horseById(state, horseId);
       if (!horse) continue;
-      bill += horse.upkeep;
+      bill += Number.isFinite(horse.upkeep) ? horse.upkeep : upkeepFor(horse);
     }
     stable.guineas -= bill;
     if (stable.guineas < 0) {
@@ -2588,7 +2611,7 @@ function runTurnover(state) {
   for (const want of state.wants) {
     const buyer = state.stables.find((entry) => entry.id === want.stable);
     const expired = state.season - want.season >= WANT_TTL;
-    if (!buyer || expired || buyer.guineas < want.price) continue;
+    if (!buyer || expired || !(buyer.guineas >= want.price)) continue;
     const bestOwn = Math.max(
       0,
       ...buyer.horses.map((id) => horseById(state, id)?.value ?? 0),
@@ -3195,8 +3218,8 @@ function viewFor(state, playerId) {
     windowMinSeconds: WINDOW_MIN_SECONDS,
     windowMaxSeconds: WINDOW_MAX_SECONDS,
     meetingsPerSeason: MEETINGS_PER_SEASON,
-    testGrant: TEST_GRANT,
-    bankChoices: BANK_CHOICES,
+    testGrant: TEST_TOOLS ? TEST_GRANT : 0,
+    bankChoices: TEST_TOOLS ? BANK_CHOICES : [START_BANK],
     seasonReport: (stable && stable.seasonReport) || null,
     firsts: (stable && stable.firsts) || null,
     paddock: paddockOf(state),
@@ -3205,7 +3228,7 @@ function viewFor(state, playerId) {
       taken: Boolean(stable && stable.starterOfferTaken),
       price: STARTER_COVERING_PRICE,
     },
-    coinPacks: COIN_PACKS,
+    coinPacks: TEST_TOOLS ? COIN_PACKS : [],
     careChoices: CARE_CHOICES.map((care) => ({
       care,
       cost: CARE_COST[care],
@@ -3484,7 +3507,7 @@ function theOffBlock(v) {
     `${going ? `${going} · ` : ""}${nf(field.length)} declared · they are running</span></div>` +
     (mine.length
       ? `<div class="kv"><span>yours: ${mine
-          .map((row) => `${row.name} (${row.tactic})`)
+          .map((row) => `${esc(row.name)} (${esc(row.tactic)})`)
           .join(", ")}</span></div>`
       : "");
 }
@@ -3565,6 +3588,14 @@ setInterval(() => {
 // ── view ───────────────────────────────────────────────────────────────────
 const el = (id) => document.getElementById(id);
 const nf = (n, digits = 0) => new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(Number.isFinite(n) ? n : 0);
+
+/** Every name in this game is typed by a player. Nothing reaches innerHTML unescaped. */
+function esc(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
+}
 
 let view = null;
 let seats = [];
@@ -4149,7 +4180,7 @@ function renderCovering(v) {
   const line = document.createElement("div");
   line.className = "kv";
   line.innerHTML = straw
-    ? `<span>${straw.sireName} · collected in season ${straw.vintage}</span><b>sire value ${nf(straw.sireValue, 2)}</b>`
+    ? `<span>${esc(straw.sireName)} · collected in season ${straw.vintage}</span><b>sire value ${nf(straw.sireValue, 2)}</b>`
     : `<span>no covering selected</span><b>pick one above</b>`;
   covering.append(line);
 
@@ -4210,7 +4241,7 @@ function renderFoaling(v) {
     card.append(head);
     const meta = document.createElement("div");
     meta.className = "kv";
-    meta.innerHTML = `<span>in foal to ${row.sireName}</span><b>due season ${nf(row.dueSeason)}</b>`;
+    meta.innerHTML = `<span>in foal to ${esc(row.sireName)}</span><b>due season ${nf(row.dueSeason)}</b>`;
     card.append(meta);
     const when = document.createElement("div");
     when.className = "kv";
@@ -4245,7 +4276,7 @@ function renderFoals(v) {
     card.append(head);
     const meta = document.createElement("div");
     meta.className = "kv";
-    meta.innerHTML = `<span>${foal.sireName} out of ${foal.damName} · S${nf(foal.bornSeason)}</span><b>${nf(foal.value, 2)}</b>`;
+    meta.innerHTML = `<span>${esc(foal.sireName)} out of ${esc(foal.damName)} · S${nf(foal.bornSeason)}</span><b>${nf(foal.value, 2)}</b>`;
     card.append(meta);
     const where = document.createElement("div");
     where.className = "kv";
@@ -4808,7 +4839,7 @@ function renderFirsts(v) {
     ? lines.join(" · ")
     : "none yet — win a meeting, or breed your first foal";
   strip.innerHTML =
-    `<div class="kv"><b>FIRSTS${lines.length ? ` · ${nf(lines.length)}` : ""}</b><span>${body}</span></div>`;
+    `<div class="kv"><b>FIRSTS${lines.length ? ` · ${nf(lines.length)}` : ""}</b><span>${esc(body)}</span></div>`;
   table.parentElement.insertBefore(strip, table);
 }
 
@@ -4832,8 +4863,8 @@ function renderPaddock(v) {
         const record = row.runs ? `${nf(row.runs)} runs, ${nf(row.wins)} won` : "unraced";
         return (
           `<div class="kv${row.mine ? " mine" : ""}">` +
-          `<b>${row.mine ? "your " : ""}${row.name}</b>` +
-          `<span>${row.stable} · ${against} · ${record} · runs ${row.tactic}` +
+          `<b>${row.mine ? "your " : ""}${esc(row.name)}</b>` +
+          `<span>${esc(row.stable)} · ${against} · ${record} · runs ${row.tactic}` +
           `${row.stakes ? " · stakes" : ""}</span></div>`
         );
       })
@@ -4860,7 +4891,7 @@ function renderSeasonReport(v) {
     `<div class="kv"><b>Season ${nf(report.season)} closed</b><span>` +
     `the yard finished ${money} · ${nf(report.runs)} runs, ${nf(report.wins)} won, ` +
     `${nf(report.places)} placed, ₲ ${nf(report.prizes)} in prizes` +
-    (report.born.length ? ` · ${nf(report.born.length)} ${foals} born: ${report.born.join(", ")}` : "") +
+    (report.born.length ? ` · ${nf(report.born.length)} ${foals} born: ${esc(report.born.join(", "))}` : "") +
     (report.retired ? ` · ${nf(report.retired)} retired` : "") +
     (report.forced ? ` · ${nf(report.forced)} sold to pay debts` : "") +
     `</span></div>`;
@@ -5374,7 +5405,7 @@ function draw() {
     card.append(meta);
     const meta2 = document.createElement("div");
     meta2.className = "kv";
-    meta2.innerHTML = `<span>${lot.sellerName} · ${isHorse ? "horse lot" : "season " + lot.vintage}${lot.age >= 1 ? " · price cut each season it sits" : ""}</span><b>${nf(lot.price)} ₲</b>`;
+    meta2.innerHTML = `<span>${esc(lot.sellerName)} · ${isHorse ? "horse lot" : "season " + lot.vintage}${lot.age >= 1 ? " · price cut each season it sits" : ""}</span><b>${nf(lot.price)} ₲</b>`;
     card.append(meta2);
     if (lot.select) {
       const badge = document.createElement("div");
@@ -5445,7 +5476,7 @@ function draw() {
       card.append(head);
       const meta = document.createElement("div");
       meta.className = "kv";
-      meta.innerHTML = `<span>${want.lineage || "any lineage"} · open ${want.age} season(s)</span><b>${nf(want.price)} ₲</b>`;
+      meta.innerHTML = `<span>${esc(want.lineage || "any lineage")} · open ${want.age} season(s)</span><b>${nf(want.price)} ₲</b>`;
       card.append(meta);
       if (want.mine) {
         const row = document.createElement("div");
@@ -5471,7 +5502,7 @@ function draw() {
     theOffBlock(v);
   } else if (v.meeting) {
     const line = document.createElement("div");
-    line.innerHTML = `<span class="winner">${v.meeting.winner}</span> took the ${v.meeting.condition} — pot ${nf(v.meeting.pot)} ₲ from ${nf(v.meeting.runners)} runners`;
+    line.innerHTML = `<span class="winner">${esc(v.meeting.winner)}</span> took the ${v.meeting.condition} — pot ${nf(v.meeting.pot)} ₲ from ${nf(v.meeting.runners)} runners`;
     meeting.append(line);
     // The margin, then your own horses: the result used to name one winner and leave a player to
     // guess what happened to the rest of them.
@@ -5496,7 +5527,7 @@ function draw() {
     for (const placed of v.meeting.places) {
       const row = document.createElement("div");
       row.className = "kv";
-      row.innerHTML = `<span>${placed.place}. ${placed.name} <span class="hint">(${placed.stable})</span></span><b>${nf(placed.score, 2)}</b>`;
+      row.innerHTML = `<span>${placed.place}. ${esc(placed.name)} <span class="hint">(${esc(placed.stable)})</span></span><b>${nf(placed.score, 2)}</b>`;
       meeting.append(row);
     }
     for (const entry of v.log.filter((row) => row.kind === "race" && row.season === v.meeting.season).slice(0, 4)) {
@@ -5635,7 +5666,7 @@ function draw() {
     grant.className = "tiny brass";
     grant.textContent = `add ${nf(bankChoice)} ₲`;
     grant.addEventListener("click", () => act({ type: "testGrant", amount: bankChoice }));
-    row.append(grant);
+    if (v.testGrant > 0) row.append(grant);
     tools.append(row);
     account.append(tools);
   }
@@ -5674,7 +5705,7 @@ function draw() {
           : `₲ ${nf(-rival.lastSeason.bank)} down last season`)
       : "no season closed yet";
     tr.innerHTML =
-      `<td>${rival.name}<div class="hint">${rival.intent ?? ""} · ${did}</div></td>` +
+      `<td>${esc(rival.name)}<div class="hint">${rival.intent ?? ""} · ${did}</div></td>` +
       `<td class="num">${nf(rival.guineas)}</td><td class="num">${nf(rival.horses)}</td>` +
       `<td class="num">${nf(rival.best, 2)}</td>`;
     rivals.append(tr);
