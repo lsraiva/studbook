@@ -651,3 +651,49 @@
         .panel h2 { font-size: 0.9rem; }
         .bar { font-size: 0.74rem; }
       }
+
+      /* ---- polish pass: what the critique found ---- */
+
+      /* the bar repeated the hero's numbers on the yard; keep one source of truth */
+      body[data-screen="yard"] .bar .pill:has(#guineas),
+      body[data-screen="yard"] .bar .pill:has(#season),
+      body[data-screen="yard"] .bar .pill:has(#condition),
+      body[data-screen="yard"] .bar .pill:has(#field-mean) { display: none; }
+
+      /* the hero's ledger line: separated columns instead of floating numbers */
+      .hero-stats {
+        border-top: 1px solid var(--hairline);
+        border-bottom: 1px solid var(--hairline);
+        padding: 0.6rem 0;
+        gap: 0;
+      }
+      .hero-stats div { border-top: none; padding: 0 0.9rem; border-left: 1px solid var(--hairline); }
+      .hero-stats div:first-child { border-left: 0; padding-left: 0; }
+      .hero .lede { max-width: 46ch; }
+
+      /* navigation was a whisper; it is the way around the product */
+      .tab { font-size: 0.85rem; color: var(--muted); padding: 0.5rem 0.75rem; }
+      .tab[aria-current="true"] { color: var(--cream); font-weight: 600; }
+      .tabs { gap: 0.15rem; }
+
+      /* "getting started" stacked its promise beside the title and left a hole */
+      #opening > .kv {
+        display: grid;
+        justify-content: start;
+        gap: 0.25rem;
+        padding: 0.15rem 0 0.45rem;
+      }
+      #opening > .kv b {
+        font-family: var(--font-display);
+        font-size: 1.05rem;
+        color: var(--cream);
+        letter-spacing: 0.01em;
+      }
+      #opening > .kv span { color: var(--muted); max-width: 62ch; line-height: 1.45; }
+      #opening .step { display: flex; gap: 0.5rem; align-items: baseline; border: 0; background: none; padding: 0.2rem 0; }
+      #opening .step b { color: var(--brass); font-family: var(--font-num); }
+
+      /* the value line on a horse card was brass-on-brass mush */
+      .band { color: var(--muted); font-size: 0.66rem; }
+      .band.stakes { color: var(--brass); }
+      .tag { border-color: currentColor; opacity: 0.95; }
