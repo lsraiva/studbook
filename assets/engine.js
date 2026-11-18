@@ -881,7 +881,12 @@ function giveStartingStock(state, stable, withStud = true) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
-function setup(players, salt = null) {
+/**
+ * @param idBase where this state's ids start. A server running several rooms hands each one a
+ *        different block, so a horse from room A can never collide with a horse from room B —
+ *        which is what a global market needs before it can move animals between rooms.
+ */
+function setup(players, salt = null, idBase = 0) {
   // A seed per game, recorded on the state: a run is reproducible from it, and two
   // new games are never the same board.
   const seed = seedFrom(`${players.join("|")}|${salt ?? `${Date.now()}|${Math.random()}`}`);
@@ -889,8 +894,8 @@ function setup(players, salt = null) {
     seed,
     rng: seed,
     season: 1,
-    nextId: 1,
-    nextStraw: 1,
+    nextId: idBase + 1,
+    nextStraw: idBase + 1,
     stables: [],
     horses: [],
     listings: [],

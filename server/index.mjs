@@ -104,6 +104,10 @@ const persistRoom = (room) => writeJsonAtomic(join(roomDir, `${room.id}.json`), 
 
 const newCode = () => randomBytes(3).toString("hex").toUpperCase();
 
+/** A block of ids per room, derived from its id: stable across restarts, disjoint between rooms. */
+const idBaseFor = (roomId) =>
+  (parseInt(createHash("sha1").update(roomId).digest("hex").slice(0, 8), 16) % 1_000_000) * 10_000;
+
 /**
  * The nullifier of a horse is its identity, not a counter: the same animal can be presented twice
  * and still produce one token. Rebuilding it from the state means it survives a restart.
@@ -171,7 +175,7 @@ function openRoom(userId) {
   const room = {
     id,
     code: newCode(),
-    state: setup([userId], `room:${id}`),
+    state: setup([userId], `room:${id}`, idBaseFor(id)),
     closesAt: Date.now() + SOLO_SECONDS * 1000,
     version: 1,
   };
