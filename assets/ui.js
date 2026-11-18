@@ -759,6 +759,25 @@ function openReveal(foal, v, progress) {
   const card = document.createElement("div");
   card.className = "card";
 
+  // A birth is the one moment the game can afford to be theatrical about.
+  if (event === "born") {
+    const scene = document.createElement("div");
+    scene.className = "scene";
+    const portrait = document.createElement("img");
+    portrait.src = "assets/art/foal.webp";
+    portrait.alt = "";
+    portrait.decoding = "async";
+    const tag = document.createElement("span");
+    tag.className = "scene-tag";
+    tag.textContent = "first look";
+    scene.append(tag, portrait);
+    card.append(scene);
+    const parents = document.createElement("p");
+    parents.className = "scene-line hint";
+    parents.textContent = `out of ${foal.damName ?? "her"} by ${foal.sireName ?? "him"}`;
+    card.append(parents);
+  }
+
   // The rare loss: gentler than the fanfare, and honest about what it cost.
   if (event === "slipped") {
     const lostStamp = document.createElement("span");

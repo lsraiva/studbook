@@ -916,3 +916,30 @@
       .goals { display: flex; flex-wrap: wrap; gap: 0.3rem 0.55rem; font-size: 0.74rem; color: var(--faint); }
       .goals span { border: 1px dashed var(--hairline); border-radius: var(--radius-pill); padding: 0.12rem 0.5rem; }
       .goals span.done { border-style: solid; border-color: var(--brass); color: var(--cream); }
+      /* ---- the birth scene: the foal gets the stage, not a table row ---- */
+      .reveal .scene {
+        position: relative;
+        display: grid;
+        place-items: center;
+        margin: -0.35rem 0 0.25rem;
+        padding: 0.5rem 0.4rem 0.2rem;
+        border-radius: 0.85rem;
+        background: radial-gradient(120% 90% at 50% 0%, rgba(217, 169, 78, 0.16), transparent 62%);
+      }
+      .reveal .scene img {
+        width: min(300px, 72%);
+        height: auto;
+        filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.55));
+        animation: rise var(--dur-3) var(--ease) both;
+      }
+      .reveal .scene-tag {
+        position: absolute;
+        top: 0.35rem;
+        left: 0.55rem;
+        font-size: 0.6rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--brass);
+      }
+      .reveal .scene-line { text-align: center; margin: 0 0 0.35rem; }
+      @media (prefers-reduced-motion: reduce) { .reveal .scene img { animation: none; } }
