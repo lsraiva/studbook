@@ -880,3 +880,35 @@
         padding: 0.35rem 0.5rem;
         max-width: 9rem;
       }
+      /* ---- rarity: the frame is the first thing read ---- */
+      .gcard { position: relative; }
+      .gcard.tier-ordinary { border-color: var(--hairline); }
+      .gcard.tier-promising { border-color: #3c5142; }
+      .gcard.tier-exceptional {
+        border-color: #6f5c2b;
+        box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.22), 0 14px 30px rgba(0, 0, 0, 0.34);
+      }
+      .gcard.tier-exceptional::after {
+        content: "";
+        position: absolute;
+        inset: 5px;
+        border: 1px solid rgba(217, 169, 78, 0.28);
+        border-radius: 0.7rem;
+        pointer-events: none;
+      }
+      .gcard.tier-stakes {
+        border-color: var(--brass);
+        background:
+          radial-gradient(120% 90% at 50% -20%, rgba(217, 169, 78, 0.28), transparent 62%),
+          linear-gradient(180deg, var(--ink-3), var(--ink-1));
+        box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.45), 0 18px 38px rgba(0, 0, 0, 0.45);
+      }
+      .gcard.tier-stakes::after {
+        content: "";
+        position: absolute;
+        inset: 5px;
+        border: 1px solid rgba(217, 169, 78, 0.55);
+        border-radius: 0.7rem;
+        pointer-events: none;
+      }
+      .gcard.tier-stakes .gband { color: var(--brass); letter-spacing: 0.14em; }

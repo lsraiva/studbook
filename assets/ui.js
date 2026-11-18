@@ -423,14 +423,20 @@ const COATS = {
 };
 
 /** A code-drawn horse, coloured by lineage. Placeholder art pending credits. */
+function portraitOf(lineage, age) {
+  // One plate per lineage: an animal you can recognise across the yard.
+  if (age !== null && age !== undefined && age <= 1) return "assets/art/foal.webp";
+  const file = String(lineage ?? "").toLowerCase();
+  return /^l[1-8]$/.test(file) ? `assets/art/${file}.webp` : "assets/art/stallion.webp";
+}
+
 function horseArt(lineage, age = null) {
-  // The commissioned plate, drawn for the catalogue: a foal under two, a stallion above it.
   const img = document.createElement("img");
   img.className = "horseart";
   img.alt = "";
   img.loading = "lazy";
   img.decoding = "async";
-  img.src = age !== null && age <= 1 ? "assets/art/foal.webp" : "assets/art/stallion.webp";
+  img.src = portraitOf(lineage, age);
   img.style.color = COATS[lineage] ?? "#a8703f";
   return img;
 }
@@ -1886,7 +1892,14 @@ function renderGallery(v) {
   for (const horse of herd) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "gcard" + (horse.stakes ? " stakes" : "") + (horse.id === selectedHorse ? " picked" : "");
+    const tier = horse.stakes
+      ? "stakes"
+      : horse.band === "near elite"
+        ? "exceptional"
+        : horse.band === "above the field"
+          ? "promising"
+          : "ordinary";
+    card.className = `gcard tier-${tier}` + (horse.id === selectedHorse ? " picked" : "");
     card.setAttribute("aria-pressed", String(horse.id === selectedHorse));
     card.addEventListener("click", () => {
       selectedHorse = selectedHorse === horse.id ? null : horse.id;
@@ -1894,7 +1907,7 @@ function renderGallery(v) {
     });
 
     const art = document.createElement("img");
-    art.src = horse.age <= 1 ? "assets/art/foal.webp" : "assets/art/stallion.webp";
+    art.src = portraitOf(horse.lineage, horse.age);
     art.alt = "";
     art.loading = "lazy";
     card.append(art);
