@@ -9,8 +9,8 @@ on the suspicious paths.
 | A0 | critical | Rivals' balances became `NaN` in season 2 — the upkeep bill landed on newborn foals before `scorePopulation` had priced them, so the market lost every buyer | **fixed** (0.2) |
 | A1 | critical | Stored XSS: names went into `innerHTML` unescaped in 12 places | **fixed** (0.2) |
 | A2 | critical | Free money: `addCoins` credited packs with no payment, `testGrant` credited 50.000 GNS, and the wants board accepted `NaN` balances as payment | **fixed** (0.2) |
-| A3 | critical | No authority: the "server" is the browser (`LocalSocket`), `connectWallet` returns `{authorised: true}` | **open** — architecture |
-| A4 | high | Save is editable JSON in `localStorage`, no signature or provenance | **open** — needs A3 |
+| A3 | critical | No authority: the "server" is the browser (`LocalSocket`), `connectWallet` returns `{authorised: true}` | **fixed** (0.4) — `server/index.mjs`, proven by `tests/server.test.mjs` |
+| A4 | high | Save is editable JSON in `localStorage`, no signature or provenance | **fixed for cloud accounts** (0.4): the save lives on the server. Offline mode still uses `localStorage` by design |
 | B1 | high | `unlistStraw` accepted a horse lot: horse stuck unowned, `undefined` in the barn | **fixed** (0.2) |
 | B2 | high | Certification sold information already on screen (`traits` were public, and traits determine the score) | **fixed** (0.3) |
 | B3 | medium | Every new game was the same game: seed came from the player id alone | **fixed** (0.3) |

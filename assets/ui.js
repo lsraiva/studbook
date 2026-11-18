@@ -1,6 +1,9 @@
 // Studbook screen — renders the view and talks to the game socket.
 // The rules live in engine.js; this file only draws them and sends actions.
 
+import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js";
+import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js";
+
 import {
   applyAction,
   copy,
@@ -174,13 +177,16 @@ const PONG = "__pong";
 let socket = null;
 let retry = 0;
 
-function connect() {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  socket = new LocalSocket();
+/** Where the rules run: the server if there is one, this tab otherwise. */
+let cloudBase = null;
+const CLOUD = () => cloudBase !== null;
+
+function connect(makeSocket = () => new LocalSocket()) {
+  socket = makeSocket();
   socket.addEventListener("open", () => {
     retry = 0;
-    net("live", "ring open");
-    setStatus("ring open — reading the catalogue…");
+    net("live", CLOUD() ? "cloud" : "offline");
+    setStatus(CLOUD() ? "connected — the stable is on the server" : "ring open — reading the catalogue…");
     // The flag is set BEFORE joining. On the standalone the whole room is local and
     // answers the join synchronously, so a state can land inside the send below —
     // arming the start-over afterwards meant the link never fired there.
@@ -2569,5 +2575,124 @@ window.addEventListener("keydown", (event) => {
 });
 showScreen(screen);
 
-connect();
-    
+/* ------------------------------------------------------------------ accounts */
+
+/** The gate that stands in front of a cloud stable. */
+function accountGate(base, message = "") {
+  document.querySelectorAll(".gate").forEach((node) => node.remove());
+  const gate = document.createElement("div");
+  gate.className = "gate";
+  gate.setAttribute("role", "dialog");
+  gate.setAttribute("aria-modal", "true");
+  gate.setAttribute("aria-labelledby", "gate-title");
+
+  const card = document.createElement("form");
+  card.className = "gate-card";
+  card.innerHTML =
+    `<div class="gate-mark">STUD<span>BOOK</span></div>` +
+    `<h2 id="gate-title">Your stable, on every device</h2>` +
+    `<p class="hint">The rules run on the server: sign in and your horses follow you. ` +
+    `Without an account the game still plays, but it saves in this browser only.</p>` +
+    `<label>email<input name="email" type="email" autocomplete="email" required /></label>` +
+    `<label>password<input name="password" type="password" minlength="8" autocomplete="current-password" required /></label>` +
+    `<p class="gate-error" role="alert">${message}</p>` +
+    `<div class="row"><button class="good" name="login" type="submit">sign in</button>` +
+    `<button name="register" type="button">create a stable</button>` +
+    `<button class="tiny" name="offline" type="button">play offline</button></div>`;
+
+  const say = (text) => {
+    const node = card.querySelector(".gate-error");
+    if (node) node.textContent = text;
+  };
+
+  const enter = async (path) => {
+    const email = card.querySelector('[name="email"]').value.trim();
+    const password = card.querySelector('[name="password"]').value;
+    if (!email || password.length < 8) {
+      say("an email and a password of at least 8 characters");
+      return;
+    }
+    const buttons = [...card.querySelectorAll("button")];
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      const out = await apiCall(base, path, { method: "POST", body: { email, password } });
+      tokenStore.set(out.token);
+      gate.remove();
+      mountWho(out.user);
+      connect(() => new CloudSocket(base, out.token));
+    } catch (error) {
+      say(error.message);
+      buttons.forEach((b) => (b.disabled = false));
+    }
+  };
+
+  card.addEventListener("submit", (event) => {
+    event.preventDefault();
+    enter("/api/login");
+  });
+  card.querySelector('[name="register"]').addEventListener("click", () => enter("/api/register"));
+  card.querySelector('[name="offline"]').addEventListener("click", () => {
+    gate.remove();
+    cloudBase = null;
+    connect();
+  });
+
+  gate.append(card);
+  document.body.append(gate);
+  card.querySelector("input")?.focus();
+}
+
+/** Who is signed in, and the way out. */
+function mountWho(user) {
+  document.querySelectorAll(".whoami").forEach((node) => node.remove());
+  if (!user) return;
+  const pill = document.createElement("span");
+  pill.className = "whoami";
+  pill.innerHTML = `<span class="hint">${esc(user.email ?? "")}</span>`;
+  const out = document.createElement("button");
+  out.className = "tiny";
+  out.textContent = "sign out";
+  out.addEventListener("click", async () => {
+    try {
+      await apiCall(cloudBase ?? "", "/api/logout", { method: "POST", token: tokenStore.get() });
+    } catch {
+      /* the token is going away either way */
+    }
+    tokenStore.set(null);
+    location.reload();
+  });
+  pill.append(out);
+  (document.querySelector(".bar") ?? document.body).append(pill);
+}
+
+async function start() {
+  const detected = HAS_QUERY_SERVER ? SERVER_URL : await detectServer();
+  const base = HAS_QUERY_SERVER ? SERVER_URL : detected;
+  if (base === null) {
+    connect();
+    return;
+  }
+  cloudBase = base;
+  const token = tokenStore.get();
+  if (!token) {
+    accountGate(base);
+    return;
+  }
+  try {
+    const me = await apiCall(base, "/api/me", { token });
+    mountWho(me.user);
+    connect(() => new CloudSocket(base, token));
+  } catch (error) {
+    if (error.status === 401) {
+      tokenStore.set(null);
+      accountGate(base, "that session expired — sign in again");
+    } else {
+      cloudBase = null;
+      toast("server unreachable — playing offline", true);
+      connect();
+    }
+  }
+}
+
+
+start();

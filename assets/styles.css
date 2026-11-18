@@ -2,27 +2,84 @@
          declares `display: table` beat it: the Yard's spreadsheet stayed on screen under
          the cards. One rule fixes the whole class of bug. */
       [hidden] { display: none !important; }
+      /* One palette, one scale. Every colour below is named for the job it does, and the
+         rules further down use these names rather than raw hex, so a change of mood is a
+         change of about eight lines instead of eighty. */
       :root {
         color-scheme: dark;
-        --bg: #0d0b14;
-        --panel: #17141f;
-        --panel2: #1e1a29;
-        --line: #2f2840;
+
+        /* surfaces, darkest first */
+        --ink-0: #0b0912;
+        --ink-1: #12101c;
+        --ink-2: #191627;
+        --ink-3: #211d33;
+        --hairline: #2f2840;
+
+        /* text */
         --fg: #f4f0fa;
         --dim: #9a91b4;
+        --faint: #6f6790;
+
+        /* one accent (brass), one support (violet), two verdicts */
         --brass: #d9a541;
+        --brass-deep: #b4831f;
+        --brass-ink: #241a05;
         --cream: #f6e7c8;
+        --violet: #9a7bff;
         --green: #7fd48a;
         --red: #ff8080;
-        --violet: #9a7bff;
+
+        /* aliases kept so older rules keep working */
+        --bg: var(--ink-0);
+        --panel: var(--ink-2);
+        --panel2: var(--ink-3);
+        --line: var(--hairline);
+
+        /* type scale, fluid at the top */
+        --step--1: 0.75rem;
+        --step-0: 0.9375rem;
+        --step-1: 1.0625rem;
+        --step-2: clamp(1.15rem, 0.9rem + 0.9vw, 1.45rem);
+        --step-3: clamp(1.5rem, 1.1rem + 1.6vw, 2.15rem);
+
+        /* rhythm */
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --radius-1: 0.45rem;
+        --radius-2: 0.7rem;
+        --radius-3: 1rem;
+        --radius-pill: 999px;
+
+        /* motion: short, easing out, never longer than a blink */
+        --dur-1: 120ms;
+        --dur-2: 220ms;
+        --dur-3: 380ms;
+        --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+        --ring: 2px solid var(--brass);
+
+        /* semantic surfaces the older rules spelled in hex */
+        --select: #2a2350;
+        --hover: #272137;
+        --hover-line: #443a72;
+        --track: #241f31;
+        --ink-input: #0f0d1c;
+        --note-bg: #221b12;
+        --note-line: #4a3a1c;
+        --ok-bg: #1f3a24; --ok-line: #33643c; --ok-fg: #cdf3d3;
+        --bad-bg: #3a1f22; --bad-line: #6b3438; --bad-fg: #ffd6d6;
+        --card-top: #1b1732; --card-bottom: #131020;
+        --glow-1: #241d33; --glow-2: #1a1526;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
       body {
         min-height: 100dvh;
         background:
-          radial-gradient(1100px 700px at 10% -10%, #241d33 0%, transparent 60%),
-          radial-gradient(900px 600px at 100% 0%, #1a1526 0%, transparent 55%),
+          radial-gradient(1100px 700px at 10% -10%, var(--glow-1) 0%, transparent 60%),
+          radial-gradient(900px 600px at 100% 0%, var(--glow-2) 0%, transparent 55%),
           var(--bg);
         color: var(--fg);
         font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -44,11 +101,11 @@
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
       }
-      @media (hover: hover) { button:hover:not(:disabled) { background: #272137; border-color: #443a72; } }
+      @media (hover: hover) { button:hover:not(:disabled) { background: var(--hover); border-color: var(--hover-line); } }
       button:disabled { opacity: 0.42; cursor: not-allowed; }
       button.brass { background: linear-gradient(180deg, var(--brass), #b4831f); border-color: #8c6415; color: #241a05; font-weight: 700; }
-      button.good { background: #1f3a24; border-color: #33643c; color: #cdf3d3; }
-      button.bad { background: #3a1f22; border-color: #6b3438; color: #ffd6d6; }
+      button.good { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-fg); }
+      button.bad { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad-fg); }
       button.tiny { min-height: 34px; padding: 0.3rem 0.5rem; font-size: 0.8rem; }
 
       .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin-bottom: 0.7rem; }
@@ -56,7 +113,7 @@
       .brand span { color: var(--brass); }
       .pill { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 0.3rem 0.65rem; font-size: 0.83rem; color: var(--dim); white-space: nowrap; }
       .pill b { color: var(--fg); }
-      .pill.bank { border-color: #4a3a1c; background: #221b12; }
+      .pill.bank { border-color: var(--note-line); background: var(--note-bg); }
       .pill.bank b { color: var(--brass); }
       .spacer { flex: 1 1 auto; }
       .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
@@ -96,14 +153,14 @@
       .tag.retired { color: var(--dim); }
       .tag.pension { color: var(--dim); }
       .traits { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; min-width: 130px; }
-      .trait { height: 6px; background: #241f31; border-radius: 2px; overflow: hidden; }
+      .trait { height: 6px; background: var(--track); border-radius: 2px; overflow: hidden; }
       .trait i { display: block; height: 100%; background: var(--violet); }
       .row { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
       .gain { color: var(--green); }
       .loss { color: var(--red); }
       .cards { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
       .lot { background: var(--panel2); border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.55rem; display: grid; gap: 0.35rem; }
-      .lot.mine { border-color: #4a3a1c; }
+      .lot.mine { border-color: var(--note-line); }
       .kv { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; color: var(--dim); }
       .kv b { color: var(--cream); }
       ul.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.8rem; color: var(--dim); }
@@ -111,7 +168,7 @@
       .meeting { display: grid; gap: 0.3rem; font-size: 0.84rem; }
       .winner { font-weight: 700; color: var(--brass); }
       #toasts { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; gap: 0.35rem; justify-items: center; z-index: 20; pointer-events: none; }
-      .toast { background: #221b12; border: 1px solid #5a4a1c; color: var(--cream); border-radius: 999px; padding: 0.4rem 0.85rem; font-size: 0.83rem; }
+      .toast { background: var(--note-bg); border: 1px solid var(--note-line); color: var(--cream); border-radius: 999px; padding: 0.4rem 0.85rem; font-size: 0.83rem; }
       .toast.bad { background: #2a1414; border-color: #6a3030; color: #ffd7d7; }
       @media (max-width: 620px) {
         .hide-sm { display: none; }
@@ -123,7 +180,7 @@
       .spine { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; font-size: 0.78rem; color: var(--dim); margin: 0 0 0.5rem; }
       .spine .step { border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem 0.6rem; background: var(--panel); }
       .spine .step b { color: var(--brass); }
-      .advice { margin: 0 0 0.7rem; padding: 0.55rem 0.8rem; border: 1px solid #4a3a1c; background: #221b12; color: var(--cream); border-radius: 0.7rem; font-size: 0.86rem; }
+      .advice { margin: 0 0 0.7rem; padding: 0.55rem 0.8rem; border: 1px solid var(--note-line); background: var(--note-bg); color: var(--cream); border-radius: 0.7rem; font-size: 0.86rem; }
       .advice[hidden] { display: none; }
       .band { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); display: block; }
       .band.stakes { color: var(--brass); }
@@ -183,7 +240,7 @@
       .going .tips { margin-top: 0.5rem; border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.4rem; }
       .going .tip { margin: 0 0 0.22rem; font-size: 0.76rem; color: var(--dim); }
       .going .tip b { color: var(--brass); font-weight: 700; margin-right: 0.15rem; }
-      .panel input:not([type="checkbox"]) { font: inherit; padding: 0.4rem 0.55rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #0f0d1c; color: var(--cream); min-width: 0; }
+      .panel input:not([type="checkbox"]) { font: inherit; padding: 0.4rem 0.55rem; border-radius: 0.5rem; border: 1px solid var(--line); background: var(--ink-input); color: var(--cream); min-width: 0; }
       #players input { width: 100%; }
       .why { font-size: 0.78rem; color: var(--dim); border-top: 1px dashed rgba(120, 110, 180, 0.2); padding-top: 0.35rem; margin-top: 0.35rem; }
       details.glossary { margin: 0.9rem 0 0; }
@@ -195,7 +252,7 @@
       .grid { grid-template-columns: minmax(0, 1fr); }
       .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.6rem; }
       .tab { background: var(--panel); border: 1px solid var(--line); color: var(--dim); border-radius: 999px; padding: 0.35rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
-      .tab[aria-current="true"] { background: #2a2350; border-color: var(--brass); color: var(--cream); }
+      .tab[aria-current="true"] { background: var(--select); border-color: var(--brass); color: var(--cream); }
       .badge { opacity: 0.7; font-size: 0.7rem; }
       .panel[data-when] { display: none; }
       body[data-screen="yard"] .panel[data-when~="yard"],
@@ -220,11 +277,11 @@
       /* the breeding moment: a decision, then an overlay that reads the foal out */
       .care { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: stretch; }
       .care .pick { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.4rem 0.6rem; background: var(--panel); font-size: 0.76rem; color: var(--dim); cursor: pointer; text-align: left; }
-      .care .pick[aria-pressed="true"] { border-color: var(--brass); background: #2a2350; color: var(--cream); }
+      .care .pick[aria-pressed="true"] { border-color: var(--brass); background: var(--select); color: var(--cream); }
       .care .pick b { display: block; color: var(--cream); font-size: 0.84rem; }
       .reveal { position: fixed; inset: 0; z-index: 40; background: rgba(8, 6, 20, 0.84); display: flex; align-items: center; justify-content: center; padding: 1rem; }
       .reveal[hidden] { display: none; }
-      .reveal .card { position: relative; width: min(540px, 100%); max-height: 92vh; overflow-y: auto; background: linear-gradient(180deg, #1b1732, #131020); border: 1px solid var(--line); border-radius: 1rem; padding: 1.1rem 1.2rem 1.2rem; box-shadow: 0 26px 70px rgba(0, 0, 0, 0.65); }
+      .reveal .card { position: relative; width: min(540px, 100%); max-height: 92vh; overflow-y: auto; background: linear-gradient(180deg, var(--card-top), var(--card-bottom)); border: 1px solid var(--line); border-radius: 1rem; padding: 1.1rem 1.2rem 1.2rem; box-shadow: 0 26px 70px rgba(0, 0, 0, 0.65); }
       .reveal .stamp { display: inline-block; border: 1px solid var(--brass); color: var(--brass); border-radius: 999px; padding: 0.15rem 0.65rem; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase; }
       .reveal .stamp.high { background: var(--brass); color: #16122a; }
       .reveal .stamp.miss { border-color: #6b5a7a; color: #9a8fb0; }
@@ -239,7 +296,7 @@
       .reveal .meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--violet), var(--brass)); transition: width 0.9s ease; }
       .reveal .traits-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.25rem; }
       .reveal .trait i { transition: width 0.5s ease; }
-      .reveal input { font: inherit; padding: 0.4rem 0.55rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #0f0d1c; color: var(--cream); }
+      .reveal input { font: inherit; padding: 0.4rem 0.55rem; border-radius: 0.5rem; border: 1px solid var(--line); background: var(--ink-input); color: var(--cream); }
       .burst { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
       .burst i { position: absolute; width: 0.45rem; height: 0.45rem; border-radius: 2px; background: var(--brass); opacity: 0; animation: pop 0.95s ease-out forwards; }
       @keyframes pop { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(240deg); } }
@@ -268,4 +325,125 @@
          Keyboard REACH still needs a real browser to test, and this project has not had one
          since the artifact stopped running under jsdom - see the queue, tasks 2, 5 and 8. */
       :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
-    
+
+      /* ------------------------------------------------------------------------------------
+         Design pass. Tokens above, decisions here: a display face for the brand, a clear
+         three-step hierarchy, entrance that says "this panel arrived" without making anyone
+         wait, and a tab strip that survives a phone. Nothing here changes the markup.
+         ------------------------------------------------------------------------------------ */
+
+      /* hierarchy */
+      .brand { font-size: var(--step-1); letter-spacing: 0.12em; }
+      .brand span { font-weight: 800; }
+      h1 { font-size: var(--step-3); line-height: 1.1; letter-spacing: -0.015em; margin: 0 0 var(--space-2); }
+      .panel h2 { color: var(--dim); font-size: 0.7rem; letter-spacing: 0.14em; }
+      .panel h2::after {
+        content: "";
+        display: block;
+        width: 2.2rem;
+        height: 1px;
+        margin-top: 0.35rem;
+        background: linear-gradient(90deg, var(--brass), transparent);
+      }
+      .advice { font-size: var(--step-1); line-height: 1.45; }
+      b, .num { font-feature-settings: "tnum" 1, "zero" 1; }
+
+      /* arrival: panels and cards rise a few pixels, in order, once */
+      @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .panel, .lot, .going, .advice { animation: rise var(--dur-3) var(--ease) both; }
+      .panel:nth-of-type(2) { animation-delay: 40ms; }
+      .panel:nth-of-type(3) { animation-delay: 80ms; }
+      .panel:nth-of-type(4) { animation-delay: 120ms; }
+      .lot:nth-child(2) { animation-delay: 30ms; }
+      .lot:nth-child(3) { animation-delay: 60ms; }
+      .lot:nth-child(4) { animation-delay: 90ms; }
+
+      /* a card lifts under the pointer, and only where a pointer exists */
+      @media (hover: hover) {
+        .lot, .going, .panel { transition: border-color var(--dur-2) var(--ease), transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease); }
+        .lot:hover, .going:hover { border-color: #463a6e; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+      }
+
+      /* meters grow instead of appearing */
+      .trait i, .going .w .bar i, .reveal .meter i { transition: width var(--dur-3) var(--ease); }
+      button { transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
+      button:active:not(:disabled) { transform: translateY(1px); }
+      .tab { transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), background var(--dur-2) var(--ease); }
+
+      /* the tab strip: seven labels do not fit a phone, so it scrolls sideways and sticks */
+      @media (max-width: 620px) {
+        .tabs {
+          position: sticky;
+          top: 0;
+          z-index: 15;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+          padding: 0.45rem 0 0.5rem;
+          margin: 0 -0.2rem 0.6rem;
+          background: linear-gradient(180deg, color-mix(in srgb, var(--ink-0) 92%, transparent), color-mix(in srgb, var(--ink-0) 72%, transparent));
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border-bottom: 1px solid var(--hairline);
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab { flex: 0 0 auto; padding: 0.45rem 0.8rem; }
+        .tab[aria-current="true"] { box-shadow: inset 0 -2px 0 var(--brass); }
+        h1 { font-size: var(--step-2); }
+        .kv { font-size: 0.86rem; }
+        .cards { grid-template-columns: minmax(0, 1fr); }
+        .traits { grid-template-columns: repeat(6, 1fr); min-width: 0; }
+      }
+
+      /* the account gate */
+      .gate {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: grid;
+        place-items: center;
+        padding: var(--space-4);
+        background: radial-gradient(900px 600px at 50% 0%, rgba(46, 36, 74, 0.92), rgba(8, 6, 18, 0.96));
+        backdrop-filter: blur(3px);
+      }
+      .gate-card {
+        width: min(420px, 100%);
+        display: grid;
+        gap: var(--space-3);
+        background: linear-gradient(180deg, var(--ink-3), var(--ink-1));
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-3);
+        padding: var(--space-5);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+        animation: rise var(--dur-3) var(--ease) both;
+      }
+      .gate-mark { font-weight: 800; letter-spacing: 0.16em; color: var(--fg); font-size: var(--step-0); }
+      .gate-mark span { color: var(--brass); }
+      .gate-card h2 { margin: 0; font-size: var(--step-2); letter-spacing: -0.01em; }
+      .gate-card label { display: grid; gap: 0.3rem; font-size: var(--step--1); color: var(--dim); }
+      .gate-card input {
+        font: inherit;
+        color: var(--cream);
+        background: var(--ink-0);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-2);
+        padding: 0.6rem 0.7rem;
+        min-height: 44px;
+      }
+      .gate-card input:focus-visible { outline: var(--ring); outline-offset: 1px; }
+      .gate-error { margin: 0; min-height: 1.2em; color: var(--red); font-size: var(--step--1); }
+      .gate .row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+      .gate .row button { flex: 1 1 auto; }
+      .whoami { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+
+      /* reduced motion is a statement of preference, not a suggestion */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          animation-delay: 0ms !important;
+          transition-duration: 0.001ms !important;
+          scroll-behavior: auto !important;
+        }
+        .lot:hover, .going:hover { transform: none; }
+      }

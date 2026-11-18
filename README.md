@@ -12,7 +12,18 @@ Live: https://lsraiva.github.io/studbook/
 node tools/serve.mjs        # http://127.0.0.1:8080
 ```
 
-No build step, no dependencies. The page is static: `index.html` + two modules + a stylesheet.
+No build step, no dependencies. The page is static: `index.html` + four modules + a stylesheet.
+
+## With accounts and a server
+
+```bash
+node server/index.mjs        # game + API on http://127.0.0.1:8787
+```
+
+The server owns the rules, the seed and the save: the browser sends an action and renders the view
+it gets back. Create an account and the stable follows you to any device. GitHub Pages is static,
+so the live site still plays offline; see `docs/SERVER.md` to host the API and `assets/config.js`
+to point the page at it.
 
 ## Work on it
 
@@ -31,9 +42,15 @@ economy report possible without a browser.
 ```
 index.html              page shell: markup, SVG symbols, one module tag
 assets/engine.js        the rules: genetics, market, race, season, actions, view projection
-assets/ui.js            the screen: rendering, dialogs, sound, the local socket
-assets/styles.css       the look
+assets/ui.js            the screen: rendering, dialogs, sound, the account gate
+assets/net.js           the cloud transport (same interface as the offline socket)
+assets/config.js        where the server lives
+assets/styles.css       the look: tokens, type scale, motion, mobile
+server/index.mjs        the authoritative server: accounts, sessions, saves, anti-cheat
+Dockerfile              one-command host
 tests/engine.test.mjs   20 assertions, including an 800-action fuzz
+tests/server.test.mjs   23 assertions against the live API: cheats, restarts, two devices
+tests/design.test.mjs   12 assertions on the look: palette, scale, motion, mobile
 tools/serve.mjs         local static server
 tools/release-gate.mjs  served-assets gate: hash, syntax, suite, import graph
 tools/economy-report.mjs  season-by-season economy measurement
@@ -56,6 +73,10 @@ docs/                   review, design, economy
   appraisal is public; the read on its ability is not.
 
 ## Status
+
+Version 0.4. Added: an authoritative server with accounts and cloud saves, a design pass (named
+palette, type scale, entrance motion, sticky tab strip on phones, reduced motion honoured), and the
+suite that proves the server refuses the cheats.
 
 Version 0.3. Fixed in this line: stored XSS through names, free money actions, lot-type confusion
 in the market, `NaN` balances that killed rival trading in season two, the missing burn, the

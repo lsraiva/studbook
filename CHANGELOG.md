@@ -1,7 +1,27 @@
 # Changelog
 
-## 0.3.0 — the repo
+## 0.4.0 — server, accounts, design
 
+### Added
+- **Authoritative server** (`server/index.mjs`): every action is judged by the same engine module,
+  the browser receives a view and nothing else. Clamps the entries clock, rate limits actions,
+  refuses forged bodies.
+- **Accounts and cloud saves**: email + password (scrypt, per-user salt, constant-time compare),
+  opaque session tokens, one atomic save per account, reachable from any device.
+- **Client transport** (`assets/net.js`) with the same interface as the offline socket, plus an
+  account gate in the UI; same-origin detection, `SERVER_URL`, or `?server=`.
+- **Design pass**: one palette declared once, a three-step type scale, entrance motion, hovering
+  cards only where a pointer exists, sticky scrolling tab strip on phones, 44px touch targets, and a
+  `prefers-reduced-motion` block that switches animation off.
+- Tests: `tests/server.test.mjs` (23, over HTTP, including a restart and two devices) and
+  `tests/design.test.mjs` (12, on the look).
+- `Dockerfile`, `docs/SERVER.md`, CI runs all three suites.
+
+### Changed
+- The page no longer starts a local socket unconditionally: it asks for a server, then for an
+  account, then falls back to offline play.
+
+## 0.3.0 — the repo
 - Split the single file into `assets/engine.js` (rules), `assets/ui.js` (screen), `assets/styles.css`.
 - Tests: 20 assertions, including an 800-action fuzz, run against the engine directly.
 - Tools: `release-gate` (6 gates over a served build), `economy-report`, `serve`.

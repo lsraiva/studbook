@@ -28,8 +28,8 @@ metadata server: the animal is the number.
 1. **Horse `721` + covering `1155`.** The horse is the collection; the covering is the flow — five
    units per stallion per season, each with a vintage. Without the covering the market has no
    turnover and the 5% rake collects nothing.
-2. **Server authoritative, chain as registry.** The rules already have the right shape
-   (`validateAction` → `applyAction` → `viewFor`). The chain records birth, death and ownership.
+2. **Server authoritative, chain as registry.** Done: the rules run in `server/index.mjs`, the
+   browser only renders. The chain would record birth, death and ownership.
 3. **GNS stays off-chain.** It has three real uses. Tokenising it now invites an APY that would
    outlive the game.
 4. **Burn on the house sale.** The sink already exists in the fiction; it just had to be read as
@@ -42,6 +42,7 @@ metadata server: the animal is the number.
 | Phase | Deliverable | Done when |
 |---|---|---|
 | 0 | trusted base | suite green, no free money, no XSS, sink in place (**done**) |
+| 0.5 | authority + accounts | rules on the server, saves per account, cheats refused (**done** — `server/`, `docs/SERVER.md`) |
 | 1 | off-chain asset ledger | a season closes with sources = sinks and herd size flat |
 | 2 | on-chain anchor | every live horse has a token; zero drift between server and chain over 20 seasons |
 | 3 | market, proof, retention | rake and royalty measured; public race receipts; external audit before an open mint |
