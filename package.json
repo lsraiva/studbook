@@ -1,6 +1,6 @@
 {
   "name": "studbook",
-  "version": "0.20.1",
+  "version": "0.21.0",
   "private": true,
   "type": "module",
   "description": "Studbook — a bloodstock breeding game: simulated genotypes, a stallion market, seasonal racing.",
@@ -17,10 +17,15 @@
     "test:token": "node tests/token.test.mjs",
     "contracts": "node tools/compile-contracts.mjs",
     "test:ui": "node tests/ui.test.mjs",
-    "backup": "node tools/backup.mjs"
+    "backup": "node tools/backup.mjs",
+    "deploy:sepolia": "node tools/deploy.mjs",
+    "deploy:dry": "node tools/deploy.mjs --dry-run"
   },
   "license": "MIT",
   "devDependencies": {
-    "jsdom": "^24.0.0"
+    "jsdom": "^24.0.0",
+    "ethers": "^6.13.0",
+    "solc": "0.8.24",
+    "@openzeppelin/contracts": "5.0.2"
   }
 }
