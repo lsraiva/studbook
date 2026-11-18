@@ -207,7 +207,14 @@ function connect(makeSocket = () => new LocalSocket()) {
     if (msg.type === "state") onState(msg);
     else if (msg.type === "error") {
       setStatus(msg.error, true);
-      toast(msg.error, true);
+      // A refusal that vanishes in 2.8 s reads as "nothing happened". Keep it on screen.
+      const box = el("toasts");
+      if (box) {
+        const node = document.createElement("div");
+        node.className = "toast bad";
+        node.textContent = msg.error;
+        box.append(node);
+      }
     }
   });
   socket.addEventListener("close", () => {
@@ -1869,6 +1876,60 @@ function renderRanking(v) {
   box.append(table);
 }
 
+
+/** The stable as a wall of animals, not a spreadsheet: the Axie lesson, taken seriously. */
+function renderGallery(v) {
+  const box = el("gallery");
+  if (!box) return;
+  box.innerHTML = "";
+  const herd = (v.horses ?? []).filter((horse) => !horse.retired).slice(0, 8);
+  for (const horse of herd) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "gcard" + (horse.stakes ? " stakes" : "") + (horse.id === selectedHorse ? " picked" : "");
+    card.setAttribute("aria-pressed", String(horse.id === selectedHorse));
+    card.addEventListener("click", () => {
+      selectedHorse = selectedHorse === horse.id ? null : horse.id;
+      draw();
+    });
+
+    const art = document.createElement("img");
+    art.src = horse.age <= 1 ? "assets/art/foal.webp" : "assets/art/stallion.webp";
+    art.alt = "";
+    art.loading = "lazy";
+    card.append(art);
+
+    const name = document.createElement("span");
+    name.className = "gname";
+    name.textContent = horse.name;
+    card.append(name);
+
+    const meta = document.createElement("span");
+    meta.className = "gmeta";
+    meta.textContent = `${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
+    card.append(meta);
+
+    const value = document.createElement("span");
+    value.className = "gval";
+    value.textContent = `₲ ${nf(horse.suggestedPrice)}`;
+    card.append(value);
+
+    if (horse.traits) card.append(traitBars(horse.traits));
+    const band = document.createElement("span");
+    band.className = "gband" + (horse.stakes ? " stakes" : "");
+    band.textContent = horse.band ?? "";
+    card.append(band);
+
+    box.append(card);
+  }
+  if (!herd.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No horses in training. Buy one in the horse market, or cover a mare.";
+    box.append(empty);
+  }
+}
+
 function draw() {
   const v = view;
   if (!v || !v.stable) return;
@@ -1911,6 +1972,7 @@ function draw() {
   renderPlayers(v);
   renderShop(v);
   renderRanking(v);
+  renderGallery(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -2040,6 +2102,7 @@ function draw() {
                 ? "Pick a covering above, then breed her."
                 : "You hold no covering — take the first covering in your account, or buy one in the Stud market."
               : "Cover her: the covering is spent and the foal arrives when the season turns.";
+      breed.dataset.breed = horse.id;
       breed.addEventListener("click", () => {
         const strawId = selectedStraw ?? view?.selectedStraw ?? null;
         if (!strawId) return toast("pick a covering first", true);
@@ -2861,6 +2924,16 @@ function surfaceError(where, error) {
     box.append(node); // no timer: a diagnostic must not vanish before it is read
   }
 }
+
+// One listener for the whole document: buttons are rebuilt on every draw, and a handler bound to a
+// node that has been replaced is a click that goes nowhere. This is the fix for that whole class.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest?.("[data-breed]");
+  if (!button) return;
+  const strawId = selectedStraw ?? view?.selectedStraw ?? null;
+  if (!strawId) return toast("pick a covering first", true);
+  act({ type: "breed", mareId: button.dataset.breed, strawId, care: careChoice });
+});
 
 window.addEventListener("error", (event) => surfaceError("error", event.error ?? event.message));
 window.addEventListener("unhandledrejection", (event) => surfaceError("promise", event.reason));

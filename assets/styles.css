@@ -747,3 +747,101 @@
       /* the race lane draws the plate too */
       .lane .runner img { width: 2.6rem; height: 1.6rem; object-fit: contain; }
       .nameline { gap: 0.15rem; align-items: center; }
+      /* ================================================================
+         The Axie lesson: the animal is the interface. A wall of animals
+         instead of a spreadsheet, and a race that happens on a stage.
+         ================================================================ */
+
+      #gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+        gap: 0.75rem;
+        margin: 0.2rem 0 1rem;
+      }
+      .gcard {
+        appearance: none;
+        text-align: left;
+        display: grid;
+        gap: 0.28rem;
+        padding: 0.6rem 0.65rem 0.7rem;
+        border-radius: 0.9rem;
+        border: 1px solid var(--hairline);
+        background:
+          radial-gradient(120% 80% at 50% -10%, rgba(217, 169, 78, 0.12), transparent 60%),
+          linear-gradient(180deg, var(--ink-3), var(--ink-1));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 30px rgba(0, 0, 0, 0.32);
+        cursor: pointer;
+        transition: transform var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+      }
+      .gcard:hover { transform: translateY(-2px); border-color: var(--hover-line); }
+      .gcard.picked { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass), 0 16px 34px rgba(0, 0, 0, 0.4); }
+      .gcard.stakes { border-color: var(--mine-line); }
+      .gcard img {
+        width: 100%;
+        height: 104px;
+        object-fit: contain;
+        filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45));
+      }
+      .gcard .gname {
+        font-family: var(--font-display);
+        font-size: 1.02rem;
+        color: var(--cream);
+        letter-spacing: 0.01em;
+      }
+      .gcard .gmeta {
+        font-size: 0.66rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .gcard .gval {
+        font-family: var(--font-num);
+        font-variant-numeric: tabular-nums;
+        font-size: 0.9rem;
+        color: var(--fg);
+      }
+      .gcard .gband {
+        font-size: 0.6rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+      .gcard .gband.stakes { color: var(--brass); }
+      .gcard .traits { min-width: 0; }
+
+      /* the race: a stage with turf, a finish line and animals that read */
+      .track { gap: 0.45rem; }
+      .lane .rail {
+        height: 3.4rem;
+        border-radius: 0.55rem;
+        background: linear-gradient(180deg, #1b241c, #10160f);
+        box-shadow: inset 0 0 0 1px rgba(42, 51, 43, 0.9), inset 0 12px 28px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+      }
+      .lane .rail::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 2px, transparent 2px 28px);
+      }
+      .lane .runner img {
+        width: 5rem;
+        height: 3.2rem;
+        object-fit: contain;
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55));
+      }
+      .lane .runner { transition: left 0.65s cubic-bezier(0.22, 0.61, 0.36, 1); }
+      .lane.mine .rail {
+        box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.55), inset 0 12px 28px rgba(0, 0, 0, 0.45);
+      }
+      .lane.mine .name { color: var(--cream); }
+      @media (max-width: 620px) {
+        #gallery { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 0.55rem; }
+        .gcard img { height: 78px; }
+        .lane .rail { height: 2.6rem; }
+        .lane .runner img { width: 3.6rem; height: 2.3rem; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gcard:hover { transform: none; }
+        .lane .runner { transition: none; }
+      }
