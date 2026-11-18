@@ -88,6 +88,14 @@ export class CloudSocket {
     return out;
   }
 
+  /** Confirm the address the account was opened with. */
+  async verify(code) {
+    await this.call("/api/verify", { code });
+    const me = await apiCall(this.base, "/api/me", { token: this.token });
+    this.push(me.state);
+    return me;
+  }
+
   async send(raw) {
     if (raw === "__ping") return;
     let msg;

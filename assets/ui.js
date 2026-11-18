@@ -2017,6 +2017,35 @@ function renderNextStep(v) {
       box.append(row);
     }
   }
+  // An account that has not confirmed its address says so, once, where the eye already is.
+  if (v.cloud && v.account && v.account.verified === false) {
+    const line = document.createElement("div");
+    line.className = "roomline";
+    line.innerHTML = `<b>unverified</b> · check ${esc(v.account.email ?? "your inbox")} for a six-digit code`;
+    const row = document.createElement("div");
+    row.className = "row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "numeric";
+    input.maxLength = 6;
+    input.placeholder = "code";
+    input.setAttribute("aria-label", "Verification code");
+    const confirm = document.createElement("button");
+    confirm.className = "tiny";
+    confirm.textContent = "verify";
+    confirm.addEventListener("click", async () => {
+      if (!input.value.trim()) return;
+      try {
+        await socket.verify(input.value.trim());
+        toast("address confirmed");
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+    row.append(input, confirm);
+    box.append(line, row);
+  }
+
   const luck = (v.luck ?? []).slice(0, 5);
   if (luck.length) {
     const strip = document.createElement("div");
@@ -2951,6 +2980,11 @@ function accountGate(base, message = "") {
     connect();
   });
 
+  card.querySelector('[name="forgot"]')?.addEventListener("click", () => {
+    gate.remove();
+    resetGate(base);
+  });
+
   gate.append(card);
   document.body.append(gate);
   card.querySelector("input")?.focus();
@@ -2977,6 +3011,73 @@ function mountWho(user) {
   });
   pill.append(out);
   (document.querySelector(".bar") ?? document.body).append(pill);
+}
+
+
+/** Locked out: a code by mail, and a new password. */
+function resetGate(base) {
+  document.querySelectorAll(".gate").forEach((node) => node.remove());
+  const gate = document.createElement("div");
+  gate.className = "gate";
+  gate.setAttribute("role", "dialog");
+  gate.setAttribute("aria-modal", "true");
+  const card = document.createElement("form");
+  card.className = "gate-card";
+  card.innerHTML =
+    `<div class="gate-mark">STUD<span>BOOK</span></div>` +
+    `<h2>Get back in</h2>` +
+    `<p class="hint">Send a six-digit code to the address on the account, then choose a new password.</p>` +
+    `<label>email<input name="email" type="email" autocomplete="email" required /></label>` +
+    `<div class="row"><button class="tiny" name="send" type="button">send a code</button>` +
+    `<span class="hint" name="sent"></span></div>` +
+    `<label>code<input name="code" inputmode="numeric" maxlength="6" required /></label>` +
+    `<label>new password<input name="password" type="password" minlength="8" required /></label>` +
+    `<p class="gate-error" role="alert"></p>` +
+    `<div class="row"><button class="good" type="submit">set the password</button>` +
+    `<button class="tiny" name="back" type="button">back</button></div>`;
+
+  const say = (text) => {
+    const node = card.querySelector(".gate-error");
+    if (node) node.textContent = text;
+  };
+
+  card.querySelector('[name="send"]').addEventListener("click", async () => {
+    const email = card.querySelector('[name="email"]').value.trim();
+    if (!email) return say("an email first");
+    try {
+      const out = await apiCall(base, "/api/recover", { method: "POST", body: { email } });
+      card.querySelector('[name="sent"]').textContent = out.devCode
+        ? `code ${out.devCode} (no mail provider in this build)`
+        : "code sent";
+    } catch (error) {
+      say(error.message);
+    }
+  });
+
+  card.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = card.querySelector('[name="email"]').value.trim();
+    const code = card.querySelector('[name="code"]').value.trim();
+    const password = card.querySelector('[name="password"]').value;
+    try {
+      const out = await apiCall(base, "/api/reset", { method: "POST", body: { email, code, password } });
+      tokenStore.set(out.token);
+      gate.remove();
+      mountWho(out.user);
+      connect(() => new CloudSocket(base, out.token));
+    } catch (error) {
+      say(error.message);
+    }
+  });
+
+  card.querySelector('[name="back"]').addEventListener("click", () => {
+    gate.remove();
+    accountGate(base);
+  });
+
+  gate.append(card);
+  document.body.append(gate);
+  card.querySelector("input")?.focus();
 }
 
 async function start() {

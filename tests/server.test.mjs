@@ -37,6 +37,8 @@ async function start() {
       // a lone stable waits; a room with two humans closes fast, so the clock can be tested
       SOLO_SECONDS: "3600",
       MEETING_SECONDS: "2",
+      // mail has no provider here: the code comes back in the response so the flow can be finished
+      DEV_MAIL: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -175,6 +177,33 @@ try {
   const seated = (await api("/api/room", { token: guest.json.token })).json.state.room;
   ok("...and both seats see the same clock", seated.meeting === roomAfter.meeting && seated.season === roomAfter.season,
      `guest meeting ${seated.meeting}`);
+
+  /* ---------- verifying an address ---------- */
+  const fresh = await api("/api/register", { method: "POST", body: { email: "verify@studbook.test", password: "correct horse battery" } });
+  ok("register mails a code", Boolean(fresh.json.devCode), String(fresh.json.devCode));
+  ok("...and the account starts unverified", fresh.json.user.verified === false);
+  const badVerifyCode = await api("/api/verify", { method: "POST", token: fresh.json.token, body: { code: "000000" } });
+  ok("a wrong code is refused", badVerifyCode.status === 400);
+  const verified = await api("/api/verify", { method: "POST", token: fresh.json.token, body: { code: fresh.json.devCode } });
+  ok("the mailed code verifies the account", verified.status === 200 && verified.json.verified === true);
+  const meNow = await api("/api/me", { token: fresh.json.token });
+  ok("...and the account says so", meNow.json.user.verified === true);
+
+  /* ---------- forgetting and replacing a password ---------- */
+  const rec = await api("/api/recover", { method: "POST", body: { email: "verify@studbook.test" } });
+  ok("recover sends a code", rec.status === 200 && Boolean(rec.json.devCode));
+  const unknown = await api("/api/recover", { method: "POST", body: { email: "nobody@studbook.test" } });
+  ok("an unknown address looks the same", unknown.status === 200 && unknown.json.devCode === null);
+  const badReset = await api("/api/reset", { method: "POST", body: { email: "verify@studbook.test", code: "111111", password: "brand new battery" } });
+  ok("a wrong reset code is refused", badReset.status === 400);
+  const reset = await api("/api/reset", { method: "POST", body: { email: "verify@studbook.test", code: rec.json.devCode, password: "brand new battery" } });
+  ok("the password is replaced", reset.status === 200 && Boolean(reset.json.token));
+  const oldPass = await api("/api/login", { method: "POST", body: { email: "verify@studbook.test", password: "correct horse battery" } });
+  ok("the old password stops working", oldPass.status === 401);
+  const newPass = await api("/api/login", { method: "POST", body: { email: "verify@studbook.test", password: "brand new battery" } });
+  ok("the new one works", newPass.status === 200);
+  const deadSession = await api("/api/me", { token: fresh.json.token });
+  ok("and every old session died with it", deadSession.status === 401);
 
   /* ---------- the transport the page actually uses ---------- */
   const { CloudSocket } = await import("../assets/net.js");

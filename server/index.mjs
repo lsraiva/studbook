@@ -12,7 +12,7 @@
  * Env: PORT, DATA_DIR, ALLOWED_ORIGINS, ACTION_LIMIT, ACTION_WINDOW_MS
  */
 import { createServer } from "node:http";
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { extname, join, normalize, dirname } from "node:path";
@@ -137,6 +137,19 @@ const hashPassword = (password, salt) => scryptSync(password, salt, 64, { N: 163
 
 const newToken = () => randomBytes(32).toString("base64url");
 
+/**
+ * Mail without a mail provider. The code is always written to the server log; with DEV_MAIL=1 it is
+ * also returned to the caller, which is what lets the test (and a local player) finish the flow.
+ * Wiring a real sender means replacing this one function.
+ */
+function deliver(email, code, purpose) {
+  console.log(`[mail:${purpose}] ${email} → ${code}`);
+  return process.env.DEV_MAIL === "1" ? code : null;
+}
+
+const newCode6 = () => String(randomInt(100000, 999999));
+const CODE_MINUTES = 15;
+
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) && email.length <= 160;
 
 function createAccount(email, password) {
@@ -145,7 +158,16 @@ function createAccount(email, password) {
   if (emails.has(email)) throw httpError(409, "this email already has a stable", "taken");
   const id = `u${randomBytes(6).toString("hex")}`;
   const salt = randomBytes(16).toString("hex");
-  const user = { id, email, salt, hash: hashPassword(password, salt), createdAt: new Date().toISOString() };
+  const user = {
+    id,
+    email,
+    salt,
+    hash: hashPassword(password, salt),
+    createdAt: new Date().toISOString(),
+    verified: false,
+    verifyCode: newCode6(),
+    verifyExpires: Date.now() + CODE_MINUTES * 60_000,
+  };
   users.set(id, user);
   emails.set(email, id);
   openRoom(id);
@@ -224,7 +246,11 @@ function frame(room, userId) {
     result: null,
     meta,
     version: room.version,
-    account: { id: userId, email: users.get(userId)?.email ?? null },
+    account: {
+      id: userId,
+      email: users.get(userId)?.email ?? null,
+      verified: Boolean(users.get(userId)?.verified),
+    },
     cloud: true,
     stable: Boolean(stable),
     // The room owns the clock. The player only owns what they enter.
@@ -337,7 +363,13 @@ const server = createServer(async (req, res) => {
         await persistUsers();
         await persistRoom(roomOf(user.id));
         const token = openSession(user);
-        return send(res, 201, { token, user: { id: user.id, email: user.email }, state: frame(roomOf(user.id), user.id) });
+        const devCode = deliver(user.email, user.verifyCode, "verify");
+        return send(res, 201, {
+          token,
+          user: { id: user.id, email: user.email, verified: false },
+          devCode,
+          state: frame(roomOf(user.id), user.id),
+        });
       }
       const id = emails.get(email);
       const user = id ? users.get(id) : null;
@@ -366,9 +398,66 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ranking: rows.slice(0, 20), accounts: users.size });
     }
 
+    if (path === "/api/verify" && req.method === "POST") {
+      const user = requireUser(req);
+      const body = await readBody(req);
+      const code = String(body.code ?? "").trim();
+      if (!user.verifyCode || Date.now() > (user.verifyExpires ?? 0)) {
+        throw httpError(400, "the code has expired — ask for another", "expired");
+      }
+      if (code !== user.verifyCode) throw httpError(400, "that is not the code", "code");
+      user.verified = true;
+      user.verifyCode = null;
+      user.verifyExpires = null;
+      await persistUsers();
+      return send(res, 200, { verified: true, user: { id: user.id, email: user.email, verified: true } });
+    }
+
+    if (path === "/api/recover" && req.method === "POST") {
+      const body = await readBody(req);
+      const email = String(body.email ?? "").trim().toLowerCase();
+      const user = users.get(emails.get(email));
+      // Never say whether an account exists: the answer is the same either way.
+      let devCode = null;
+      if (user) {
+        user.resetCode = newCode6();
+        user.resetExpires = Date.now() + CODE_MINUTES * 60_000;
+        await persistUsers();
+        devCode = deliver(email, user.resetCode, "reset");
+      }
+      return send(res, 200, { sent: true, devCode });
+    }
+
+    if (path === "/api/reset" && req.method === "POST") {
+      const body = await readBody(req);
+      const email = String(body.email ?? "").trim().toLowerCase();
+      const user = users.get(emails.get(email));
+      const code = String(body.code ?? "").trim();
+      const password = String(body.password ?? "");
+      if (!user || !user.resetCode || Date.now() > (user.resetExpires ?? 0) || code !== user.resetCode) {
+        throw httpError(400, "that code is not valid for this address", "code");
+      }
+      if (password.length < 8) throw httpError(400, "a password is at least 8 characters", "password");
+      user.salt = randomBytes(16).toString("hex");
+      user.hash = hashPassword(password, user.salt);
+      user.resetCode = null;
+      user.resetExpires = null;
+      await persistUsers();
+      // Every old session dies with the old password.
+      for (const [token, session] of sessions) {
+        if (session.userId === user.id) sessions.delete(token);
+      }
+      persistSessions().catch(() => {});
+      const token = openSession(user);
+      return send(res, 200, { token, user: { id: user.id, email: user.email } });
+    }
+
     if (path === "/api/me" && req.method === "GET") {
       const user = requireUser(req);
-      return send(res, 200, { user: { id: user.id, email: user.email }, state: frame(roomOf(user.id), user.id) });
+      return send(res, 200, {
+        user: { id: user.id, email: user.email, verified: Boolean(user.verified) },
+        state: frame(roomOf(user.id), user.id),
+      });
     }
 
     if (path === "/api/action" && req.method === "POST") {

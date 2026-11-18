@@ -82,3 +82,29 @@ password ever leaves the server, and no token is written into a URL.
 - Saves are one JSON file per account, written atomically. That is fine for a few thousand
   accounts and a bad idea at scale — swap the storage functions for Postgres when it matters.
 - No email verification and no password reset yet.
+
+## Accounts out of prototype
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/verify {code}` | confirms the address the account was opened with (six digits, 15 min) |
+| `POST /api/recover {email}` | sends a reset code; the answer is identical for unknown addresses, so it cannot be used to probe accounts |
+| `POST /api/reset {email, code, password}` | replaces the password and **kills every old session** |
+
+Mail has no provider in this build: `deliver()` writes the code to the server log, and with
+`DEV_MAIL=1` it also returns it in the response so the flow can be finished and tested locally.
+Wiring Resend, Postmark or a webhook means replacing that one function.
+
+## Backups
+
+```bash
+node tools/backup.mjs                          # ./server/data/backups/<stamp>/
+DATA_DIR=/data node tools/backup.mjs           # on Fly
+fly ssh console -C "DATA_DIR=/data node tools/backup.mjs"
+fly ssh sftp get /data/backups/<stamp> ./backups   # pull it off the machine
+```
+
+Each backup is a readable copy — `users.json`, `sessions.json`, `rooms/` and a `manifest.json` —
+keeping the last seven. `BACKUP_KEEP` changes that. Run it from a cron outside Fly (a scheduled
+GitHub Action with `flyctl ssh`) or by hand before a deploy: it is a copy, not a dump format, so any
+file you can `cat` you can restore.
