@@ -493,6 +493,31 @@ function renderHero() {
     .join("");
 }
 
+
+/** The first win, the first foal: said out loud once, with the sound that goes with it. */
+const FIRST_LABELS = {
+  win: "first win",
+  place: "first placing",
+  foal: "first foal",
+  stakes: "first stakes horse",
+  sold: "first sale",
+};
+const celebratedFirsts = new Set();
+
+function celebrateFirsts(v) {
+  if (!v || !v.firsts) return;
+  for (const [key, label] of Object.entries(FIRST_LABELS)) {
+    const entry = v.firsts[key];
+    if (!entry) continue;
+    const name = entry.horse ?? entry.name ?? "";
+    const id = `${key}:${entry.season}:${name}`;
+    if (celebratedFirsts.has(id)) continue;
+    celebratedFirsts.add(id);
+    chime(3, true);
+    toast(`${label} — ${name}`, false);
+  }
+}
+
 function onState(msg) {
   view = msg.view;
   seats = msg.seats ?? [];
@@ -514,6 +539,7 @@ function onState(msg) {
   }
   draw();
   renderHero();
+  celebrateFirsts(view);
 }
 
 function traitBars(traits) {
@@ -2059,6 +2085,14 @@ function renderNextStep(v) {
     box.append(line, row);
   }
 
+  if (v.seasonGoals?.length) {
+    const goals = document.createElement("div");
+    goals.className = "goals";
+    goals.innerHTML = v.seasonGoals
+      .map((goal) => `<span class="${goal.done ? "done" : ""}">${goal.done ? "✓" : "○"} ${esc(goal.text)}</span>`)
+      .join("");
+    box.append(goals);
+  }
   const luck = (v.luck ?? []).slice(0, 5);
   if (luck.length) {
     const strip = document.createElement("div");

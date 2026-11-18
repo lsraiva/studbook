@@ -94,6 +94,7 @@ ok("a fresh stable starts with 2000 guineas", startGuineas === 2000, String(star
 /* ---------- 1b. the guide: one instruction and the button that does it ---------- */
 const guide = document.getElementById("nextstep");
 ok("the next-step card is on screen", Boolean(guide) && !guide.hidden, guide?.textContent?.slice(0, 60));
+ok("...and the season's four goals with it", /win a meeting/.test(guide?.textContent ?? "") && /cover a mare/.test(guide?.textContent ?? ""));
 const go = document.getElementById("nextstep-go");
 ok("...with a button that executes it", Boolean(go), go?.textContent);
 go?.click();

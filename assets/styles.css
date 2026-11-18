@@ -912,3 +912,7 @@
         pointer-events: none;
       }
       .gcard.tier-stakes .gband { color: var(--brass); letter-spacing: 0.14em; }
+      /* the four things a season asks for */
+      .goals { display: flex; flex-wrap: wrap; gap: 0.3rem 0.55rem; font-size: 0.74rem; color: var(--faint); }
+      .goals span { border: 1px dashed var(--hairline); border-radius: var(--radius-pill); padding: 0.12rem 0.5rem; }
+      .goals span.done { border-style: solid; border-color: var(--brass); color: var(--cream); }

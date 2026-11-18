@@ -133,6 +133,18 @@ drift = E.applyAction(drift, "t", { type: "breed", mareId: driftMare.id, strawId
 ok("breeding clears the straw selection", E.stableOf(drift, "t").selectedStraw === null);
 ok("...and the next breed is possible", E.validateAction(drift, "t", { type: "selectStraw", strawId: null }).ok);
 
+/* ---------- 9g. a season asks for four things ---------- */
+const goalsGame = E.setup(["t"], "goals");
+const goals0 = E.viewFor(goalsGame, "t").seasonGoals;
+ok("a new season lists four goals", goals0.length === 4 && goals0.every((g) => g.done === false),
+   goals0.map((g) => `${g.key}:${g.done}`).join(" "));
+let goalsRun = E.applyAction(goalsGame, "t", { type: "takeStarterOffer" });
+const goalsStraw = E.stableOf(goalsRun, "t").straws[0].id;
+const goalsMare = E.stableOf(goalsRun, "t").horses.map((id) => E.horseById(goalsRun, id)).find((h) => h.sex === "F");
+goalsRun = E.applyAction(goalsRun, "t", { type: "selectStraw", strawId: goalsStraw });
+goalsRun = E.applyAction(goalsRun, "t", { type: "breed", mareId: goalsMare.id, strawId: goalsStraw, care: "plain" });
+ok("covering a mare ticks its goal", E.viewFor(goalsRun, "t").seasonGoals.find((g) => g.key === "breed").done === true);
+
 /* ---------- 10. fuzz: no action throws ---------- */
 const rnd = (n) => Math.floor(Math.random() * n);
 let f = E.setup(["t"], "fuzz"), crashes = 0;

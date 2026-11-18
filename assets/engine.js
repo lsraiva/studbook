@@ -845,6 +845,8 @@ function freshStable(state, stableId, name, playerId) {
     // The firsts. A yard is mostly told what it IS - bank, horses, values - and rarely what it
     // HAS DONE for the first time. These are written once and never overwritten.
     firsts: { win: null, place: null, foal: null, stakes: null, sold: null },
+    /** What this yard has done since the season opened: the four things a season asks for. */
+    tally: { wins: 0, bred: 0, sold: 0 },
   };
 }
 
@@ -1208,6 +1210,7 @@ function nextSeason(state) {
   // and clear only when the calendar turns, when some of them may also have retired.
   for (const stable of state.stables) {
     stable.entries = [];
+    stable.tally = { wins: 0, bred: 0, sold: 0 };
     stable.seasonOpen = snapshotSeason(stable, state);
     // The foals of the season just turned are on the ground as this runs, and the population has
     // been scored, so both firsts can be read here rather than watched for elsewhere.
@@ -1528,6 +1531,7 @@ function applyAction(state, playerId, action) {
     }
     stable.straws.splice(strawIndex, 1);
     stable.selectedStraw = null; // the straw is gone: a stale selection blocked the next breed
+    stable.tally = { ...(stable.tally ?? { wins: 0, sold: 0 }), bred: (stable.tally?.bred ?? 0) + 1 };
     mare.foals += 1;
     log(next, `${mare.name} covered by ${sire.name} (vintage ${straw.vintage}).`, "breeding");
 
@@ -1750,7 +1754,10 @@ function applyAction(state, playerId, action) {
     const seller = next.stables.find((entry) => entry.id === lot.seller);
     const rake = Math.round(lot.price * MARKET_RAKE);
     stable.guineas -= lot.price;
-    if (seller) seller.guineas += lot.price - rake;
+    if (seller) {
+      seller.guineas += lot.price - rake;
+      seller.tally = { ...(seller.tally ?? { wins: 0, bred: 0 }), sold: (seller.tally?.sold ?? 0) + 1 };
+    }
     if (horse) {
       horse.owner = stable.id;
       horse.listed = false;
@@ -1810,6 +1817,7 @@ function applyAction(state, playerId, action) {
     const horse = horseById(next, action.horseId);
     const floor = Math.round(suggestedHorsePrice(horse) * HOUSE_HORSE_FLOOR);
     stable.guineas += floor;
+    stable.tally = { ...(stable.tally ?? { wins: 0, bred: 0 }), sold: (stable.tally?.sold ?? 0) + 1 };
     burnHorse(next, horse);
     next.ledger = [
       { season: next.season, text: `Sold ${horse.name} to the house`, amount: floor },
@@ -1987,6 +1995,7 @@ function runMeeting(state) {
       }
       if (index === 0) {
         horse.wins += 1;
+        if (stable) stable.tally.wins = (stable.tally?.wins ?? 0) + 1;
         if (horse.stakes) horse.stakesWins += 1;
         if (stable && !stable.firsts.win) {
           stable.firsts.win = { season: state.season, meeting: state.meeting ?? 1, where: condition, horse: horse.name };
@@ -2729,6 +2738,17 @@ function viewFor(state, playerId) {
     eliteCut: state.eliteCut,
     field,
     advice: adviceFor(state, stable, field),
+    seasonGoals: (() => {
+      if (!stable) return [];
+      const tally = stable.tally ?? { wins: 0, bred: 0, sold: 0 };
+      const opened = stable.seasonOpen?.guineas ?? stable.guineas;
+      return [
+        { key: "win", text: "win a meeting", done: tally.wins > 0 },
+        { key: "breed", text: "cover a mare", done: tally.bred > 0 },
+        { key: "sell", text: "sell a horse or a covering", done: tally.sold > 0 },
+        { key: "grow", text: "end the season richer than you opened it", done: stable.guineas > opened },
+      ];
+    })(),
     nextStep: nextStepFor(state, stable, field),
     luck: state.luck ?? [],
     goingNote: conditionNote(state.condition),
