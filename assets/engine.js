@@ -492,6 +492,12 @@ function suggestedHorsePrice(horse) {
  * value also shows where the field sits: what is average, what the elite cut is, how
  * many horses are stakes class.
  */
+/** A lot's seller in words: the house is not a stable and should not read as "unknown". */
+function sellerName(state, id) {
+  if (id === "house") return "the house";
+  return state.stables.find((entry) => entry.id === id)?.name ?? "unknown";
+}
+
 function fieldStats(state) {
   const population = state.horses.filter((horse) => inPlay(horse));
   const values = population.map((horse) => horse.value);
@@ -2548,7 +2554,7 @@ function viewFor(state, playerId) {
           id: listing.id,
           kind: "horse",
           seller: listing.seller,
-          sellerName: state.stables.find((entry) => entry.id === listing.seller)?.name ?? "unknown",
+          sellerName: sellerName(state, listing.seller),
           price: listing.price,
           age: state.season - listing.season,
           mine: Boolean(stable && listing.seller === stable.id),
@@ -2565,7 +2571,7 @@ function viewFor(state, playerId) {
       return {
         id: listing.id,
         seller: listing.seller,
-        sellerName: state.stables.find((entry) => entry.id === listing.seller)?.name ?? "unknown",
+        sellerName: sellerName(state, listing.seller),
         price: listing.price,
         sireName: listing.sireName,
         sireId: listing.sire,
