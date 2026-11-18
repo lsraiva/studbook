@@ -718,8 +718,8 @@
         animation: rise var(--dur-3) var(--ease) both;
       }
       .horseart {
-        width: 38px;
-        height: 30px;
+        width: 62px;
+        height: 46px;
         object-fit: contain;
         margin-right: 0.4rem;
         flex: none;
@@ -739,10 +739,11 @@
       }
       @media (max-width: 620px) {
         .hero .crest { width: 54px; top: 0.35rem; }
-        .horseart { width: 34px; height: 26px; }
+        .horseart { width: 52px; height: 38px; }
       }
       @media (prefers-reduced-motion: reduce) {
         .hero .crest { animation: none; }
       }
       /* the race lane draws the plate too */
-      .lane .runner img { width: 2rem; height: 1.2rem; object-fit: contain; }
+      .lane .runner img { width: 2.6rem; height: 1.6rem; object-fit: contain; }
+      .nameline { gap: 0.15rem; align-items: center; }
