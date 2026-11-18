@@ -1946,6 +1946,21 @@ const STEP_LABEL = {
   buy: "to the market",
 };
 
+/** A deadline said the way a person reads it. */
+function remaining(closesAt) {
+  const ms = Math.max(0, Number(closesAt) - Date.now());
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+setInterval(() => {
+  for (const node of document.querySelectorAll(".countdown")) {
+    node.textContent = remaining(node.dataset.closes);
+  }
+}, 1000);
+
 function renderNextStep(v) {
   const box = el("nextstep");
   if (!box) return;
@@ -1960,7 +1975,9 @@ function renderNextStep(v) {
   text.className = "nextstep-text";
   text.textContent = step.text;
   box.append(text);
-  if (step.action) {
+  // In a room the clock runs the meeting: the player gets a countdown, not a button.
+  const clockRunsIt = Boolean(v.room) && step.action?.type === "advance";
+  if (step.action && !clockRunsIt) {
     const go = document.createElement("button");
     go.type = "button";
     go.id = "nextstep-go";
@@ -1968,6 +1985,37 @@ function renderNextStep(v) {
     go.textContent = STEP_LABEL[step.key] ?? "do it";
     go.addEventListener("click", () => act(step.action));
     box.append(go);
+  }
+  if (v.room) {
+    const line = document.createElement("div");
+    line.className = "roomline";
+    line.innerHTML =
+      `<b>room ${esc(v.room.code)}</b> · ${nf(v.room.seats)} seat${v.room.seats === 1 ? "" : "s"} · ` +
+      `meeting ${nf(v.room.meeting)} closes in <span class="countdown" data-closes="${v.room.closesAt}">${remaining(v.room.closesAt)}</span>`;
+    box.append(line);
+    if (v.room.seats === 1) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 6;
+      input.placeholder = "room code";
+      input.setAttribute("aria-label", "Room code");
+      const join = document.createElement("button");
+      join.className = "tiny";
+      join.textContent = "join a friend";
+      join.addEventListener("click", async () => {
+        const code = input.value.trim();
+        if (!code) return;
+        try {
+          await socket.joinRoom(code);
+        } catch (error) {
+          toast(error.message, true);
+        }
+      });
+      row.append(input, join);
+      box.append(row);
+    }
   }
   const luck = (v.luck ?? []).slice(0, 5);
   if (luck.length) {

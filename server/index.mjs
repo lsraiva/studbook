@@ -13,7 +13,7 @@
  */
 import { createServer } from "node:http";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { extname, join, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ import {
   applyAction,
   horseById,
   meta,
+  runRound,
   setup,
   stableOf,
   validateAction,
@@ -43,12 +44,16 @@ const MAX_BODY = 16 * 1024;
 const users = new Map();   // id -> { id, email, salt, hash, createdAt }
 const emails = new Map();  // email -> id
 const sessions = new Map(); // token -> { userId, expiresAt }
-const games = new Map();   // userId -> { state, version, updatedAt }
+const rooms = new Map();   // roomId -> { id, code, state, closesAt, version }
+const userRoom = new Map(); // userId -> roomId
 const traffic = new Map(); // userId -> number[] (action timestamps)
 
 const userFile = join(dataDir, "users.json");
 const sessionFile = join(dataDir, "sessions.json");
-const gameDir = join(dataDir, "games");
+const roomDir = join(dataDir, "rooms");
+/** A meeting closes on a clock, never on a click. Rooms with a second human are given longer. */
+const MEETING_SECONDS = Number(process.env.MEETING_SECONDS ?? 43_200); // 12 h
+const SOLO_SECONDS = Number(process.env.SOLO_SECONDS ?? 120);          // two minutes alone
 
 async function writeJsonAtomic(path, value) {
   const tmp = `${path}.${process.pid}.tmp`;
@@ -57,7 +62,6 @@ async function writeJsonAtomic(path, value) {
 }
 
 async function loadAll() {
-  await mkdir(gameDir, { recursive: true });
   try {
     for (const user of JSON.parse(await readFile(userFile, "utf8"))) {
       users.set(user.id, user);
@@ -74,23 +78,58 @@ async function loadAll() {
   } catch {
     /* first run */
   }
-  for (const id of users.keys()) {
-    try {
-      games.set(id, JSON.parse(await readFile(join(gameDir, `${id}.json`), "utf8")));
-    } catch {
-      /* the account exists, the game does not yet */
+  try {
+    await mkdir(roomDir, { recursive: true });
+  } catch {
+    /* exists */
+  }
+  try {
+    for (const file of await readdir(roomDir)) {
+      if (!file.endsWith(".json")) continue;
+      const room = JSON.parse(await readFile(join(roomDir, file), "utf8"));
+      rooms.set(room.id, room);
+      for (const player of room.state.players ?? []) userRoom.set(player, room.id);
     }
+  } catch {
+    /* first run */
   }
 }
 
 const persistUsers = () => writeJsonAtomic(userFile, [...users.values()]);
 const persistSessions = () =>
   writeJsonAtomic(sessionFile, Object.fromEntries(sessions));
-const persistGame = async (userId) => {
-  const game = games.get(userId);
-  game.updatedAt = new Date().toISOString();
-  await writeJsonAtomic(join(gameDir, `${userId}.json`), game);
-};
+const persistRoom = (room) => writeJsonAtomic(join(roomDir, `${room.id}.json`), room);
+
+const newCode = () => randomBytes(3).toString("hex").toUpperCase();
+
+/** A seat in a room is a stable: the engine already knew how to add one mid-game. */
+function openRoom(userId) {
+  const id = `r${randomBytes(5).toString("hex")}`;
+  const room = {
+    id,
+    code: newCode(),
+    state: setup([userId], `room:${id}`),
+    closesAt: Date.now() + SOLO_SECONDS * 1000,
+    version: 1,
+  };
+  rooms.set(id, room);
+  userRoom.set(userId, id);
+  return room;
+}
+
+function roomOf(userId) {
+  const id = userRoom.get(userId);
+  return id ? rooms.get(id) : null;
+}
+
+function humanSeats(room) {
+  return (room.state.players ?? []).length;
+}
+
+/** Deadline: a room with one human runs fast, a league waits for the others. */
+function rearm(room) {
+  room.closesAt = Date.now() + (humanSeats(room) > 1 ? MEETING_SECONDS : SOLO_SECONDS) * 1000;
+}
 
 /* ---------------------------------------------------------------- accounts */
 
@@ -109,8 +148,7 @@ function createAccount(email, password) {
   const user = { id, email, salt, hash: hashPassword(password, salt), createdAt: new Date().toISOString() };
   users.set(id, user);
   emails.set(email, id);
-  const state = setup([id], `account:${id}`);
-  games.set(id, { state, version: 1, updatedAt: null });
+  openRoom(id);
   return user;
 }
 
@@ -173,21 +211,31 @@ async function readBody(req) {
 /* ---------------------------------------------------------------- the game */
 
 /** The browser gets a view, never the state: this is the whole anti-cheat boundary. */
-function frame(userId, game) {
-  const stable = stableOf(game.state, userId);
+function frame(room, userId) {
+  const stable = stableOf(room.state, userId);
+  const seats = room.state.players ?? [];
   return {
     type: "state",
     status: "playing",
-    seats: [userId],
+    seats: [...seats],
     you: userId,
-    connected: 1,
-    view: viewFor(game.state, userId),
+    connected: seats.length,
+    view: viewFor(room.state, userId),
     result: null,
     meta,
-    version: game.version,
+    version: room.version,
     account: { id: userId, email: users.get(userId)?.email ?? null },
     cloud: true,
     stable: Boolean(stable),
+    // The room owns the clock. The player only owns what they enter.
+    room: {
+      id: room.id,
+      code: room.code,
+      seats: seats.length,
+      closesAt: room.closesAt,
+      season: room.state.season,
+      meeting: room.state.meeting ?? 1,
+    },
   };
 }
 
@@ -210,20 +258,23 @@ function clampClock(action) {
 }
 
 function applyAuthoritative(userId, action) {
-  const game = games.get(userId);
-  if (!game) throw httpError(404, "no game for this account", "nogame");
+  const room = roomOf(userId);
+  if (!room) throw httpError(404, "no room for this account", "noroom");
   if (!action || typeof action !== "object" || Array.isArray(action)) throw httpError(400, "an action is an object", "action");
-  const verdict = validateAction(game.state, userId, action);
+  if (action.type === "advance") {
+    throw httpError(400, "the meeting closes on the clock — enter your runners and wait", "clock");
+  }
+  const verdict = validateAction(room.state, userId, action);
   if (!verdict.ok) throw httpError(400, verdict.error ?? "invalid action", "refused");
   if (action.type === "closeWindow") {
-    const clock = game.state.clock;
+    const clock = room.state.clock;
     if (clock && Date.now() < clock.endsAt) throw httpError(400, "the entries window is still open", "early");
   }
   const cleaned = clampClock(action);
-  game.state = applyAction(game.state, userId, cleaned);
-  game.version += 1;
-  persistGame(userId).catch(() => {});
-  return game;
+  room.state = applyAction(room.state, userId, cleaned);
+  room.version += 1;
+  persistRoom(room).catch(() => {});
+  return room;
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -284,30 +335,30 @@ const server = createServer(async (req, res) => {
       if (path === "/api/register") {
         const user = createAccount(email, body.password);
         await persistUsers();
-        await persistGame(user.id);
+        await persistRoom(roomOf(user.id));
         const token = openSession(user);
-        return send(res, 201, { token, user: { id: user.id, email: user.email }, state: frame(user.id, games.get(user.id)) });
+        return send(res, 201, { token, user: { id: user.id, email: user.email }, state: frame(roomOf(user.id), user.id) });
       }
       const id = emails.get(email);
       const user = id ? users.get(id) : null;
       if (!user || !checkPassword(user, body.password)) throw httpError(401, "wrong email or password", "credentials");
       const token = openSession(user);
-      return send(res, 200, { token, user: { id: user.id, email: user.email }, state: frame(user.id, games.get(user.id)) });
+      return send(res, 200, { token, user: { id: user.id, email: user.email }, state: frame(roomOf(user.id) ?? openRoom(user.id), user.id) });
     }
 
     if (path === "/api/ranking" && req.method === "GET") {
       // Across every account: the table is public, the emails are not.
       const rows = [];
-      for (const [userId, game] of games) {
-        for (const stable of game.state.stables) {
-          const horses = (stable.horses ?? []).map((id) => horseById(game.state, id)).filter(Boolean);
+      for (const room of rooms.values()) {
+        for (const stable of room.state.stables) {
+          const horses = (stable.horses ?? []).map((id) => horseById(room.state, id)).filter(Boolean);
           rows.push({
             stable: stable.name,
             household: stable.id.startsWith("ai"),
             wins: horses.reduce((n, horse) => n + (horse.wins ?? 0), 0),
             prizes: Math.round(horses.reduce((n, horse) => n + (horse.earnings ?? 0), 0)),
             horses: horses.length,
-            account: users.has(userId) ? `#${userId.slice(-4)}` : null,
+            account: stable.player ? `#${stable.player.slice(-4)}` : null,
           });
         }
       }
@@ -317,15 +368,51 @@ const server = createServer(async (req, res) => {
 
     if (path === "/api/me" && req.method === "GET") {
       const user = requireUser(req);
-      return send(res, 200, { user: { id: user.id, email: user.email }, state: frame(user.id, games.get(user.id)) });
+      return send(res, 200, { user: { id: user.id, email: user.email }, state: frame(roomOf(user.id), user.id) });
     }
 
     if (path === "/api/action" && req.method === "POST") {
       const user = requireUser(req);
       rateLimit(user.id);
       const body = await readBody(req);
-      const game = applyAuthoritative(user.id, body.action);
-      return send(res, 200, { state: frame(user.id, game) });
+      const room = applyAuthoritative(user.id, body.action);
+      return send(res, 200, { state: frame(room, user.id) });
+    }
+
+    if (path === "/api/room" && req.method === "GET") {
+      const user = requireUser(req);
+      const room = roomOf(user.id);
+      if (!room) throw httpError(404, "no room", "noroom");
+      return send(res, 200, { state: frame(room, user.id) });
+    }
+
+    if (path === "/api/room/join" && req.method === "POST") {
+      const user = requireUser(req);
+      const body = await readBody(req);
+      const code = String(body.code ?? "").trim().toUpperCase();
+      const target = [...rooms.values()].find((room) => room.code === code);
+      if (!target) throw httpError(404, "no room with that code", "code");
+      if ((target.state.players ?? []).length >= 12) throw httpError(409, "that room is full", "full");
+      const current = roomOf(user.id);
+      if (current && current.id !== target.id) {
+        // leave the old room; if it was only yours, take it with you
+        current.state.players = (current.state.players ?? []).filter((id) => id !== user.id);
+        current.state.stables = current.state.stables.filter((stable) => stable.player !== user.id);
+        if (!current.state.players.length) {
+          rooms.delete(current.id);
+          await rm(join(roomDir, `${current.id}.json`), { force: true });
+        } else {
+          await persistRoom(current);
+        }
+      }
+      if (current && current.id === target.id) return send(res, 200, { state: frame(target, user.id) });
+      target.state = applyAction(target.state, user.id, { type: "takeSeat" });
+      target.state.players = [...(target.state.players ?? []), user.id];
+      userRoom.set(user.id, target.id);
+      rearm(target);
+      target.version += 1;
+      await persistRoom(target);
+      return send(res, 200, { state: frame(target, user.id) });
     }
 
     if (path === "/api/logout" && req.method === "POST") {
@@ -345,7 +432,27 @@ const server = createServer(async (req, res) => {
   }
 });
 
+/** The world turns here: a closed meeting is resolved by the server, for everyone in the room. */
+async function tick() {
+  const now = Date.now();
+  for (const room of rooms.values()) {
+    if (room.closesAt > now) continue;
+    try {
+      room.state = runRound(room.state, "The clock ran out —");
+      room.version += 1;
+      rearm(room);
+      await persistRoom(room);
+    } catch (error) {
+      console.error("turn failed for", room.id, error.message);
+      rearm(room);
+    }
+  }
+}
+
 await loadAll();
+setInterval(() => {
+  tick().catch((error) => console.error("tick:", error.message));
+}, 2000);
 server.listen(port, () => {
   console.log(`studbook server on http://127.0.0.1:${port} · ${users.size} account(s) · data in ${dataDir}`);
 });

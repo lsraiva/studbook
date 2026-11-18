@@ -81,6 +81,13 @@ export class CloudSocket {
     return apiCall(this.base, path, { method: "POST", token: this.token, body });
   }
 
+  /** Join a friend's room by code; the server answers with the room's view. */
+  async joinRoom(code) {
+    const out = await this.call("/api/room/join", { code });
+    this.push(out.state);
+    return out;
+  }
+
   async send(raw) {
     if (raw === "__ping") return;
     let msg;

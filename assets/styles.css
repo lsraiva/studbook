@@ -868,3 +868,15 @@
       .luck .hit { border-color: var(--brass); color: var(--cream); }
       .luck .miss { border-color: var(--bad-line); color: var(--bad-fg); }
       .gcard .gverdict { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
+      .roomline { font-family: var(--font-num); font-size: 0.72rem; color: var(--muted); }
+      .roomline b { color: var(--brass); letter-spacing: 0.08em; }
+      .countdown { color: var(--cream); }
+      .nextstep input {
+        font: inherit;
+        color: var(--cream);
+        background: var(--ink-input);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-1);
+        padding: 0.35rem 0.5rem;
+        max-width: 9rem;
+      }

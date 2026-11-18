@@ -28,7 +28,16 @@ const ok = (label, cond, extra = "") => {
 let child = null;
 async function start() {
   child = spawn(process.execPath, [join(root, "server/index.mjs")], {
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, ACTION_LIMIT: "40", ACTION_WINDOW_MS: "10000" },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATA_DIR: dataDir,
+      ACTION_LIMIT: "40",
+      ACTION_WINDOW_MS: "10000",
+      // a lone stable waits; a room with two humans closes fast, so the clock can be tested
+      SOLO_SECONDS: "3600",
+      MEETING_SECONDS: "2",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stderr.on("data", (d) => process.stderr.write(d));
@@ -144,6 +153,28 @@ try {
   ok("the ranking is public and has rows", board.status === 200 && board.json.ranking.length >= 2,
      `${board.json.ranking?.length} rows`);
   ok("...and it does not leak emails", !JSON.stringify(board.json).includes("@studbook.test"));
+
+  /* ---------- a room: two humans, one clock ---------- */
+  const host = await api("/api/register", { method: "POST", body: { email: "host@studbook.test", password: "correct horse battery" } });
+  const guest = await api("/api/register", { method: "POST", body: { email: "guest@studbook.test", password: "correct horse battery" } });
+  const code = host.json.state.room.code;
+  const joined = await api("/api/room/join", { method: "POST", token: guest.json.token, body: { code } });
+  ok("a second player joins by code", joined.status === 200 && joined.json.state.room.code === code,
+     `${joined.json.state.room.seats} seats`);
+  const wrongCode = await api("/api/room/join", { method: "POST", token: guest.json.token, body: { code: "ZZZZZZ" } });
+  ok("a wrong code is refused", wrongCode.status === 404);
+
+  const push = await api("/api/action", { method: "POST", token: host.json.token, body: { action: { type: "advance" } } });
+  ok("no client action moves the clock", push.status === 400 && /clock/i.test(push.json.error ?? ""), push.json.error);
+
+  const roomBefore = (await api("/api/room", { token: host.json.token })).json.state.room;
+  await new Promise((r) => setTimeout(r, 5200)); // deadline + scheduler interval, nobody touching anything
+  const roomAfter = (await api("/api/room", { token: host.json.token })).json.state.room;
+  ok("the meeting closes on its own", roomAfter.meeting !== roomBefore.meeting || roomAfter.season !== roomBefore.season,
+     `meeting ${roomBefore.meeting} → ${roomAfter.meeting}`);
+  const seated = (await api("/api/room", { token: guest.json.token })).json.state.room;
+  ok("...and both seats see the same clock", seated.meeting === roomAfter.meeting && seated.season === roomAfter.season,
+     `guest meeting ${seated.meeting}`);
 
   /* ---------- the transport the page actually uses ---------- */
   const { CloudSocket } = await import("../assets/net.js");
