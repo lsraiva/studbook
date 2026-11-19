@@ -947,3 +947,87 @@
       .board-head { font-family: var(--font-display); font-size: 0.95rem; color: var(--cream); margin: 1rem 0 0.3rem; font-weight: 600; }
       ul.board { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.82rem; color: var(--muted); }
       ul.board b { font-family: var(--font-num); color: var(--brass); margin-right: 0.4rem; }
+      /* ================================================================
+         Recompose, don't shrink. On a phone the first screen is a scene:
+         the animal bleeds to the edges, the type sits on it, and the
+         numbers that matter are three, not five.
+         ================================================================ */
+      @media (max-width: 620px) {
+        body {
+          padding-left: 0;
+          padding-right: 0;
+          padding-top: 0;
+        }
+        main, .tabs { padding-left: 0.75rem; padding-right: 0.75rem; }
+
+        .hero {
+          position: relative;
+          margin: 0 0 0.9rem;
+          padding: 42vw 1rem 1rem;
+          min-height: 0;
+          border-bottom: 1px solid var(--hairline);
+          overflow: hidden;
+        }
+        .hero::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 78vw;
+          background: url("../assets/art/l1.webp") center 18% / 118% auto no-repeat;
+          opacity: 0.95;
+          -webkit-mask-image: linear-gradient(180deg, #000 46%, transparent 92%);
+          mask-image: linear-gradient(180deg, #000 46%, transparent 92%);
+          pointer-events: none;
+        }
+        .hero::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(120% 80% at 50% 12%, rgba(217, 169, 78, 0.18), transparent 58%);
+          pointer-events: none;
+        }
+        .hero .crest { display: none; }
+        .hero h1,
+        .hero .eyebrow,
+        .hero .lede,
+        .hero-stats { position: relative; z-index: 1; }
+        .hero h1 {
+          font-size: clamp(2.8rem, 15vw, 4rem);
+          letter-spacing: -0.03em;
+          text-shadow: 0 3px 18px rgba(0, 0, 0, 0.7);
+        }
+        .hero .eyebrow { font-size: 0.62rem; letter-spacing: 0.26em; }
+        .hero .lede {
+          font-size: 0.86rem;
+          line-height: 1.35;
+          max-width: 30ch;
+          color: var(--cream);
+          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+        }
+        .hero-stats {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          border-top-color: rgba(217, 169, 78, 0.35);
+          margin-top: 0.7rem;
+        }
+        .hero-stats div:nth-child(n + 4) { display: none; }
+        .hero-stats dd { font-size: 1.05rem; }
+
+        /* the tab strip becomes a thumb bar, not a tiny scroller */
+        .tabs {
+          position: sticky;
+          top: 0;
+          gap: 0.1rem;
+          padding: 0.3rem 0.75rem 0.35rem;
+          margin: 0 -0.75rem 0.7rem;
+        }
+        .tab { font-size: 0.78rem; padding: 0.42rem 0.6rem; }
+
+        /* the race: fewer, bigger lanes and a visible finish */
+        .lane { grid-template-columns: 3.6rem minmax(0, 1fr); gap: 0.35rem; }
+        .lane .rail { height: 3rem; }
+        .lane .runner img { width: 3rem; height: 2rem; }
+        .lane .name { font-size: 0.7rem; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hero::before { filter: none; }
+      }
