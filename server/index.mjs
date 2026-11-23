@@ -369,7 +369,7 @@ function applyAuthoritative(userId, action) {
   const room = roomOf(userId);
   if (!room) throw httpError(404, "no room for this account", "noroom");
   if (!action || typeof action !== "object" || Array.isArray(action)) throw httpError(400, "an action is an object", "action");
-  if (["advance", "openWindow", "closeWindow"].includes(action.type)) {
+  if (["advance", "openWindow", "closeWindow", "startOver"].includes(action.type)) {
     throw httpError(400, "the meeting closes on the clock — enter your runners and wait", "clock");
   }
   const verdict = validateAction(room.state, userId, action);

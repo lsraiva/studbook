@@ -168,6 +168,7 @@ try {
   const clockBefore = (await api("/api/room", { token })).json.state.room;
   for (const action of [
     { type: "advance" },
+    { type: "startOver", bank: 2000 },
     { type: "openWindow", endsAt: Date.now() - 1000 },
     { type: "openWindow", endsAt: Date.now() + 10_000 },
     { type: "openWindow", endsAt: Date.now() + 999_999_000 },

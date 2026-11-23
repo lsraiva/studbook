@@ -22,7 +22,7 @@ The owner authorized beginning work with temporary access. This batch is on `fix
 | F0-03 infrastructure inventory | partial | machine/region/volume known; backup contents, secret inventory and restoration not verified |
 | F0-06 baseline and CI | review | clean branch, lockfile install, functional/browser/contract CI configured |
 | F1-01 one click / one meeting | review | regression failed before fix; exact advancement and season rollover pass in jsdom and Chromium |
-| F1-02 online clock authority | review | all client advance/openWindow/closeWindow actions rejected; scheduler still passes two-player tests |
+| F1-02 online clock authority | review | all client advance/openWindow/closeWindow/startOver actions rejected; scheduler still passes two-player tests |
 | F1-04 public file boundary | review | shared allowlist, malformed-path/symlink/private-file tests, correct image MIME and HEAD support |
 | F1-05 responsive overflow | review | nine fresh-state screens tested at 360/390/430/1440 px; portrait touch viewport remains 390 px |
 
@@ -31,7 +31,7 @@ The owner authorized beginning work with temporary access. This batch is on `fix
 ## Changes
 
 1. Removed the duplicate direct Run listener, retaining one guarded delegated handler. The UI test now requires exactly one meeting instead of merely detecting any change. Added season-rollover and disabled-control cases.
-2. Rejected all three public actions that could resolve or arm a meeting online. Removed obsolete server clock-clamping code and hid manual-window UI for cloud rooms. Offline timed play is retained.
+2. Rejected all four public actions that could resolve, arm or reset a meeting online. Removed obsolete server clock-clamping code and hid manual-window UI for cloud rooms. Offline timed play is retained.
 3. Added `server/public-files.mjs`, a shared explicit public-asset allowlist. Private source/data/dotfiles, traversal, malformed URI paths and allowed-looking symlinks are refused. Both production and the local preview server use it. The local server binds to loopback.
 4. Fixed min-content growth of nested grid panels; filters recompose on mobile; tab bar no longer adds negative-margin page overflow; rankings scroll internally and have keyboard access.
 5. Added Playwright regressions and reproducible CI using npm ci. Browser screenshots/traces on failure are artifacts, not committed source. Extended gitignore to exclude local data, secrets and test output.
@@ -41,7 +41,7 @@ The owner authorized beginning work with temporary access. This batch is on `fix
 Before fixes: the new exact-click check failed (meeting 1 became 3), public-path checks failed, and legacy online clock commands were accepted. These failures were observed in isolated local tests.
 
 After fixes:
-- `npm test`: 204 assertions passed, zero failures.
+- `npm test`: 205 assertions passed, zero failures.
 - `npm run test:browser`: 6 tests passed, including all nine screens at four viewport widths, one-click rollover and mobile touch.
 - `npm run contracts`: successful compilation; this is not an EVM security audit.
 - `git diff --check`: clean.
