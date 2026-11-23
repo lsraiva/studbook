@@ -11,6 +11,7 @@ jobs:
       - run: node tests/engine.test.mjs
       - run: node tests/token.test.mjs
       - run: node tests/ui.test.mjs
+      - run: node tests/wallet-ui.test.mjs
       - run: node tests/design.test.mjs
       - run: node tests/server.test.mjs
       - run: node --check assets/engine.js && node --check assets/ui.js && node --check assets/net.js && node --check server/index.mjs
