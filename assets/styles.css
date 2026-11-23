@@ -1108,11 +1108,15 @@
         position: relative;
         padding: 0.7rem 0.6rem;
         border-radius: 0.9rem;
-        background:
-          linear-gradient(180deg, rgba(6, 9, 7, 0.74), rgba(6, 9, 7, 0.58)),
-          url("../assets/art/track.webp") center 32% / 100% auto no-repeat,
-          linear-gradient(180deg, var(--ink-1), var(--ink-0));
         border: 1px solid var(--hairline);
+        background: linear-gradient(180deg, var(--ink-1), var(--ink-0));
+      }
+      /* the picture only appears once there are runners to race on it */
+      .track:has(.lane) {
+        background:
+          linear-gradient(180deg, rgba(6, 9, 7, 0.62), rgba(6, 9, 7, 0.74)),
+          url("../assets/art/track.webp") center 58% / cover no-repeat,
+          linear-gradient(180deg, var(--ink-1), var(--ink-0));
       }
       .track > * { position: relative; z-index: 1; }
       .track .lane .rail { background: rgba(10, 14, 10, 0.55); box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.18); }

@@ -2433,6 +2433,7 @@ function draw() {
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
+  if (advanceButton) advanceButton.dataset.run = "1";
   if (advanceButton) advanceButton.textContent = `Run meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}`;
   el("herd-count").textContent = nf(v.horses.filter((h) => !h.retired).length);
   el("straw-count").textContent = v.strawStorage ? `${nf(v.straws.length)} of ${nf(v.strawStorage)}` : nf(v.straws.length);
@@ -3457,6 +3458,11 @@ function surfaceError(where, error) {
 // One listener for the whole document: buttons are rebuilt on every draw, and a handler bound to a
 // node that has been replaced is a click that goes nowhere. This is the fix for that whole class.
 document.addEventListener("click", (event) => {
+  const run = event.target.closest?.("[data-run]");
+  if (run) {
+    act({ type: "advance" });
+    return;
+  }
   const button = event.target.closest?.("[data-breed]");
   if (!button) return;
   const strawId = selectedStraw ?? view?.selectedStraw ?? null;
