@@ -2176,6 +2176,9 @@ function bindForm(rows, labelText) {
 function renderRanking(v) {
   const box = el("ranking");
   if (!box) return;
+  box.tabIndex = 0;
+  box.setAttribute("role", "region");
+  box.setAttribute("aria-label", "Stable rankings; scroll horizontally on small screens");
   box.innerHTML = "";
   const table = document.createElement("table");
   table.setAttribute("aria-label", "Stables ranked by prize money");
@@ -2777,11 +2780,13 @@ function draw() {
     }
     const note = document.createElement("p");
     note.className = "hint";
-    note.textContent = `Entries are open for meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}. Add or swap runners as long as you like — they run when you run the meeting. ${v.goingNote}`;
+    note.textContent = `Entries are open for meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}. ${v.room || v.cloud ? "Add or swap runners before the server deadline — the meeting runs automatically." : "Add or swap runners as long as you like — they run when you run the meeting."} ${v.goingNote}`;
     entries.append(note);
 
     const when = document.createElement("div");
     when.className = "row";
+    // Manual entry windows exist only in offline games; the server owns online deadlines.
+    when.hidden = Boolean(v.room || v.cloud);
     when.style.marginTop = "0.4rem";
     const openWindow = document.createElement("button");
     openWindow.className = "tiny";
@@ -3273,10 +3278,6 @@ if (wantButton) {
   });
 }
 
-el("advance").addEventListener("click", () => {
-  act({ type: "advance" });
-  toast("the season runs…");
-});
 
 const watchButton = el("watch");
 const soundButton = el("sound");
@@ -3565,6 +3566,7 @@ function surfaceError(where, error) {
 document.addEventListener("click", (event) => {
   const run = event.target.closest?.("[data-run]");
   if (run) {
+    if (run.disabled || view?.room || view?.cloud) return;
     act({ type: "advance" });
     return;
   }

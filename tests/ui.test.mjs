@@ -162,10 +162,28 @@ const meetingBeforeRun = savedState().meeting ?? 1;
 runButton?.click();
 await wait(220);
 const afterRun = savedState();
-const advanced = (afterRun.meeting ?? 1) !== meetingBeforeRun || afterRun.season !== seasonBeforeRun;
-ok("clicking it advances the meeting", advanced,
+const expectedMeeting = meetingBeforeRun === 4 ? 1 : meetingBeforeRun + 1;
+const expectedSeason = seasonBeforeRun + (meetingBeforeRun === 4 ? 1 : 0);
+const advanced = (afterRun.meeting ?? 1) === expectedMeeting && afterRun.season === expectedSeason;
+ok("one click advances exactly one meeting", advanced,
    `m${meetingBeforeRun} → m${afterRun.meeting ?? 1} (season ${seasonBeforeRun} → ${afterRun.season})`);
 ok("the race was recorded", Boolean(afterRun.lastRace), afterRun.lastRace ? `${afterRun.lastRace.runners} runners` : "no lastRace");
+
+/* Follow the remaining meetings through rollover: every click has one effect. */
+for (let i = 0; i < 3; i += 1) {
+  const previous = savedState();
+  document.getElementById("advance")?.click();
+  await wait(120);
+  const current = savedState();
+  const meeting = previous.meeting ?? 1;
+  ok("one click stays exact across the season boundary", current.meeting === (meeting === 4 ? 1 : meeting + 1) && current.season === previous.season + (meeting === 4 ? 1 : 0));
+}
+const disabledRun = document.getElementById("advance");
+const disabledBefore = savedState();
+disabledRun.disabled = true;
+disabledRun.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+await wait(100);
+ok("disabled run control has no delegated effect", savedState().meeting === disabledBefore.meeting && savedState().season === disabledBefore.season);
 
 app.dom.window.close();
 console.log(bad ? `\n${bad} failing` : "\nall green");

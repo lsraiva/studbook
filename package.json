@@ -20,13 +20,15 @@
     "backup": "node tools/backup.mjs",
     "deploy:sepolia": "node tools/deploy.mjs",
     "deploy:dry": "node tools/deploy.mjs --dry-run",
-    "test:wallet": "node tests/wallet-ui.test.mjs"
+    "test:wallet": "node tests/wallet-ui.test.mjs",
+    "test:browser": "playwright test"
   },
   "license": "MIT",
   "devDependencies": {
-    "jsdom": "^24.0.0",
+    "@openzeppelin/contracts": "5.0.2",
+    "@playwright/test": "1.65.1",
     "ethers": "^6.13.0",
-    "solc": "0.8.24",
-    "@openzeppelin/contracts": "5.0.2"
+    "jsdom": "^24.0.0",
+    "solc": "0.8.24"
   }
 }

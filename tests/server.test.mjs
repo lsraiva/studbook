@@ -8,7 +8,8 @@
  * tries to cheat, restarts it, and checks the stable came back.
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
+import { publicAsset } from "../server/public-files.mjs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,6 +83,26 @@ try {
   const engine = await fetch(`${base}/assets/engine.js`);
   ok("serves the engine as a module", engine.status === 200 && /javascript/.test(engine.headers.get("content-type") ?? ""));
 
+  /* ---------- only game assets belong on the public static surface ---------- */
+  for (const path of ["/server/index.mjs", "/package.json", "/.git/config", "/tools/backup.mjs", "/assets/../server/index.mjs", "/assets/%2e%2e%2fserver/index.mjs", "/assets/config.js%00"]) {
+    const response = await fetch(`${base}${path}`);
+    ok(`private or malformed static path is refused: ${path}`, [400, 403, 404].includes(response.status));
+  }
+  const art = await fetch(`${base}/assets/art/crest.webp`);
+  ok("public horse artwork keeps its image MIME type", art.status === 200 && /image\/webp/.test(art.headers.get("content-type") ?? ""));
+
+  const fixtureRoot = join(dataDir, "public-fixture");
+  await mkdir(join(fixtureRoot, "assets", "art"), { recursive: true });
+  await writeFile(join(fixtureRoot, "users.json"), '{"fixture":"private"}');
+  await symlink(join(fixtureRoot, "users.json"), join(fixtureRoot, "assets", "art", "alias.webp"));
+  ok("allowlisted-looking symlink cannot expose private files", (await publicAsset(fixtureRoot, "/assets/art/alias.webp")).status === 404);
+  ok("private JSON remains private even when placed inside static root", (await publicAsset(fixtureRoot, "/users.json")).status === 404);
+  ok("invalid URI encoding is a client error", (await publicAsset(fixtureRoot, "/assets/%ZZ")).status === 400);
+  const head = await fetch(`${base}/assets/ui.js`, { method: "HEAD" });
+  ok("HEAD serves public headers without a body", head.status === 200 && (await head.text()) === "");
+  const postedStatic = await fetch(`${base}/assets/ui.js`, { method: "POST" });
+  ok("static assets reject writes", postedStatic.status === 405);
+
   /* ---------- accounts ---------- */
   const unauth = await api("/api/me");
   ok("no token, no view", unauth.status === 401);
@@ -143,12 +164,20 @@ try {
   }
   ok("action spam is rate limited", limited > 0, `${limited} refused of 55`);
 
-  /* ---------- the clock is the server's ---------- */
-  const far = await api("/api/action", { method: "POST", token, body: { action: { type: "openWindow", endsAt: Date.now() + 999_999_000 } } });
-  const endsAt = far.json.state.view.clock?.endsAt ?? 0;
-  ok("a client cannot ask for a week-long window", far.status === 200 && endsAt - Date.now() <= 300_000, `${Math.round((endsAt - Date.now()) / 1000)}s`);
-  const early = await api("/api/action", { method: "POST", token, body: { action: { type: "closeWindow" } } });
-  ok("nor close it before the deadline", early.status === 400, early.json.error);
+  /* ---------- every public route to the league clock is refused ---------- */
+  const clockBefore = (await api("/api/room", { token })).json.state.room;
+  for (const action of [
+    { type: "advance" },
+    { type: "openWindow", endsAt: Date.now() - 1000 },
+    { type: "openWindow", endsAt: Date.now() + 10_000 },
+    { type: "openWindow", endsAt: Date.now() + 999_999_000 },
+    { type: "closeWindow" },
+  ]) {
+    const result = await api("/api/action", { method: "POST", token, body: { action } });
+    ok(`online clock command ${action.type} is refused`, result.status === 400 && result.json.code === "clock");
+  }
+  const clockAfter = (await api("/api/room", { token })).json.state.room;
+  ok("refused clock commands preserve meeting and deadline", clockBefore.meeting === clockAfter.meeting && clockBefore.season === clockAfter.season && clockBefore.closesAt === clockAfter.closesAt);
 
   /* ---------- a horse becomes a token: intent, wallet, one mint ---------- */
   const holder = await api("/api/register", { method: "POST", body: { email: "holder@studbook.test", password: "correct horse battery" } });

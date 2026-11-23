@@ -23,8 +23,9 @@ import {
 } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { extname, join, normalize, dirname } from "node:path";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { publicAsset } from "./public-files.mjs";
 
 import {
   LOCI as LOCUS_ORDER,
@@ -364,31 +365,16 @@ function rateLimit(userId) {
   traffic.set(userId, recent);
 }
 
-/** Server-side clamps: the client may ask for a deadline, it may not set one. */
-function clampClock(action) {
-  if (action?.type !== "openWindow") return action;
-  const asked = Number(action.endsAt);
-  const now = Date.now();
-  const seconds = Number.isFinite(asked) ? (asked - now) / 1000 : NaN;
-  const bounded = Math.min(300, Math.max(10, Number.isFinite(seconds) ? seconds : 90));
-  return { ...action, endsAt: now + Math.round(bounded) * 1000 };
-}
-
 function applyAuthoritative(userId, action) {
   const room = roomOf(userId);
   if (!room) throw httpError(404, "no room for this account", "noroom");
   if (!action || typeof action !== "object" || Array.isArray(action)) throw httpError(400, "an action is an object", "action");
-  if (action.type === "advance") {
+  if (["advance", "openWindow", "closeWindow"].includes(action.type)) {
     throw httpError(400, "the meeting closes on the clock — enter your runners and wait", "clock");
   }
   const verdict = validateAction(room.state, userId, action);
   if (!verdict.ok) throw httpError(400, verdict.error ?? "invalid action", "refused");
-  if (action.type === "closeWindow") {
-    const clock = room.state.clock;
-    if (clock && Date.now() < clock.endsAt) throw httpError(400, "the entries window is still open", "early");
-  }
-  const cleaned = clampClock(action);
-  room.state = applyAction(room.state, userId, cleaned);
+  room.state = applyAction(room.state, userId, action);
   room.version += 1;
   persistRoom(room).catch(() => {});
   return room;
@@ -528,27 +514,17 @@ function signPayload(payload) {
 
 /* ---------------------------------------------------------------- routing */
 
-function staticType(path) {
-  return (
-    { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".md": "text/markdown; charset=utf-8" }[extname(path)] ?? "application/octet-stream"
-  );
-}
-
 async function serveStatic(req, res) {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
-  const file = join(root, rel === "/" || rel === "" ? "index.html" : rel);
-  if (!file.startsWith(root)) {
-    res.writeHead(403).end("forbidden");
-    return;
+  if (!["GET", "HEAD"].includes(req.method ?? "")) {
+    return res.writeHead(405, { allow: "GET, HEAD" }).end();
   }
-  try {
-    const body = await readFile(file);
-    res.writeHead(200, { "content-type": staticType(file), "cache-control": "no-cache" });
-    res.end(body);
-  } catch {
-    res.writeHead(404, { "content-type": "text/plain" }).end("not found");
-  }
+  const asset = await publicAsset(root, (req.url ?? "/").split("?")[0]);
+  res.writeHead(asset.status, {
+    "content-type": asset.contentType,
+    "cache-control": "no-cache",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(req.method === "HEAD" ? undefined : asset.body);
 }
 
 const bearer = (req) => {
