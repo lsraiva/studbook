@@ -2195,6 +2195,78 @@ function renderRanking(v) {
 
 
 /** The stable as a wall of animals, not a spreadsheet: the Axie lesson, taken seriously. */
+
+/** Clicking a horse should show the horse: a plate, the pedigree, the record, the decision. */
+function openHorse(horseId) {
+  const horse = (view?.horses ?? []).find((h) => h.id === horseId);
+  const box = el("horseview");
+  const card = el("horseview-card");
+  if (!horse || !box || !card) return;
+
+  card.innerHTML = "";
+
+  const art = document.createElement("img");
+  art.className = "hv-portrait";
+  art.src = portraitOf(horse.lineage, horse.age);
+  art.alt = "";
+  card.append(art);
+
+  const stamp = document.createElement("span");
+  stamp.className = "stamp" + (horse.stakes ? " high" : "");
+  stamp.textContent = horse.stakes ? "stakes class" : horse.band ?? "ordinary";
+  card.append(stamp);
+
+  const name = document.createElement("h3");
+  name.textContent = horse.name;
+  card.append(name);
+
+  const verdict = document.createElement("p");
+  verdict.className = "hint";
+  verdict.textContent = horse.verdict ?? "";
+  card.append(verdict);
+
+  const facts = document.createElement("div");
+  facts.className = "lines";
+  const rows = [
+    ["sex · age", `${horse.sex === "M" ? "colt" : "filly"} · ${nf(horse.age)}`],
+    ["value", `₲ ${nf(horse.value, 2)}`],
+    ["inbreeding", `${horse.fLabel ?? "—"}`],
+    ["record", horse.starts ? `${nf(horse.starts)} runs · ${nf(horse.wins)} won · ${nf(horse.places)} placed` : "unraced"],
+    ["upkeep", `₲ ${nf(horse.upkeep)} a season`],
+    ["sire × dam", `${horse.sireName ?? "founder"} × ${horse.damName ?? "founder"}`],
+  ];
+  if (horse.inFoal) rows.push(["in foal", `due season ${nf(horse.inFoal.dueSeason)}`]);
+  for (const [label, value] of rows) {
+    const row = document.createElement("div");
+    const left = document.createElement("span");
+    left.className = "k";
+    left.textContent = label;
+    const right = document.createElement("span");
+    right.textContent = value;
+    row.append(left, right);
+    facts.append(row);
+  }
+  card.append(facts);
+
+  if (horse.traits) {
+    const bars = traitBars(horse.traits);
+    bars.className += " hv-traits";
+    card.append(bars);
+  }
+
+  const close = document.createElement("button");
+  close.className = "tiny";
+  close.style.marginTop = "0.8rem";
+  close.textContent = "close";
+  close.addEventListener("click", () => {
+    box.hidden = true;
+  });
+  card.append(close);
+
+  box.hidden = false;
+  close.focus();
+}
+
 function renderGallery(v) {
   const box = el("gallery");
   if (!box) return;
@@ -2213,7 +2285,8 @@ function renderGallery(v) {
     card.className = `gcard tier-${tier}` + (horse.id === selectedHorse ? " picked" : "");
     card.setAttribute("aria-pressed", String(horse.id === selectedHorse));
     card.addEventListener("click", () => {
-      selectedHorse = selectedHorse === horse.id ? null : horse.id;
+      selectedHorse = horse.id;
+      openHorse(horse.id);
       draw();
     });
 

@@ -1135,3 +1135,13 @@
         min-width: 18rem;
         max-width: 100%;
       }
+      /* the horse, at last, at size */
+      .reveal .card .hv-portrait {
+        display: block;
+        width: min(420px, 100%);
+        margin: -0.2rem auto 0.4rem;
+        filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.55));
+      }
+      .reveal .card h3 { margin: 0.1rem 0 0.15rem; }
+      .reveal .card .lines { margin: 0.5rem 0 0.2rem; }
+      .reveal .card .hv-traits { margin-top: 0.6rem; }
