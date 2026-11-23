@@ -232,9 +232,22 @@ try {
   const host = await api("/api/register", { method: "POST", body: { email: "host@studbook.test", password: "correct horse battery" } });
   const guest = await api("/api/register", { method: "POST", body: { email: "guest@studbook.test", password: "correct horse battery" } });
   const code = host.json.state.room.code;
-  const joined = await api("/api/room/join", { method: "POST", token: guest.json.token, body: { code } });
+  const covered = await api("/api/action", { method: "POST", token: guest.json.token, body: { action: { type: "takeStarterOffer" } } });
+  const originalGuest = covered.json.state.view;
+  const originalMints = (await api("/api/mints", { token: guest.json.token })).json.mints;
+  const attempts = await Promise.all([1, 2].map(() => api("/api/room/join", { method: "POST", token: guest.json.token, body: { code } })));
+  const joined = attempts.find((a) => a.status === 200) ?? attempts[0];
+  ok("concurrent transfer requests succeed once or return busy", attempts.some((a) => a.status === 200) && attempts.every((a) => [200, 409].includes(a.status)));
   ok("a second player joins by code", joined.status === 200 && joined.json.state.room.code === code,
      `${joined.json.state.room.seats} seats`);
+  ok("room transfer preserves balance instead of granting a new bank", joined.json.state.view.stable.guineas === originalGuest.stable.guineas && originalGuest.stable.guineas === 1980);
+  ok("room transfer preserves original horse identity and genome", JSON.stringify(joined.json.state.view.horses.map((h) => [h.id, h.genotype])) === JSON.stringify(originalGuest.horses.map((h) => [h.id, h.genotype])));
+  ok("room transfer preserves purchased covering", joined.json.state.view.straws.length === 1 && joined.json.state.view.straws[0].id === originalGuest.straws[0].id);
+  const movedMints = (await api("/api/mints", { token: guest.json.token })).json.mints;
+  ok("unclaimed mint identity does not change with the room", movedMints[0].nullifier === originalMints[0].nullifier && movedMints[0].roomId === joined.json.state.room.id);
+  await stop(); await start();
+  const restoredGuest = (await api("/api/me", { token: guest.json.token })).json.state;
+  ok("transferred stable survives process restart without duplication", restoredGuest.room.code === code && restoredGuest.room.seats === 2 && restoredGuest.view.stable.guineas === 1980 && restoredGuest.view.horses[0].id === originalGuest.horses[0].id);
   const wrongCode = await api("/api/room/join", { method: "POST", token: guest.json.token, body: { code: "ZZZZZZ" } });
   ok("a wrong code is refused", wrongCode.status === 404);
 

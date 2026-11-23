@@ -36,7 +36,7 @@ The owner authorized beginning work with temporary access. This batch is on `fix
 4. Fixed min-content growth of nested grid panels; filters recompose on mobile; tab bar no longer adds negative-margin page overflow; rankings scroll internally and have keyboard access.
 5. Added Playwright regressions and reproducible CI using npm ci. Browser screenshots/traces on failure are artifacts, not committed source. Extended gitignore to exclude local data, secrets and test output.
 
-## Tests
+## First batch tests (historical)
 
 Before fixes: the new exact-click check failed (meeting 1 became 3), public-path checks failed, and legacy online clock commands were accepted. These failures were observed in isolated local tests.
 
@@ -49,18 +49,18 @@ After fixes:
 
 Reproduce browser tests with `npm ci`, `npx playwright install chromium`, then `npm run test:browser`. Tests start an isolated local preview server and create no production users.
 
-## F1-03 incremental preparation
+## F1-03 integrated transfer — current increment
 
-Added a pure `planRoomTransfer` module and 13 focused cases. It prepares the same balance, horse IDs/genomes, coverings, stable history and referenced sire/ancestor data without mutating either room. It records expected room versions and deadlines for a future atomic commit adapter. Unsafe transfers (active entries, pregnancy, market commitments, token ownership not reconciled, mismatched calendars or ID collisions) are refused without changing either room.
+The preservation planner is now connected to the join API through a durable committed journal. Room JSON files are recoverable projections; source/destination stay locked through journal commit and both materialization attempts. Startup replays committed transfers before accepting traffic. The bank, horse identity/genome, covering and stable history survive a join and process restart in synthetic tests.
 
-**This is preparation only. The online join endpoint is intentionally unchanged.** Do not activate the planner until locks, durable cross-room commit/recovery, mint identity handling and restart/concurrency regressions are implemented. This avoids replacing progress loss with asset duplication.
+Transfers with active entries, pregnancies, market commitments, wallet-bound assets or mismatched calendars are refused safely. Empty source rooms are archived, not erased. This is a single-writer bridge, not distributed transaction support or a replacement for F2/Postgres. See [ROOM-TRANSFER.md](ROOM-TRANSFER.md) for commit semantics, tests, backups and rollback restrictions.
 
-Validation: 13 new preparation cases; full `npm test` now includes them. No changes to visual assets, production or paid infrastructure.
+No deploy, migration of production data, visual generation or paid infrastructure occurred in this increment.
 
 ## Remaining work / next action
 
 1. Review this PR and the GitHub CI result; do not auto-merge or deploy.
-2. F1-03: preserve stable/horse/covering identity and balances across room changes, with transactional/serialization design compatible with F2. That bug is not fixed by this batch.
+2. F1-03: the eligible-transfer path is now implemented and in review. Wallet-bound assets, active commitments and different calendars are deliberately refused; full transactional ownership belongs to F2. Review ROOM-TRANSFER.md before any activation.
 3. F0-04: obtain a consistent backup and prove external restore before production changes. Current backup script alone is not proof.
 4. F0-05: staging requires explicit resource/budget approval; no new service was created.
 5. F1-06/F1-07: auth rate limits, durable-write error handling and cloud/offline isolation remain open.

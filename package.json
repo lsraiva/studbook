@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.mjs",
     "serve": "node tools/serve.mjs",
-    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/ui.test.mjs && node tests/wallet-ui.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs && node tests/room-transfer.test.mjs",
+    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/ui.test.mjs && node tests/wallet-ui.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs && node tests/room-transfer.test.mjs && node tests/transfer-store.test.mjs",
     "test:engine": "node tests/engine.test.mjs",
     "test:design": "node tests/design.test.mjs",
     "test:server": "node tests/server.test.mjs",
