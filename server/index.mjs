@@ -12,7 +12,15 @@
  * Env: PORT, DATA_DIR, ALLOWED_ORIGINS, ACTION_LIMIT, ACTION_WINDOW_MS
  */
 import { createServer } from "node:http";
-import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  generateKeyPairSync,
+  randomBytes,
+  randomInt,
+  scryptSync,
+  sign,
+  timingSafeEqual,
+} from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { extname, join, normalize, dirname } from "node:path";
@@ -463,6 +471,47 @@ function buyAcrossRooms(buyerId, roomId, listingId) {
 
 const randStraw = () => Math.floor(Math.random() * 1_000_000);
 
+/* ------------------------------------------------------------------ minting */
+
+/**
+ * MINT_MODE=simulated signs with a key generated at boot and never touches a chain: the whole
+ * flow — wallet, intent, signature, confirmation — can be exercised today, and the same call path
+ * switches to the relayer once MINT_MODE=chain and the Sepolia keys are in place.
+ */
+const MINT_MODE = process.env.MINT_MODE === "chain" ? "chain" : "simulated";
+const minterKey = MINT_MODE === "simulated"
+  ? generateKeyPairSync("ec", { namedCurve: "secp256k1" })
+  : null;
+const simulatedAddress = minterKey
+  ? `0x${createHash("sha256").update(minterKey.publicKey.export({ type: "spki", format: "der" })).digest("hex").slice(-40)}`
+  : (process.env.MINTER_ADDRESS ?? null);
+let simulatedMints = 900_000;
+let mintNonce = 0;
+
+/** The bytes a mint signs: the animal, its parents and a nonce that never repeats. */
+function mintPayload(intent, nonce) {
+  return {
+    nullifier: intent.nullifier,
+    genome: intent.genome,
+    lineage: intent.lineage,
+    sex: intent.sex,
+    bornSeason: intent.bornSeason,
+    sireId: intent.sireId,
+    damId: intent.damId,
+    nonce,
+  };
+}
+
+const digestOf = (payload) => createHash("sha256").update(JSON.stringify(payload)).digest();
+
+function signPayload(payload) {
+  if (MINT_MODE !== "simulated") {
+    // the real relayer signs the same bytes with the Sepolia key; wired when MINT_MODE=chain
+    throw httpError(501, "the chain relayer is not wired yet — set MINT_MODE=simulated to test", "mode");
+  }
+  return sign(null, digestOf(payload), minterKey.privateKey).toString("hex");
+}
+
 /* ---------------------------------------------------------------- routing */
 
 function staticType(path) {
@@ -645,6 +694,39 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { wallet: address });
     }
 
+    if (path === "/api/minter" && req.method === "GET") {
+      return send(res, 200, {
+        mode: MINT_MODE,
+        address: simulatedAddress,
+        publicKey:
+          MINT_MODE === "simulated"
+            ? minterKey.publicKey.export({ type: "spki", format: "pem" }).toString()
+            : null,
+        note:
+          MINT_MODE === "simulated"
+            ? "simulated: signatures are real ECDSA, nothing is broadcast, no chain involved"
+            : "chain: set the Sepolia keys before minting",
+      });
+    }
+
+    if (path === "/api/mints/sign" && req.method === "POST") {
+      const user = requireUser(req);
+      rateLimit(user.id);
+      const body = await readBody(req);
+      const nullifier = String(body.nullifier ?? "");
+      const intent = mints.get(nullifier);
+      if (!intent || intent.owner !== user.id) throw httpError(404, "no such mint", "mint");
+      if (intent.status === "minted") throw httpError(409, "that horse is already on chain", "done");
+      if (!intent.address) throw httpError(409, "bind a wallet first", "unclaimed");
+      const nonce = ++mintNonce;
+      const payload = mintPayload(intent, nonce);
+      const signature = signPayload(payload);
+      intent.signature = signature;
+      intent.payload = payload;
+      intent.signedAt = new Date().toISOString();
+      return send(res, 200, { mode: MINT_MODE, payload, signature, minter: simulatedAddress });
+    }
+
     if (path === "/api/mints" && req.method === "GET") {
       const user = requireUser(req);
       const mine = [...mints.values()].filter((intent) => intent.owner === user.id);
@@ -659,14 +741,20 @@ const server = createServer(async (req, res) => {
       const user = requireUser(req);
       const body = await readBody(req);
       const nullifier = String(body.nullifier ?? "");
-      const tokenId = Number(body.tokenId);
+      let tokenId = Number(body.tokenId);
       const intent = mints.get(nullifier);
       if (!intent || intent.owner !== user.id) throw httpError(404, "no such mint", "mint");
       if (intent.status === "minted") throw httpError(409, "that horse is already on chain", "done");
       if (!intent.address) throw httpError(409, "bind a wallet first", "unclaimed");
-      if (!Number.isInteger(tokenId) || tokenId <= 0) throw httpError(400, "a token id is required", "token");
+      if (MINT_MODE === "simulated" && (!Number.isInteger(tokenId) || tokenId <= 0)) {
+        tokenId = ++simulatedMints; // the chain would return this from the receipt
+        intent.txHash = `sim:${createHash("sha256").update(intent.nullifier + tokenId).digest("hex").slice(0, 40)}`;
+      } else if (!Number.isInteger(tokenId) || tokenId <= 0) {
+        throw httpError(400, "a token id is required", "token");
+      }
       intent.tokenId = tokenId;
       intent.status = "minted";
+      intent.mintMode = MINT_MODE;
       return send(res, 200, { mint: intent });
     }
 

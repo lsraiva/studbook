@@ -166,9 +166,26 @@ try {
   ok("...and the intent becomes claimable", claimable.json.mints[0].status === "pending" && claimable.json.pending >= 1,
      `${claimable.json.pending} pending`);
 
+  const minterInfo = await api("/api/minter");
+  ok("a simulated minter is published", minterInfo.json.mode === "simulated" && /^0x[0-9a-f]{40}$/.test(minterInfo.json.address ?? ""),
+     minterInfo.json.address);
   const nullifier = claimable.json.mints[0].nullifier;
-  const confirmed = await api("/api/mints/confirm", { method: "POST", token: holderToken, body: { nullifier, tokenId: 7 } });
-  ok("the mint is confirmed once", confirmed.status === 200 && confirmed.json.mint.tokenId === 7);
+  const signed = await api("/api/mints/sign", { method: "POST", token: holderToken, body: { nullifier } });
+  ok("the mint intent can be signed", signed.status === 200 && (signed.json.signature ?? "").length > 100,
+     `${(signed.json.signature ?? "").slice(0, 16)}…`);
+  const { createHash, verify } = await import("node:crypto");
+  const signedOk = verify(
+    null,
+    createHash("sha256").update(JSON.stringify(signed.json.payload)).digest(),
+    minterInfo.json.publicKey,
+    Buffer.from(signed.json.signature, "hex"),
+  );
+  ok("...with a signature that verifies against the published key", signedOk === true);
+
+  const confirmed = await api("/api/mints/confirm", { method: "POST", token: holderToken, body: { nullifier } });
+  ok("the simulated mint assigns a token id and a receipt",
+     confirmed.status === 200 && confirmed.json.mint.tokenId >= 900001 && /^sim:/.test(confirmed.json.mint.txHash ?? ""),
+     `#${confirmed.json.mint?.tokenId} ${String(confirmed.json.mint?.txHash).slice(0, 12)}`);
   const twice = await api("/api/mints/confirm", { method: "POST", token: holderToken, body: { nullifier, tokenId: 8 } });
   ok("...and only once", twice.status === 409, twice.json.error);
   const outsider = await api("/api/register", { method: "POST", body: { email: "outsider@studbook.test", password: "correct horse battery" } });
