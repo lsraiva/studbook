@@ -153,6 +153,20 @@ if (again) {
     `button disabled=${wasDisabled}, rows=${(after.foaling ?? []).length}`);
 }
 
+/* ---------- 6. the run button: does a click advance the meeting? ---------- */
+const runButton = document.getElementById("advance");
+ok("the run button exists and carries its delegate marker", Boolean(runButton) && runButton.dataset.run === "1",
+   runButton?.textContent?.trim());
+const seasonBeforeRun = savedState().season;
+const meetingBeforeRun = savedState().meeting ?? 1;
+runButton?.click();
+await wait(220);
+const afterRun = savedState();
+const advanced = (afterRun.meeting ?? 1) !== meetingBeforeRun || afterRun.season !== seasonBeforeRun;
+ok("clicking it advances the meeting", advanced,
+   `m${meetingBeforeRun} → m${afterRun.meeting ?? 1} (season ${seasonBeforeRun} → ${afterRun.season})`);
+ok("the race was recorded", Boolean(afterRun.lastRace), afterRun.lastRace ? `${afterRun.lastRace.runners} runners` : "no lastRace");
+
 app.dom.window.close();
 console.log(bad ? `\n${bad} failing` : "\nall green");
 process.exit(bad ? 1 : 0);

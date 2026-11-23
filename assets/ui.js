@@ -1775,9 +1775,18 @@ function renderOpening(v) {
     },
     {
       done: false,
-      label: `run meeting ${nf(round)}`,
+      label: `run meeting ${nf(round)} of ${nf(v.meetingsPerSeason ?? 4)}`,
       why: "The meeting pays the yard, and upkeep is charged when the season turns.",
-      run: () => showScreen("racing"),
+      // this button says "run": it runs, instead of walking the player to a screen that looks the same
+      run: () => {
+        if (view?.stable?.entries?.length) {
+          act({ type: "advance" });
+          showScreen("racing");
+        } else {
+          showScreen("racing");
+          toast("enter a runner first — the enter button sits on each row", true);
+        }
+      },
     },
   ];
 
