@@ -1918,6 +1918,7 @@ async function loadWorldMarket() {
     worldError = error.message;
   }
   renderWorldMarket();
+  renderTokens();
 }
 
 function renderWorldMarket() {
@@ -1988,6 +1989,114 @@ function renderWorldMarket() {
     card.append(name, meta, row);
     box.append(card);
   }
+}
+
+
+/** Your tokens: what the server holds, and the one button that puts it on chain. */
+let tokenRows = null;
+let tokenError = null;
+
+async function loadTokens() {
+  if (!CLOUD()) return;
+  try {
+    const out = await apiCall(cloudBase ?? "", "/api/mints", { token: tokenStore.get() });
+    tokenRows = out.mints ?? [];
+    tokenError = null;
+  } catch (error) {
+    tokenError = error.message;
+  }
+  renderTokens();
+}
+
+function renderTokens() {
+  const box = el("tokens");
+  if (!box) return;
+  box.innerHTML = "";
+
+  if (!CLOUD()) {
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = "Tokens need the server. Play on studbook.fly.dev to hold horses on chain.";
+    box.append(note);
+    return;
+  }
+  if (tokenError) {
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = `Could not read your tokens: ${tokenError}`;
+    box.append(note);
+    return;
+  }
+  if (!tokenRows) {
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = "reading…";
+    box.append(note);
+    loadTokens();
+    return;
+  }
+  if (!tokenRows.length) {
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = "No horses yet. Cover a mare and wait for the foal.";
+    box.append(note);
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.setAttribute("aria-label", "Your tokens");
+  table.innerHTML =
+    `<thead><tr><th scope="col">horse</th><th scope="col">status</th>` +
+    `<th scope="col">token</th><th scope="col">receipt</th><th scope="col"></th></tr></thead>`;
+  const body = document.createElement("tbody");
+  for (const row of tokenRows) {
+    const tr = document.createElement("tr");
+    tr.className = row.status === "minted" ? "entered" : "";
+    const chip = row.status === "minted" ? "minted" : row.status === "pending" ? "pending" : "unclaimed";
+    tr.innerHTML =
+      `<td>${esc(row.name ?? row.horseId)}<div class="hint">sage ${nf(row.bornSeason ?? 0)} · ${row.sex === 0 ? "mare" : "colt"}</div></td>` +
+      `<td><span class="tag ${chip === "minted" ? "stakes" : ""}">${esc(chip)}</span></td>` +
+      `<td class="num">${row.tokenId ? "#" + nf(row.tokenId) : "—"}</td>` +
+      `<td class="hint">${esc(String(row.txHash ?? "—").slice(0, 18))}</td>`;
+    const cell = document.createElement("td");
+    if (row.status === "pending") {
+      const mint = document.createElement("button");
+      mint.type = "button";
+      mint.className = "tiny brass";
+      mint.textContent = "mint";
+      mint.addEventListener("click", async () => {
+        mint.disabled = true;
+        try {
+          await apiCall(cloudBase ?? "", "/api/mints/sign", {
+            method: "POST",
+            token: tokenStore.get(),
+            body: { nullifier: row.nullifier },
+          });
+          await apiCall(cloudBase ?? "", "/api/mints/confirm", {
+            method: "POST",
+            token: tokenStore.get(),
+            body: { nullifier: row.nullifier },
+          });
+          toast(`${row.name} is on chain`);
+          tokenRows = null;
+          loadTokens();
+        } catch (error) {
+          mint.disabled = false;
+          toast(error.message, true);
+        }
+      });
+      cell.append(mint);
+    } else if (row.status === "unclaimed") {
+      const note = document.createElement("span");
+      note.className = "hint";
+      note.textContent = "bind a wallet";
+      cell.append(note);
+    }
+    tr.append(cell);
+    body.append(tr);
+  }
+  table.append(body);
+  box.append(table);
 }
 
 function renderRanking(v) {

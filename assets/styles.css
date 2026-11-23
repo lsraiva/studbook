@@ -1084,23 +1084,23 @@
       }
       /* ---- a card is a card: engraved frame over the plate ---- */
       .gcard > * { position: relative; z-index: 1; }
+      .gcard { padding: 0.9rem 0.85rem 0.95rem; } /* room for the frame to breathe */
       .gcard::before {
         content: "";
         position: absolute;
-        inset: -5px;
+        inset: -6px;
         background: url("../assets/art/frame.webp") center / 100% 100% no-repeat;
-        opacity: 0.45;
+        opacity: 0.28;
         pointer-events: none;
         transition: opacity var(--dur-2) var(--ease);
       }
-      .gcard:hover::before { opacity: 0.75; }
-      .gcard.tier-promising::before { opacity: 0.6; }
-      .gcard.tier-exceptional::before { opacity: 0.85; }
+      .gcard:hover::before { opacity: 0.48; }
+      .gcard.tier-promising::before { opacity: 0.38; }
+      .gcard.tier-exceptional::before { opacity: 0.55; }
       .gcard.tier-stakes::before {
-        opacity: 1;
-        filter: drop-shadow(0 0 10px rgba(217, 169, 78, 0.45));
+        opacity: 0.8;
+        filter: drop-shadow(0 0 8px rgba(217, 169, 78, 0.35));
       }
-      /* the ornate corners need room: the grid breathes a little more */
       #gallery { gap: 1rem; }
 
       /* ---- the race happens somewhere: turf, rail and a finish post ---- */
@@ -1109,9 +1109,13 @@
         padding: 0.7rem 0.6rem;
         border-radius: 0.9rem;
         background:
-          linear-gradient(180deg, rgba(6, 9, 7, 0.72), rgba(6, 9, 7, 0.55)),
-          url("../assets/art/track.webp") center / cover no-repeat;
+          linear-gradient(180deg, rgba(6, 9, 7, 0.74), rgba(6, 9, 7, 0.58)),
+          url("../assets/art/track.webp") center 32% / 100% auto no-repeat,
+          linear-gradient(180deg, var(--ink-1), var(--ink-0));
         border: 1px solid var(--hairline);
       }
       .track > * { position: relative; z-index: 1; }
       .track .lane .rail { background: rgba(10, 14, 10, 0.55); box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.18); }
+      @media (max-width: 620px) {
+        .track { background-position: center 40%; padding: 0.55rem 0.45rem; }
+      }

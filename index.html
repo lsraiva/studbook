@@ -21,7 +21,7 @@
       rel="icon"
       href="https://d2ol7oe51mr4n9.cloudfront.net/user_3KJqLgRqaLH0OEDu9sNQJTnuyFg/bafbfd17-806f-4a4e-a502-eebf4d6c294c.png"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=0.25.0" />
+    <link rel="stylesheet" href="assets/styles.css?v=0.26.0" />
   
   </head>
   <body>
@@ -293,6 +293,15 @@
         </section>
 
         <section class="panel" data-when="ledger">
+          <h2>Your tokens</h2>
+          <p class="hint">
+            Every horse you own has one token. Unclaimed means the account has no wallet yet;
+            pending is signed and waiting for the chain; minted shows the token id and its receipt.
+          </p>
+          <div id="tokens"></div>
+        </section>
+
+        <section class="panel" data-when="ledger">
           <h2>Account</h2>
           <p class="hint">
             This save lives in your browser, and in the room on the hosted build. Starting
@@ -366,6 +375,6 @@
     <div id="reveal" class="reveal" hidden role="dialog" aria-modal="true" aria-label="Breeding result" aria-live="polite"></div>
 
     <div id="toasts" aria-live="polite"></div>
-    <script type="module" src="assets/ui.js?v=0.25.0"></script>
+    <script type="module" src="assets/ui.js?v=0.26.0"></script>
   </body>
 </html>
