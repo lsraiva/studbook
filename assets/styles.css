@@ -1119,3 +1119,15 @@
       @media (max-width: 620px) {
         .track { background-position: center 40%; padding: 0.55rem 0.45rem; }
       }
+      .wallet-row { margin-top: 0.7rem; align-items: center; }
+      .wallet-row input {
+        font-family: var(--font-num);
+        font-size: 0.78rem;
+        color: var(--cream);
+        background: var(--ink-input);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-1);
+        padding: 0.35rem 0.5rem;
+        min-width: 18rem;
+        max-width: 100%;
+      }

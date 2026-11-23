@@ -2097,6 +2097,48 @@ function renderTokens() {
   }
   table.append(body);
   box.append(table);
+
+  // Anyone still unclaimed gets the one field that fixes it.
+  if (tokenRows.some((row) => row.status === "unclaimed")) {
+    const row = document.createElement("div");
+    row.className = "row wallet-row";
+    const label = document.createElement("span");
+    label.className = "hint";
+    label.textContent = "bind a wallet to claim them:";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "0x…";
+    input.maxLength = 42;
+    input.spellcheck = false;
+    input.setAttribute("aria-label", "Wallet address");
+    const bind = document.createElement("button");
+    bind.type = "button";
+    bind.className = "tiny brass";
+    bind.textContent = "bind";
+    bind.addEventListener("click", async () => {
+      const address = input.value.trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+        toast("that is not an address: 0x and 40 hex characters", true);
+        return;
+      }
+      bind.disabled = true;
+      try {
+        await apiCall(cloudBase ?? "", "/api/wallet", {
+          method: "POST",
+          token: tokenStore.get(),
+          body: { address },
+        });
+        toast("wallet bound — your horses are claimable");
+        tokenRows = null;
+        loadTokens();
+      } catch (error) {
+        bind.disabled = false;
+        toast(error.message, true);
+      }
+    });
+    row.append(label, input, bind);
+    box.append(row);
+  }
 }
 
 function renderRanking(v) {
