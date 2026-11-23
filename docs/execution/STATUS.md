@@ -49,6 +49,14 @@ After fixes:
 
 Reproduce browser tests with `npm ci`, `npx playwright install chromium`, then `npm run test:browser`. Tests start an isolated local preview server and create no production users.
 
+## F1-03 incremental preparation
+
+Added a pure `planRoomTransfer` module and 13 focused cases. It prepares the same balance, horse IDs/genomes, coverings, stable history and referenced sire/ancestor data without mutating either room. It records expected room versions and deadlines for a future atomic commit adapter. Unsafe transfers (active entries, pregnancy, market commitments, token ownership not reconciled, mismatched calendars or ID collisions) are refused without changing either room.
+
+**This is preparation only. The online join endpoint is intentionally unchanged.** Do not activate the planner until locks, durable cross-room commit/recovery, mint identity handling and restart/concurrency regressions are implemented. This avoids replacing progress loss with asset duplication.
+
+Validation: 13 new preparation cases; full `npm test` now includes them. No changes to visual assets, production or paid infrastructure.
+
 ## Remaining work / next action
 
 1. Review this PR and the GitHub CI result; do not auto-merge or deploy.
