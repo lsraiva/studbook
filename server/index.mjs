@@ -95,11 +95,25 @@ async function loadAll() {
     /* exists */
   }
   try {
-    for (const file of await readdir(roomDir)) {
-      if (!file.endsWith(".json")) continue;
+    const files = await readdir(roomDir);
+    const written = new Set(files.filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")));
+    // A crash between writing the temp file and renaming it leaves only the temp: recover instead of
+    // losing a room, because the alternative is a player who comes back with a fresh stable.
+    const recover = files.filter((f) => {
+      const match = f.match(/^(.*)\.json\.[0-9]+\.tmp$/);
+      return match && !written.has(match[1]);
+    });
+    for (const file of files.filter((f) => f.endsWith(".json"))) {
       const room = JSON.parse(await readFile(join(roomDir, file), "utf8"));
       rooms.set(room.id, room);
       for (const player of room.state.players ?? []) userRoom.set(player, room.id);
+    }
+    for (const file of recover) {
+      const room = JSON.parse(await readFile(join(roomDir, file), "utf8"));
+      rooms.set(room.id, room);
+      for (const player of room.state.players ?? []) userRoom.set(player, room.id);
+      await writeJsonAtomic(join(roomDir, `${room.id}.json`), room);
+      console.log("recovered room from a partial write:", room.id);
     }
   } catch {
     /* first run */
@@ -682,6 +696,11 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const address = String(body.address ?? "").trim();
       if (!isAddress(address)) throw httpError(400, "that is not an address", "address");
+      // A mint already signed for the old address would land on the wrong wallet.
+      const inFlight = [...mints.values()].some((m) => m.owner === user.id && m.status === "pending");
+      if (user.wallet && user.wallet !== address && inFlight) {
+        throw httpError(409, "a mint is in flight — wait for it before changing the address", "inflight");
+      }
       user.wallet = address;
       await persistUsers();
       // whatever was unclaimed for this account becomes claimable now

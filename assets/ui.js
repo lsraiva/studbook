@@ -2107,13 +2107,37 @@ function renderTokens() {
   table.append(body);
   box.append(table);
 
+  const boundWallet = tokenRows.map((row) => row.address).find(Boolean) ?? null;
+  if (boundWallet) {
+    const line = document.createElement("div");
+    line.className = "row wallet-row";
+    const shown = document.createElement("span");
+    shown.className = "hint";
+    shown.textContent = `wallet ${boundWallet.slice(0, 6)}…${boundWallet.slice(-4)}`;
+    const change = document.createElement("button");
+    change.type = "button";
+    change.className = "tiny";
+    change.textContent = "change";
+    change.addEventListener("click", () => {
+      line.replaceWith(bindForm(tokenRows, "bind a different wallet:"));
+    });
+    line.append(shown, change);
+    box.append(line);
+  }
+
   // Anyone still unclaimed gets the one field that fixes it.
   if (tokenRows.some((row) => row.status === "unclaimed")) {
+    box.append(bindForm(tokenRows, "bind a wallet to claim them:"));
+  }
+}
+
+/** The address field, used both to bind the first wallet and to change it. */
+function bindForm(rows, labelText) {
     const row = document.createElement("div");
     row.className = "row wallet-row";
     const label = document.createElement("span");
     label.className = "hint";
-    label.textContent = "bind a wallet to claim them:";
+    label.textContent = labelText;
     const input = document.createElement("input");
     input.type = "text";
     input.placeholder = "0x…";
@@ -2146,8 +2170,7 @@ function renderTokens() {
       }
     });
     row.append(label, input, bind);
-    box.append(row);
-  }
+    return row;
 }
 
 function renderRanking(v) {
