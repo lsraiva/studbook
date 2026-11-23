@@ -30,6 +30,7 @@ const engine = await import(pathToFileURL(join(root, "assets/engine.js")).href);
 const ADDRESS = "0x00000000000000000000000000000000000a11ce";
 
 let bound = false;
+let minted = null;
 const calls = [];
 const frame = () => {
   const game = engine.setup(["u1"], "wallet-ui");
@@ -56,7 +57,9 @@ const intent = () => ({
   sex: 0,
   tokenId: null,
   txHash: null,
-  status: bound ? "pending" : "unclaimed",
+  status: minted ? "minted" : bound ? "pending" : "unclaimed",
+  tokenId: minted,
+  txHash: minted ? `sim:${"ab".repeat(20)}` : null,
   address: bound ? ADDRESS : null,
 });
 
@@ -69,7 +72,14 @@ globalThis.fetch = async (url, options = {}) => {
   calls.push({ path, method, body: options.body ?? null });
   if (path === "/api/health") return json({ ok: true, cloud: true });
   if (path === "/api/me") return json({ user: { id: "u1", email: "qa@studbook.test" }, state: frame() });
-  if (path === "/api/mints") return json({ mints: [intent()], pending: bound ? 1 : 0, minted: 0 });
+  if (path === "/api/mints") return json({ mints: [intent()], pending: bound && !minted ? 1 : 0, minted: minted ? 1 : 0 });
+  if (path === "/api/mints/sign") {
+    return json({ mode: "simulated", payload: { nullifier: "null-1" }, signature: "3045" + "00".repeat(60) });
+  }
+  if (path === "/api/mints/confirm") {
+    minted = 900001;
+    return json({ mint: { ...intent(), status: "minted", tokenId: 900001 } });
+  }
   if (path === "/api/wallet") {
     bound = true;
     return json({ wallet: ADDRESS });
@@ -147,6 +157,25 @@ ok("...authenticated with the session token", calls.some((c) => c.path === "/api
 const after = doc.getElementById("tokens")?.textContent ?? "";
 ok("the horse moves to pending", /pending/i.test(after), after.slice(0, 80).replace(/\s+/g, " "));
 ok("...and the mint button appears", [...doc.querySelectorAll("#tokens button")].some((b) => /mint/i.test(b.textContent ?? "")));
+/* ---------- mint: the last step of the phase ---------- */
+const mintButton = () => [...doc.querySelectorAll("#tokens button")].find((b) => /mint/i.test(b.textContent ?? ""));
+ok("the mint button is the one the phase ends on", Boolean(mintButton()));
+mintButton()?.click();
+await wait(500);
+
+const signCall = calls.find((c) => c.path === "/api/mints/sign");
+const confirmCall = calls.find((c) => c.path === "/api/mints/confirm");
+ok("clicking mint signs the intent", Boolean(signCall) && signCall.method === "POST", signCall ? "POST /api/mints/sign" : "missing");
+ok("...and confirms it", Boolean(confirmCall) && confirmCall.method === "POST", confirmCall ? "POST /api/mints/confirm" : "missing");
+ok("...with the same nullifier both times",
+  Boolean(signCall && confirmCall) && JSON.parse(signCall.body).nullifier === JSON.parse(confirmCall.body).nullifier);
+
+const claimed = doc.getElementById("tokens")?.textContent ?? "";
+ok("the horse ends as minted", /minted/i.test(claimed) && !/pending/i.test(claimed), claimed.slice(0, 80).replace(/\s+/g, " "));
+ok("...showing its token id", /#900[,\s]?001/.test(claimed), claimed.match(/#[\d,]+/)?.[0] ?? "no id");
+ok("...and the mint button is gone", !mintButton());
+ok("nothing threw during the mint", errors.length === 0, errors.join(" | "));
+
 ok("nothing threw along the way", errors.length === 0, errors.join(" | "));
 
 dom.window.close();
