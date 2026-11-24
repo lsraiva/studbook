@@ -373,7 +373,7 @@ function rateLimit(userId) {
   traffic.set(userId, recent);
 }
 
-function applyAuthoritative(userId, action) {
+async function applyAuthoritative(userId, action) {
   const room = roomOf(userId);
   if (!room) throw httpError(404, "no room for this account", "noroom");
   assertRoomsWritable(room.id);
@@ -383,10 +383,16 @@ function applyAuthoritative(userId, action) {
   }
   const verdict = validateAction(room.state, userId, action);
   if (!verdict.ok) throw httpError(400, verdict.error ?? "invalid action", "refused");
-  room.state = applyAction(room.state, userId, action);
-  room.version += 1;
-  persistRoom(room).catch(() => {});
-  return room;
+  const updated = { ...room, state: applyAction(room.state, userId, action), version: room.version + 1 };
+  roomLocks.add(room.id);
+  try {
+    await persistRoom(updated);
+    rooms.set(room.id, updated);
+    return updated;
+  } catch {
+    storageFault = true;
+    throw httpError(503, "save interrupted; writes paused pending recovery", "storage");
+  } finally { roomLocks.delete(room.id); }
 }
 
 /* ---------------------------------------------------------------- the market */
@@ -679,7 +685,7 @@ const server = createServer(async (req, res) => {
       const user = requireUser(req);
       rateLimit(user.id);
       const body = await readBody(req);
-      const room = applyAuthoritative(user.id, body.action);
+      const room = await applyAuthoritative(user.id, body.action);
       return send(res, 200, { state: frame(room, user.id) });
     }
 

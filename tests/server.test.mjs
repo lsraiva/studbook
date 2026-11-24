@@ -8,7 +8,7 @@
  * tries to cheat, restarts it, and checks the stable came back.
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readFile, symlink } from "node:fs/promises";
 import { publicAsset } from "../server/public-files.mjs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -135,6 +135,8 @@ try {
   }
   const forged = await api("/api/action", { method: "POST", token, body: { action: { type: "takeStarterOffer" }, state: { stables: [] }, view: {} } });
   ok("a forged state in the body is ignored", forged.status === 200 && forged.json.state.view.stable.guineas === startGuineas - 20);
+  const persistedAction = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8"));
+  ok("action acknowledgment follows durable room persistence", persistedAction.state.stables.find((s) => s.player === reg.json.user.id).guineas === startGuineas - 20);
 
   /* ---------- the same stable from a second device ---------- */
   const again = await api("/api/login", { method: "POST", body: { email: "owner@studbook.test", password: "correct horse battery" } });
