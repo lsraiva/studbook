@@ -519,7 +519,8 @@ function celebrateFirsts(v) {
 }
 
 function onState(msg) {
-  view = msg.view;
+  view = msg.view ? { ...msg.view, room: msg.room ?? msg.view.room ?? null, cloud: Boolean(msg.cloud ?? msg.view.cloud), account: msg.account ?? msg.view.account ?? null } : null;
+  el("advance").hidden = Boolean(view?.cloud);
   seats = msg.seats ?? [];
   me = msg.you;
   // a ?reset=1 link: join is processed by now, so start the run on the chosen bank
@@ -2176,6 +2177,9 @@ function bindForm(rows, labelText) {
 function renderRanking(v) {
   const box = el("ranking");
   if (!box) return;
+  box.tabIndex = 0;
+  box.setAttribute("role", "region");
+  box.setAttribute("aria-label", "Stable rankings; scroll horizontally on small screens");
   box.innerHTML = "";
   const table = document.createElement("table");
   table.setAttribute("aria-label", "Stables ranked by prize money");
@@ -2289,6 +2293,20 @@ function openHorse(horseId) {
   box.hidden = false;
   close.focus();
 }
+
+function openHorse3D(horseId) {
+  const horse = view?.horses?.find((h) => h.id === horseId);
+  if (!horse) return toast("Select a horse first", true);
+  const url = new URL("horse-3d.html", location.href);
+  url.searchParams.set("horse", horse.id);
+  if (!view.cloud) {
+    url.searchParams.set("offline", "1");
+    try { sessionStorage.setItem("studbook:3d-selection", JSON.stringify({ id: horse.id, name: horse.name, age: horse.age, sex: horse.sex, lineage: horse.lineage })); } catch {}
+  }
+  location.href = url.href;
+}
+
+el("open3d")?.addEventListener("click", () => openHorse3D(selectedHorse ?? view?.horses?.[0]?.id));
 
 function renderGallery(v) {
   const box = el("gallery");
@@ -2777,11 +2795,13 @@ function draw() {
     }
     const note = document.createElement("p");
     note.className = "hint";
-    note.textContent = `Entries are open for meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}. Add or swap runners as long as you like — they run when you run the meeting. ${v.goingNote}`;
+    note.textContent = `Entries are open for meeting ${nf(v.round ?? 1)} of ${nf(v.meetingsPerSeason ?? 1)}. ${v.room || v.cloud ? "Add or swap runners before the server deadline — the meeting runs automatically." : "Add or swap runners as long as you like — they run when you run the meeting."} ${v.goingNote}`;
     entries.append(note);
 
     const when = document.createElement("div");
     when.className = "row";
+    // Manual entry windows exist only in offline games; the server owns online deadlines.
+    when.hidden = Boolean(v.room || v.cloud);
     when.style.marginTop = "0.4rem";
     const openWindow = document.createElement("button");
     openWindow.className = "tiny";
@@ -3273,10 +3293,6 @@ if (wantButton) {
   });
 }
 
-el("advance").addEventListener("click", () => {
-  act({ type: "advance" });
-  toast("the season runs…");
-});
 
 const watchButton = el("watch");
 const soundButton = el("sound");
@@ -3363,15 +3379,16 @@ function accountGate(base, message = "") {
   card.className = "gate-card";
   card.innerHTML =
     `<div class="gate-mark">STUD<span>BOOK</span></div>` +
-    `<h2 id="gate-title">Your stable, on every device</h2>` +
-    `<p class="hint">The rules run on the server: sign in and your horses follow you. ` +
-    `Without an account the game still plays, but it saves in this browser only.</p>` +
+    `<h2 id="gate-title">Seu estábulo. Sua história.</h2>` +
+    `<p class="hint">Entre para continuar com seus cavalos e progresso salvo. ` +
+    `A demonstração offline fica somente neste navegador.</p>` +
     `<label>email<input name="email" type="email" autocomplete="email" required /></label>` +
     `<label>password<input name="password" type="password" minlength="8" autocomplete="current-password" required /></label>` +
-    `<p class="gate-error" role="alert">${message}</p>` +
-    `<div class="row"><button class="good" name="login" type="submit">sign in</button>` +
-    `<button name="register" type="button">create a stable</button>` +
-    `<button class="tiny" name="offline" type="button">play offline</button></div>`;
+    `<p class="gate-error" role="alert">${esc(message)}</p>` +
+    `<div class="row"><button class="good" name="login" type="submit">Entrar</button>` +
+    `<button name="register" type="button">Criar estábulo</button>` +
+    `<button class="tiny" name="offline" type="button">Demonstração offline</button></div>` +
+    `<p class="hint"><a href="welcome.html">Página inicial</a> · <a href="horse-3d.html">Explorar prévia 3D</a></p>`;
 
   const say = (text) => {
     const node = card.querySelector(".gate-error");
@@ -3532,9 +3549,7 @@ async function start() {
       tokenStore.set(null);
       accountGate(base, "that session expired — sign in again");
     } else {
-      cloudBase = null;
-      toast("server unreachable — playing offline", true);
-      connect();
+      accountGate(base, "Não foi possível carregar sua conta. Tente entrar novamente; seu progresso online não foi substituído.");
     }
   }
 }
@@ -3565,6 +3580,7 @@ function surfaceError(where, error) {
 document.addEventListener("click", (event) => {
   const run = event.target.closest?.("[data-run]");
   if (run) {
+    if (run.disabled || view?.room || view?.cloud) return;
     act({ type: "advance" });
     return;
   }

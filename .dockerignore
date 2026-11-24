@@ -1,4 +1,10 @@
 node_modules
-data
 .git
+server/data
+data
+.env
+.env.*
+test-results
+playwright-report
+*.log
 *.md

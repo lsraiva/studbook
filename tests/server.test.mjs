@@ -8,7 +8,8 @@
  * tries to cheat, restarts it, and checks the stable came back.
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readFile, symlink } from "node:fs/promises";
+import { publicAsset } from "../server/public-files.mjs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,6 +83,26 @@ try {
   const engine = await fetch(`${base}/assets/engine.js`);
   ok("serves the engine as a module", engine.status === 200 && /javascript/.test(engine.headers.get("content-type") ?? ""));
 
+  /* ---------- only game assets belong on the public static surface ---------- */
+  for (const path of ["/server/index.mjs", "/package.json", "/.git/config", "/tools/backup.mjs", "/assets/../server/index.mjs", "/assets/%2e%2e%2fserver/index.mjs", "/assets/config.js%00"]) {
+    const response = await fetch(`${base}${path}`);
+    ok(`private or malformed static path is refused: ${path}`, [400, 403, 404].includes(response.status));
+  }
+  const art = await fetch(`${base}/assets/art/crest.webp`);
+  ok("public horse artwork keeps its image MIME type", art.status === 200 && /image\/webp/.test(art.headers.get("content-type") ?? ""));
+
+  const fixtureRoot = join(dataDir, "public-fixture");
+  await mkdir(join(fixtureRoot, "assets", "art"), { recursive: true });
+  await writeFile(join(fixtureRoot, "users.json"), '{"fixture":"private"}');
+  await symlink(join(fixtureRoot, "users.json"), join(fixtureRoot, "assets", "art", "alias.webp"));
+  ok("allowlisted-looking symlink cannot expose private files", (await publicAsset(fixtureRoot, "/assets/art/alias.webp")).status === 404);
+  ok("private JSON remains private even when placed inside static root", (await publicAsset(fixtureRoot, "/users.json")).status === 404);
+  ok("invalid URI encoding is a client error", (await publicAsset(fixtureRoot, "/assets/%ZZ")).status === 400);
+  const head = await fetch(`${base}/assets/ui.js`, { method: "HEAD" });
+  ok("HEAD serves public headers without a body", head.status === 200 && (await head.text()) === "");
+  const postedStatic = await fetch(`${base}/assets/ui.js`, { method: "POST" });
+  ok("static assets reject writes", postedStatic.status === 405);
+
   /* ---------- accounts ---------- */
   const unauth = await api("/api/me");
   ok("no token, no view", unauth.status === 401);
@@ -114,6 +135,8 @@ try {
   }
   const forged = await api("/api/action", { method: "POST", token, body: { action: { type: "takeStarterOffer" }, state: { stables: [] }, view: {} } });
   ok("a forged state in the body is ignored", forged.status === 200 && forged.json.state.view.stable.guineas === startGuineas - 20);
+  const persistedAction = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8"));
+  ok("action acknowledgment follows durable room persistence", persistedAction.state.stables.find((s) => s.player === reg.json.user.id).guineas === startGuineas - 20);
 
   /* ---------- the same stable from a second device ---------- */
   const again = await api("/api/login", { method: "POST", body: { email: "owner@studbook.test", password: "correct horse battery" } });
@@ -143,12 +166,21 @@ try {
   }
   ok("action spam is rate limited", limited > 0, `${limited} refused of 55`);
 
-  /* ---------- the clock is the server's ---------- */
-  const far = await api("/api/action", { method: "POST", token, body: { action: { type: "openWindow", endsAt: Date.now() + 999_999_000 } } });
-  const endsAt = far.json.state.view.clock?.endsAt ?? 0;
-  ok("a client cannot ask for a week-long window", far.status === 200 && endsAt - Date.now() <= 300_000, `${Math.round((endsAt - Date.now()) / 1000)}s`);
-  const early = await api("/api/action", { method: "POST", token, body: { action: { type: "closeWindow" } } });
-  ok("nor close it before the deadline", early.status === 400, early.json.error);
+  /* ---------- every public route to the league clock is refused ---------- */
+  const clockBefore = (await api("/api/room", { token })).json.state.room;
+  for (const action of [
+    { type: "advance" },
+    { type: "startOver", bank: 2000 },
+    { type: "openWindow", endsAt: Date.now() - 1000 },
+    { type: "openWindow", endsAt: Date.now() + 10_000 },
+    { type: "openWindow", endsAt: Date.now() + 999_999_000 },
+    { type: "closeWindow" },
+  ]) {
+    const result = await api("/api/action", { method: "POST", token, body: { action } });
+    ok(`online clock command ${action.type} is refused`, result.status === 400 && result.json.code === "clock");
+  }
+  const clockAfter = (await api("/api/room", { token })).json.state.room;
+  ok("refused clock commands preserve meeting and deadline", clockBefore.meeting === clockAfter.meeting && clockBefore.season === clockAfter.season && clockBefore.closesAt === clockAfter.closesAt);
 
   /* ---------- a horse becomes a token: intent, wallet, one mint ---------- */
   const holder = await api("/api/register", { method: "POST", body: { email: "holder@studbook.test", password: "correct horse battery" } });
@@ -202,9 +234,22 @@ try {
   const host = await api("/api/register", { method: "POST", body: { email: "host@studbook.test", password: "correct horse battery" } });
   const guest = await api("/api/register", { method: "POST", body: { email: "guest@studbook.test", password: "correct horse battery" } });
   const code = host.json.state.room.code;
-  const joined = await api("/api/room/join", { method: "POST", token: guest.json.token, body: { code } });
+  const covered = await api("/api/action", { method: "POST", token: guest.json.token, body: { action: { type: "takeStarterOffer" } } });
+  const originalGuest = covered.json.state.view;
+  const originalMints = (await api("/api/mints", { token: guest.json.token })).json.mints;
+  const attempts = await Promise.all([1, 2].map(() => api("/api/room/join", { method: "POST", token: guest.json.token, body: { code } })));
+  const joined = attempts.find((a) => a.status === 200) ?? attempts[0];
+  ok("concurrent transfer requests succeed once or return busy", attempts.some((a) => a.status === 200) && attempts.every((a) => [200, 409].includes(a.status)));
   ok("a second player joins by code", joined.status === 200 && joined.json.state.room.code === code,
      `${joined.json.state.room.seats} seats`);
+  ok("room transfer preserves balance instead of granting a new bank", joined.json.state.view.stable.guineas === originalGuest.stable.guineas && originalGuest.stable.guineas === 1980);
+  ok("room transfer preserves original horse identity and genome", JSON.stringify(joined.json.state.view.horses.map((h) => [h.id, h.genotype])) === JSON.stringify(originalGuest.horses.map((h) => [h.id, h.genotype])));
+  ok("room transfer preserves purchased covering", joined.json.state.view.straws.length === 1 && joined.json.state.view.straws[0].id === originalGuest.straws[0].id);
+  const movedMints = (await api("/api/mints", { token: guest.json.token })).json.mints;
+  ok("unclaimed mint identity does not change with the room", movedMints[0].nullifier === originalMints[0].nullifier && movedMints[0].roomId === joined.json.state.room.id);
+  await stop(); await start();
+  const restoredGuest = (await api("/api/me", { token: guest.json.token })).json.state;
+  ok("transferred stable survives process restart without duplication", restoredGuest.room.code === code && restoredGuest.room.seats === 2 && restoredGuest.view.stable.guineas === 1980 && restoredGuest.view.horses[0].id === originalGuest.horses[0].id);
   const wrongCode = await api("/api/room/join", { method: "POST", token: guest.json.token, body: { code: "ZZZZZZ" } });
   ok("a wrong code is refused", wrongCode.status === 404);
 

@@ -1,21 +1,18 @@
 #!/usr/bin/env node
-/** Tiny static server for local play: node tools/serve.mjs [port] */
-import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { extname, join, normalize } from "node:path";
+/** Local preview; shares the production asset allowlist. */
+import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
+import { publicAsset } from '../server/public-files.mjs';
 
-const root = new URL("../", import.meta.url).pathname;
+const root = fileURLToPath(new URL('../', import.meta.url));
 const port = Number(process.argv[2] ?? 8080);
-const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json" };
 
 createServer(async (req, res) => {
-  const rel = normalize(decodeURIComponent((req.url ?? "/").split("?")[0])).replace(/^(\.\.[/\\])+/, "");
-  const file = join(root, rel === "/" ? "index.html" : rel);
-  try {
-    const body = await readFile(file);
-    res.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
-    res.end(body);
-  } catch {
-    res.writeHead(404, { "content-type": "text/plain" }).end("not found");
+  if (!['GET', 'HEAD'].includes(req.method ?? '')) {
+    res.writeHead(405, { allow: 'GET, HEAD' }).end();
+    return;
   }
-}).listen(port, () => console.log(`studbook on http://127.0.0.1:${port}`));
+  const asset = await publicAsset(root, (req.url ?? '/').split('?')[0]);
+  res.writeHead(asset.status, { 'content-type': asset.contentType, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
+  res.end(req.method === 'HEAD' ? undefined : asset.body);
+}).listen(port, '127.0.0.1', () => console.log(`studbook on http://127.0.0.1:${port}`));

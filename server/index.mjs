@@ -21,10 +21,13 @@ import {
   sign,
   timingSafeEqual,
 } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { extname, join, normalize, dirname } from "node:path";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { publicAsset } from "./public-files.mjs";
+import { planRoomTransfer } from "./room-transfer.mjs";
+import { writeJsonDurable, roomSnapshots, commitRoomTransfer, recoverRoomTransfers } from "./transfer-store.mjs";
 
 import {
   LOCI as LOCUS_ORDER,
@@ -43,6 +46,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const dataDir = process.env.DATA_DIR ?? join(here, "data");
 const port = Number(process.env.PORT ?? 8787);
+const maintenanceMode = process.env.STUDBOOK_MAINTENANCE === "1";
 const origins = (process.env.ALLOWED_ORIGINS ?? "*").split(",").map((o) => o.trim());
 const ACTION_LIMIT = Number(process.env.ACTION_LIMIT ?? 40);
 const ACTION_WINDOW_MS = Number(process.env.ACTION_WINDOW_MS ?? 10_000);
@@ -58,18 +62,23 @@ const rooms = new Map();   // roomId -> { id, code, state, closesAt, version }
 const mints = new Map();   // nullifier -> { roomId, horseId, owner, address, bornSeason, tokenId|null, status }
 const userRoom = new Map(); // userId -> roomId
 const traffic = new Map(); // userId -> number[] (action timestamps)
+const roomLocks = new Set();
+let storageFault = false;
+function assertRoomsWritable(...ids) {
+  if (storageFault) throw httpError(503, "storage recovery required; writes are paused", "storage");
+  if (ids.some((id) => roomLocks.has(id))) throw httpError(409, "room transfer in progress; retry shortly", "busy");
+}
 
 const userFile = join(dataDir, "users.json");
 const sessionFile = join(dataDir, "sessions.json");
 const roomDir = join(dataDir, "rooms");
+const transferDir = join(dataDir, "room-transfers");
 /** A meeting closes on a clock, never on a click. Rooms with a second human are given longer. */
 const MEETING_SECONDS = Number(process.env.MEETING_SECONDS ?? 43_200); // 12 h
 const SOLO_SECONDS = Number(process.env.SOLO_SECONDS ?? 120);          // two minutes alone
 
 async function writeJsonAtomic(path, value) {
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify(value));
-  await rename(tmp, path);
+  return writeJsonDurable(path, value);
 }
 
 async function loadAll() {
@@ -78,16 +87,16 @@ async function loadAll() {
       users.set(user.id, user);
       emails.set(user.email, user.id);
     }
-  } catch {
-    /* first run */
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error; // corruption is not an empty new game
   }
   try {
     const saved = JSON.parse(await readFile(sessionFile, "utf8"));
     for (const [token, session] of Object.entries(saved)) {
       if (session.expiresAt > Date.now()) sessions.set(token, session);
     }
-  } catch {
-    /* first run */
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error; // corruption is not an empty new game
   }
   try {
     await mkdir(roomDir, { recursive: true });
@@ -115,8 +124,8 @@ async function loadAll() {
       await writeJsonAtomic(join(roomDir, `${room.id}.json`), room);
       console.log("recovered room from a partial write:", room.id);
     }
-  } catch {
-    /* first run */
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error; // corruption is not an empty new game
   }
 }
 
@@ -137,7 +146,7 @@ const idBaseFor = (roomId) =>
  */
 const nullifierOf = (room, horse) =>
   createHash("sha256")
-    .update(`studbook:${room.id}:${horse.id}:${horse.sire ?? 0}:${horse.dam ?? 0}:${horse.bornSeason ?? 0}`)
+    .update(`studbook:${horse.originRoomId ?? room.id}:${horse.id}:${horse.sire ?? 0}:${horse.dam ?? 0}:${horse.bornSeason ?? 0}`)
     .digest("hex");
 
 const isAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(String(value ?? ""));
@@ -364,34 +373,26 @@ function rateLimit(userId) {
   traffic.set(userId, recent);
 }
 
-/** Server-side clamps: the client may ask for a deadline, it may not set one. */
-function clampClock(action) {
-  if (action?.type !== "openWindow") return action;
-  const asked = Number(action.endsAt);
-  const now = Date.now();
-  const seconds = Number.isFinite(asked) ? (asked - now) / 1000 : NaN;
-  const bounded = Math.min(300, Math.max(10, Number.isFinite(seconds) ? seconds : 90));
-  return { ...action, endsAt: now + Math.round(bounded) * 1000 };
-}
-
-function applyAuthoritative(userId, action) {
+async function applyAuthoritative(userId, action) {
   const room = roomOf(userId);
   if (!room) throw httpError(404, "no room for this account", "noroom");
+  assertRoomsWritable(room.id);
   if (!action || typeof action !== "object" || Array.isArray(action)) throw httpError(400, "an action is an object", "action");
-  if (action.type === "advance") {
+  if (["advance", "openWindow", "closeWindow", "startOver"].includes(action.type)) {
     throw httpError(400, "the meeting closes on the clock — enter your runners and wait", "clock");
   }
   const verdict = validateAction(room.state, userId, action);
   if (!verdict.ok) throw httpError(400, verdict.error ?? "invalid action", "refused");
-  if (action.type === "closeWindow") {
-    const clock = room.state.clock;
-    if (clock && Date.now() < clock.endsAt) throw httpError(400, "the entries window is still open", "early");
-  }
-  const cleaned = clampClock(action);
-  room.state = applyAction(room.state, userId, cleaned);
-  room.version += 1;
-  persistRoom(room).catch(() => {});
-  return room;
+  const updated = { ...room, state: applyAction(room.state, userId, action), version: room.version + 1 };
+  roomLocks.add(room.id);
+  try {
+    await persistRoom(updated);
+    rooms.set(room.id, updated);
+    return updated;
+  } catch {
+    storageFault = true;
+    throw httpError(503, "save interrupted; writes paused pending recovery", "storage");
+  } finally { roomLocks.delete(room.id); }
 }
 
 /* ---------------------------------------------------------------- the market */
@@ -400,6 +401,7 @@ function applyAuthoritative(userId, action) {
 function catalogue() {
   const rows = [];
   for (const room of rooms.values()) {
+    if (!humanSeats(room)) continue;
     for (const listing of room.state.listings ?? []) {
       const horse = listing.kind === "horse" ? horseById(room.state, listing.horseId) : null;
       const sire = listing.straw ? horseById(room.state, listing.straw.sire) : null;
@@ -438,6 +440,7 @@ function buyAcrossRooms(buyerId, roomId, listingId) {
   if (!sellerRoom) throw httpError(404, "no such room", "room");
   const buyerRoom = roomOf(buyerId);
   if (!buyerRoom) throw httpError(404, "no room for this account", "noroom");
+  assertRoomsWritable(sellerRoom.id, buyerRoom.id);
   if (buyerRoom.id === sellerRoom.id) throw httpError(400, "that lot is in your own room", "same");
 
   const index = (sellerRoom.state.listings ?? []).findIndex((lot) => lot.id === listingId);
@@ -528,27 +531,17 @@ function signPayload(payload) {
 
 /* ---------------------------------------------------------------- routing */
 
-function staticType(path) {
-  return (
-    { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".md": "text/markdown; charset=utf-8" }[extname(path)] ?? "application/octet-stream"
-  );
-}
-
 async function serveStatic(req, res) {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
-  const file = join(root, rel === "/" || rel === "" ? "index.html" : rel);
-  if (!file.startsWith(root)) {
-    res.writeHead(403).end("forbidden");
-    return;
+  if (!["GET", "HEAD"].includes(req.method ?? "")) {
+    return res.writeHead(405, { allow: "GET, HEAD" }).end();
   }
-  try {
-    const body = await readFile(file);
-    res.writeHead(200, { "content-type": staticType(file), "cache-control": "no-cache" });
-    res.end(body);
-  } catch {
-    res.writeHead(404, { "content-type": "text/plain" }).end("not found");
-  }
+  const asset = await publicAsset(root, (req.url ?? "/").split("?")[0]);
+  res.writeHead(asset.status, {
+    "content-type": asset.contentType,
+    "cache-control": "no-cache",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(req.method === "HEAD" ? undefined : asset.body);
 }
 
 const bearer = (req) => {
@@ -572,10 +565,12 @@ const server = createServer(async (req, res) => {
   const path = url.pathname;
 
   if (!path.startsWith("/api/")) return serveStatic(req, res);
+  if (maintenanceMode && req.method === "POST") return send(res, 503, { error: "maintenance: writes are temporarily paused", code: "maintenance" });
+  if (storageFault && req.method === "POST") return send(res, 503, { error: "storage recovery required; writes are paused", code: "storage" });
 
   try {
     if (path === "/api/health" && req.method === "GET") {
-      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, uptime: Math.round(process.uptime()) });
+      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: "0.32.0", revision: process.env.STUDBOOK_RELEASE_SHA ?? null, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
     }
 
     if ((path === "/api/register" || path === "/api/login") && req.method === "POST") {
@@ -605,6 +600,7 @@ const server = createServer(async (req, res) => {
       // Across every account: the table is public, the emails are not.
       const rows = [];
       for (const room of rooms.values()) {
+        if (!humanSeats(room)) continue;
         for (const stable of room.state.stables) {
           const horses = (stable.horses ?? []).map((id) => horseById(room.state, id)).filter(Boolean);
           rows.push({
@@ -677,9 +673,11 @@ const server = createServer(async (req, res) => {
 
     if (path === "/api/me" && req.method === "GET") {
       const user = requireUser(req);
+      const room = roomOf(user.id);
+      if (!room) throw httpError(409, "no stable linked to this account; sign in again to initialize it", "noroom");
       return send(res, 200, {
         user: { id: user.id, email: user.email, verified: Boolean(user.verified) },
-        state: frame(roomOf(user.id), user.id),
+        state: frame(room, user.id),
       });
     }
 
@@ -687,13 +685,14 @@ const server = createServer(async (req, res) => {
       const user = requireUser(req);
       rateLimit(user.id);
       const body = await readBody(req);
-      const room = applyAuthoritative(user.id, body.action);
+      const room = await applyAuthoritative(user.id, body.action);
       return send(res, 200, { state: frame(room, user.id) });
     }
 
     if (path === "/api/wallet" && req.method === "POST") {
       const user = requireUser(req);
       const body = await readBody(req);
+      assertRoomsWritable(userRoom.get(user.id));
       const address = String(body.address ?? "").trim();
       if (!isAddress(address)) throw httpError(400, "that is not an address", "address");
       // A mint already signed for the old address would land on the wrong wallet.
@@ -734,6 +733,7 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const nullifier = String(body.nullifier ?? "");
       const intent = mints.get(nullifier);
+      assertRoomsWritable(userRoom.get(user.id));
       if (!intent || intent.owner !== user.id) throw httpError(404, "no such mint", "mint");
       if (intent.status === "minted") throw httpError(409, "that horse is already on chain", "done");
       if (!intent.address) throw httpError(409, "bind a wallet first", "unclaimed");
@@ -762,6 +762,7 @@ const server = createServer(async (req, res) => {
       const nullifier = String(body.nullifier ?? "");
       let tokenId = Number(body.tokenId);
       const intent = mints.get(nullifier);
+      assertRoomsWritable(userRoom.get(user.id));
       if (!intent || intent.owner !== user.id) throw httpError(404, "no such mint", "mint");
       if (intent.status === "minted") throw httpError(409, "that horse is already on chain", "done");
       if (!intent.address) throw httpError(409, "bind a wallet first", "unclaimed");
@@ -805,27 +806,40 @@ const server = createServer(async (req, res) => {
       const code = String(body.code ?? "").trim().toUpperCase();
       const target = [...rooms.values()].find((room) => room.code === code);
       if (!target) throw httpError(404, "no room with that code", "code");
-      if ((target.state.players ?? []).length >= 12) throw httpError(409, "that room is full", "full");
       const current = roomOf(user.id);
-      if (current && current.id !== target.id) {
-        // leave the old room; if it was only yours, take it with you
-        current.state.players = (current.state.players ?? []).filter((id) => id !== user.id);
-        current.state.stables = current.state.stables.filter((stable) => stable.player !== user.id);
-        if (!current.state.players.length) {
-          rooms.delete(current.id);
-          await rm(join(roomDir, `${current.id}.json`), { force: true });
-        } else {
-          await persistRoom(current);
+      if (!current) throw httpError(404, "no room for this account", "noroom");
+      assertRoomsWritable(current.id, target.id);
+      if (current.id === target.id) return send(res, 200, { state: frame(target, user.id) });
+      rateLimit(user.id);
+      if (!humanSeats(target)) throw httpError(409, "that room is archived", "archived");
+      if (user.wallet) throw httpError(409, "wallet-bound transfers require token reconciliation", "mint");
+      roomLocks.add(current.id); roomLocks.add(target.id);
+      try {
+        let plan;
+        try {
+          plan = planRoomTransfer({ source: current, target, userId: user.id, now: Date.now(), mintIntents: [...mints.values()] });
+        } catch (error) { throw httpError(409, error.message, error.code ?? "transfer"); }
+        const snapshots = roomSnapshots(plan, current, target, Date.now() + MEETING_SECONDS * 1000);
+        for (const room of snapshots) scorePopulation(room.state);
+        let committed;
+        try {
+          committed = await commitRoomTransfer({
+            directory: transferDir, snapshots, userId: user.id, writeRoom: persistRoom,
+            publish: (states) => {
+              for (const room of states) rooms.set(room.id, room);
+              userRoom.set(user.id, target.id);
+              for (const intent of mints.values()) if (intent.owner === user.id) intent.roomId = target.id;
+            },
+          });
+        } catch {
+          storageFault = true; // an uncertain journal commit must be recovered before any retry
+          throw httpError(503, "transfer interrupted; writes paused pending recovery", "storage");
         }
+        if (!committed.materialized) storageFault = true;
+        return send(res, 200, { state: frame(rooms.get(target.id), user.id), storageRecoveryRequired: storageFault });
+      } finally {
+        roomLocks.delete(current.id); roomLocks.delete(target.id);
       }
-      if (current && current.id === target.id) return send(res, 200, { state: frame(target, user.id) });
-      target.state = applyAction(target.state, user.id, { type: "takeSeat" });
-      target.state.players = [...(target.state.players ?? []), user.id];
-      userRoom.set(user.id, target.id);
-      rearm(target);
-      target.version += 1;
-      await persistRoom(target);
-      return send(res, 200, { state: frame(target, user.id) });
     }
 
     if (path === "/api/logout" && req.method === "POST") {
@@ -847,9 +861,11 @@ const server = createServer(async (req, res) => {
 
 /** The world turns here: a closed meeting is resolved by the server, for everyone in the room. */
 async function tick() {
+  if (storageFault || maintenanceMode) return;
   const now = Date.now();
   for (const room of rooms.values()) {
-    if (room.closesAt > now) continue;
+    if (room.closesAt > now || !humanSeats(room) || roomLocks.has(room.id)) continue;
+    roomLocks.add(room.id);
     try {
       room.state = runRound(room.state, "The clock ran out —");
       issueMints(room); // a foal born this turn becomes an intent, once
@@ -859,11 +875,21 @@ async function tick() {
     } catch (error) {
       console.error("turn failed for", room.id, error.message);
       rearm(room);
+    } finally {
+      roomLocks.delete(room.id);
     }
   }
 }
 
 await loadAll();
+await recoverRoomTransfers({ directory: transferDir, rooms, writeRoom: persistRoom });
+userRoom.clear();
+for (const room of rooms.values()) {
+  for (const player of room.state.players ?? []) {
+    if (userRoom.has(player)) throw new Error("Conflicting room membership; recovery required");
+    userRoom.set(player, room.id);
+  }
+}
 setInterval(() => {
   tick().catch((error) => console.error("tick:", error.message));
 }, 2000);

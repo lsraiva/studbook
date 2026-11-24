@@ -1,0 +1,11 @@
+Studbook experimental 3D viewer
+
+Horse model provided by the project owner, originally from Sleipner:
+https://3d.sleipner.ai/library/horse
+Licence: https://3d.sleipner.ai/legal/licence
+
+The model, textures, rig and animations remain under the Sleipner Free Library Licence, not Studbook's MIT licence. Use within this game/project is permitted; standalone asset redistribution/resale and false authorship are not. This is a shared prototype visual, not an exclusive NFT model or a promise of financial value.
+
+Project changes: reversible anatomy study and lossless WebP texture encoding; Lite profile uses resized 1K textures. Six animations and the original rig are retained. Physical-device performance and final racing-horse conformation remain under review.
+
+Viewer uses Three.js (MIT). Copyright 2010-2026 Three.js Authors. See the bundled JavaScript licence notices and project dependency licences.

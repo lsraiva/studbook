@@ -33,7 +33,6 @@ primary_region = 'ams'
     path = '/api/health'
 
 [[vm]]
-  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 256

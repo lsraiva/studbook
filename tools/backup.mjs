@@ -34,9 +34,13 @@ for (const file of ["users.json", "sessions.json"]) {
     counts[file] = "copied";
   }
 }
-if (await exists(join(dataDir, "rooms"))) {
-  await cp(join(dataDir, "rooms"), join(target, "rooms"), { recursive: true });
-  counts.rooms = (await readdir(join(dataDir, "rooms"))).filter((f) => f.endsWith(".json")).length;
+// The transfer journal is part of the authoritative state, not disposable logs.
+// Pause writers or use a filesystem/database snapshot for a consistent backup.
+for (const directory of ["rooms", "room-transfers"]) {
+  if (await exists(join(dataDir, directory))) {
+    await cp(join(dataDir, directory), join(target, directory), { recursive: true });
+    counts[directory] = (await readdir(join(dataDir, directory))).filter((f) => f.endsWith(".json")).length;
+  }
 }
 
 await writeFile(
