@@ -2357,6 +2357,11 @@ function renderGallery(v) {
     photo.loading = "lazy";
     photo.style.filter = appearance.filter;
     portrait.append(photo);
+    const seal = document.createElement("span");
+    seal.className = "gseal";
+    seal.title = "Selo de demonstração do Studbook — não é certificado on-chain";
+    seal.innerHTML = `<b>SB</b><small>SEAL</small>`;
+    portrait.append(seal);
     card.append(portrait);
 
     const strip = document.createElement("span");
@@ -2366,6 +2371,11 @@ function renderGallery(v) {
     stripText.textContent = appearance.label;
     strip.append(stripText);
     card.append(strip);
+
+    const pedigree = document.createElement("span");
+    pedigree.className = "gped";
+    pedigree.textContent = `${horse.sireName ?? "founder"} × ${horse.damName ?? "founder"} · ${horse.lineage}`;
+    card.append(pedigree);
 
     const name = document.createElement("span");
     name.className = "gname";
