@@ -1,5 +1,12 @@
 # Publicação 0.33.0 — identidade visual individual
 
+## Publicado e verificado
+
+- Produção: https://studbook.fly.dev — versão 0.33.0, revisão `09719c7b09beaf2df47c2acb66bfc760a84e2c3e`, manutenção desligada, 6 contas preservadas.
+- Fluxo publicado testado no navegador: entrar na demo offline → cartão de pelagem → viewer 3D → mesmo cavalo.
+- O cartão mostrou `Cremello · plain face · 2 socks`; o viewer mostrou o mesmo cavalo claro, crina clara, cara limpa e duas meias. Zero pageerrors.
+- Sem migração de dados, compra de assets ou geração paga de mídia.
+
 ## Objetivo e limites
 
 Cada cavalo recebe agora uma aparência própria e estável — pelagem, crina/cauda, marcas faciais e meias — em vez de um retrato genérico apenas por linhagem.

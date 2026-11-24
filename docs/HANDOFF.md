@@ -1,6 +1,6 @@
 # Studbook — continuidade em outro modelo
 
-**Publicado:** versão 0.33.0 com identidade visual individual por cavalo. Ver [RELEASE-0.33](execution/RELEASE-0.33.md). A publicação anterior está em [RELEASE-0.32](execution/RELEASE-0.32.md). PR #2 foi mesclado; não continue tratando-o como pendente.
+**Publicado:** versão 0.33.0 em produção, revisão `09719c7b09beaf2df47c2acb66bfc760a84e2c3e`, com identidade visual individual por cavalo. Ver [RELEASE-0.33](execution/RELEASE-0.33.md). A publicação anterior está em [RELEASE-0.32](execution/RELEASE-0.32.md). PR #2 foi mesclado; não continue tratando-o como pendente.
 
 ## Pedido do proprietário
 
