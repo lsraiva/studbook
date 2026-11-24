@@ -15,7 +15,7 @@ A identidade é derivada do **id público** do cavalo e da linhagem, por funçã
 
 ## Onde aparece
 
-- Cartão do estábulo (retrato de pelagem).
+- Cartão do estábulo: retrato de linhagem tonalizado para a pelagem do animal, mais faixa compacta com pelagem, marca facial e meias.
 - linha do plantel (amostra compacta; oculta em telas estreitas para não alargar a tabela).
 - ficha detalhada do cavalo.
 - cavalo no mercado.
@@ -24,7 +24,7 @@ A identidade é derivada do **id público** do cavalo e da linhagem, por funçã
 
 ## Implementação
 
-- `assets/phenotype.js`: 8 pelagens, 4 tipos de marca facial e 0–4 meias; hash FNV-1a estável; nenhuma aleatoriedade em tempo de execução; validação/escape do markup SVG.
+- `assets/phenotype.js`: 8 pelagens, 4 tipos de marca facial e 0–4 meias; hash FNV-1a estável; nenhuma aleatoriedade em tempo de execução; filtro de cor do retrato e validação/escape do markup SVG.
 - Reutiliza o símbolo de cavalo já existente na interface, sem novos arquivos de arte.
 - Shader do viewer aplica pelagem/marcações sobre o material `coat_B`; a crina/cauda usa o material `hair`. O morph anatômico e as seis animações permanecem.
 - Nenhuma migração de dados: a aparência é calculada a partir de campos já existentes, e por isso vale imediatamente para cavalos antigos.

@@ -774,7 +774,7 @@
         text-align: left;
         display: grid;
         gap: 0.28rem;
-        padding: 0.6rem 0.65rem 0.7rem;
+        padding: 0.6rem 0.65rem 1.55rem;
         border-radius: 0.9rem;
         border: 1px solid var(--hairline);
         background:
@@ -878,7 +878,7 @@
       .luck span { border: 1px solid var(--hairline); border-radius: var(--radius-pill); padding: 0.15rem 0.5rem; color: var(--faint); }
       .luck .hit { border-color: var(--brass); color: var(--cream); }
       .luck .miss { border-color: var(--bad-line); color: var(--bad-fg); }
-      .gcard .gverdict { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
+      .gcard .gverdict { font-size: 0.68rem; color: var(--muted); line-height: 1.3; }
       .roomline { font-family: var(--font-num); font-size: 0.72rem; color: var(--muted); }
       .roomline b { color: var(--brass); letter-spacing: 0.08em; }
       .countdown { color: var(--cream); }
@@ -1099,6 +1099,13 @@
       .gcard > * { position: relative; z-index: 1; }
       .gportrait { display: grid; place-items: center; width: 100%; height: 7.5rem; margin: 0 0 0.55rem; border-radius: 0.5rem; background: radial-gradient(ellipse at 50% 75%, var(--ink-3), var(--ink-0) 75%); border: 1px solid var(--line); overflow: hidden; }
       .gportrait svg { width: 88%; height: 88%; }
+      .gportrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 58%; }
+      .gportrait { position: relative; }
+      .coat-wash { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color; opacity: 0.55; }
+      .coat-strip { display: flex; align-items: flex-start; gap: 0.35rem; margin: 0 0 0.4rem; font-size: 0.61rem; line-height: 1.35; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+      .coat-strip span { min-width: 0; }
+      .coat-strip i { width: 0.62rem; height: 0.62rem; border-radius: 50%; border: 1px solid rgba(255,255,255,.33); flex: 0 0 auto; }
+      .coat-swatch { width: 1.35rem; height: 1.35rem; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); flex: 0 0 auto; }
       .coat-inline svg, .coat-badge { display: block; width: 100%; height: 100%; }
       .coat-inline { width: 1.8rem; height: 1.35rem; flex: 0 0 auto; display: inline-grid; place-items: center; }
       @media (max-width: 620px) { .coat-inline { display: none; } }
@@ -1106,6 +1113,7 @@
       .hv-coat .coat-badge { width: 3.2rem; height: 2.4rem; flex: 0 0 auto; }
       .hv-portrait.coat-portrait { display: grid; place-items: center; width: 100%; height: 11rem; object-fit: unset; background: radial-gradient(ellipse at 50% 72%, var(--ink-3), var(--ink-0) 75%); border: 1px solid var(--line); border-radius: 0.6rem; }
       .hv-portrait.coat-portrait svg { width: 92%; height: 92%; }
+      .hv-portrait.coat-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 58%; border-radius: 0.55rem; }
       .gcard { padding: 0.9rem 0.85rem 0.95rem; } /* room for the frame to breathe */
       .gcard::before {
         content: "";

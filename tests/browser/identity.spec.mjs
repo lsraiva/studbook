@@ -14,9 +14,9 @@ test('every horse shows a deterministic coat portrait in the yard and the same c
   const horse = await savedHorse(page);
   const look = appearanceFor(horse);
   const card = page.locator('#gallery .gcard').first();
-  await expect(card.locator('.gportrait svg')).toBeVisible();
-  await expect(card.locator('.gmeta')).toContainText(look.label);
-  await expect(card.locator('.gportrait use')).toHaveAttribute('style', new RegExp(look.bodyColor));
+  await expect(card.locator('.gportrait img')).toBeVisible();
+  await expect(card.locator('.coat-strip')).toContainText(look.label);
+  await expect(card.locator('.coat-strip i')).toHaveAttribute('style', new RegExp(look.bodyColor));
 
   await page.locator('#open3d').click();
   await page.waitForFunction(() => window.__horseProof?.loaded, null, { timeout: 60000 });
@@ -26,7 +26,7 @@ test('every horse shows a deterministic coat portrait in the yard and the same c
   await expect(page.locator('#coat-label')).toContainText(look.labelPt.split(' · ')[0]);
 
   await page.locator('a[href="index.html"]').click();
-  await expect(page.locator('#gallery .gmeta')).toContainText(look.label);
+  await expect(page.locator('#gallery .coat-strip')).toContainText(look.label);
 });
 
 test('the detail card and the row agree with the gallery identity', async ({ page }) => {

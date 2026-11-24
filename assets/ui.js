@@ -2239,14 +2239,16 @@ function openHorse(horseId) {
   card.innerHTML = "";
 
   const appearance = appearanceFor(horse);
-  const portrait = document.createElement("div");
-  portrait.className = "hv-portrait coat-portrait";
-  portrait.innerHTML = coatSvg(appearance, "coat-badge");
+  const portrait = document.createElement("img");
+  portrait.className = "hv-portrait";
+  portrait.src = portraitOf(horse.lineage, horse.age);
+  portrait.alt = "";
+  portrait.style.filter = appearance.filter;
   card.append(portrait);
 
   const coat = document.createElement("div");
   coat.className = "hv-coat";
-  coat.innerHTML = coatSvg(appearance, "coat-badge large");
+  coat.innerHTML = `<i class="coat-swatch" style="background:${appearance.bodyColor}"></i>`;
   const coatName = document.createElement("span");
   coatName.textContent = appearance.label;
   coat.append(coatName);
@@ -2348,9 +2350,22 @@ function renderGallery(v) {
     const appearance = appearanceFor(horse);
     const portrait = document.createElement("span");
     portrait.className = "gportrait";
-    portrait.innerHTML = coatSvg(appearance);
     portrait.title = appearance.label;
+    const photo = document.createElement("img");
+    photo.src = portraitOf(horse.lineage, horse.age);
+    photo.alt = "";
+    photo.loading = "lazy";
+    photo.style.filter = appearance.filter;
+    portrait.append(photo);
     card.append(portrait);
+
+    const strip = document.createElement("span");
+    strip.className = "coat-strip";
+    strip.innerHTML = `<i style="background:${appearance.bodyColor}"></i>`;
+    const stripText = document.createElement("span");
+    stripText.textContent = appearance.label;
+    strip.append(stripText);
+    card.append(strip);
 
     const name = document.createElement("span");
     name.className = "gname";
@@ -2359,7 +2374,7 @@ function renderGallery(v) {
 
     const meta = document.createElement("span");
     meta.className = "gmeta";
-    meta.textContent = `${appearance.label} · ${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
+    meta.textContent = `${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
     card.append(meta);
 
     const value = document.createElement("span");
@@ -2373,11 +2388,6 @@ function renderGallery(v) {
       verdict.textContent = horse.verdict;
       card.append(verdict);
     }
-    const band = document.createElement("span");
-    band.className = "gband" + (horse.stakes ? " stakes" : "");
-    band.textContent = horse.band ?? "";
-    card.append(band);
-
     box.append(card);
   }
   if (!herd.length) {
