@@ -94,8 +94,16 @@ try {
   const fixtureRoot = join(dataDir, "public-fixture");
   await mkdir(join(fixtureRoot, "assets", "art"), { recursive: true });
   await writeFile(join(fixtureRoot, "users.json"), '{"fixture":"private"}');
-  await symlink(join(fixtureRoot, "users.json"), join(fixtureRoot, "assets", "art", "alias.webp"));
-  ok("allowlisted-looking symlink cannot expose private files", (await publicAsset(fixtureRoot, "/assets/art/alias.webp")).status === 404);
+  let symlinkMade = true;
+  try {
+    await symlink(join(fixtureRoot, "users.json"), join(fixtureRoot, "assets", "art", "alias.webp"));
+  } catch (error) {
+    // Windows without Developer Mode cannot create symlinks; CI (Linux) still runs this check.
+    if (error.code !== "EPERM") throw error;
+    symlinkMade = false;
+    console.log("SKIP allowlisted-looking symlink check — symlinks not permitted on this host");
+  }
+  if (symlinkMade) ok("allowlisted-looking symlink cannot expose private files", (await publicAsset(fixtureRoot, "/assets/art/alias.webp")).status === 404);
   ok("private JSON remains private even when placed inside static root", (await publicAsset(fixtureRoot, "/users.json")).status === 404);
   ok("invalid URI encoding is a client error", (await publicAsset(fixtureRoot, "/assets/%ZZ")).status === 400);
   const head = await fetch(`${base}/assets/ui.js`, { method: "HEAD" });
