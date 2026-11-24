@@ -6,7 +6,7 @@ const saved = (page) => page.evaluate(() => {
   return key ? JSON.parse(localStorage.getItem(key)).state : null;
 });
 async function boot(page) {
-  await page.goto('/');
+  await page.goto('/index.html');
   await expect.poll(async () => (await saved(page))?.season).toBe(1);
 }
 

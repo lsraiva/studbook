@@ -1136,6 +1136,9 @@
       @media (max-width: 620px) {
         .track { background-position: center 40%; padding: 0.55rem 0.45rem; }
       }
+      .stable-3d-entry { margin: 0.5rem 0 1rem; flex-wrap: wrap; }
+      .gate { background: linear-gradient(90deg, rgba(9,12,10,.93),rgba(9,12,10,.72)), url('art/hero-wide.webp') center/cover; }
+      .gate-card a { color: var(--brass); }
       .wallet-row { margin-top: 0.7rem; align-items: center; }
       .wallet-row input {
         font-family: var(--font-num);

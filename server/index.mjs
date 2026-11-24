@@ -46,6 +46,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const dataDir = process.env.DATA_DIR ?? join(here, "data");
 const port = Number(process.env.PORT ?? 8787);
+const maintenanceMode = process.env.STUDBOOK_MAINTENANCE === "1";
 const origins = (process.env.ALLOWED_ORIGINS ?? "*").split(",").map((o) => o.trim());
 const ACTION_LIMIT = Number(process.env.ACTION_LIMIT ?? 40);
 const ACTION_WINDOW_MS = Number(process.env.ACTION_WINDOW_MS ?? 10_000);
@@ -558,11 +559,12 @@ const server = createServer(async (req, res) => {
   const path = url.pathname;
 
   if (!path.startsWith("/api/")) return serveStatic(req, res);
+  if (maintenanceMode && req.method === "POST") return send(res, 503, { error: "maintenance: writes are temporarily paused", code: "maintenance" });
   if (storageFault && req.method === "POST") return send(res, 503, { error: "storage recovery required; writes are paused", code: "storage" });
 
   try {
     if (path === "/api/health" && req.method === "GET") {
-      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, uptime: Math.round(process.uptime()) });
+      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: "0.32.0", revision: process.env.STUDBOOK_RELEASE_SHA ?? null, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
     }
 
     if ((path === "/api/register" || path === "/api/login") && req.method === "POST") {
@@ -665,9 +667,11 @@ const server = createServer(async (req, res) => {
 
     if (path === "/api/me" && req.method === "GET") {
       const user = requireUser(req);
+      const room = roomOf(user.id);
+      if (!room) throw httpError(409, "no stable linked to this account; sign in again to initialize it", "noroom");
       return send(res, 200, {
         user: { id: user.id, email: user.email, verified: Boolean(user.verified) },
-        state: frame(roomOf(user.id), user.id),
+        state: frame(room, user.id),
       });
     }
 
@@ -851,7 +855,7 @@ const server = createServer(async (req, res) => {
 
 /** The world turns here: a closed meeting is resolved by the server, for everyone in the room. */
 async function tick() {
-  if (storageFault) return;
+  if (storageFault || maintenanceMode) return;
   const now = Date.now();
   for (const room of rooms.values()) {
     if (room.closesAt > now || !humanSeats(room) || roomLocks.has(room.id)) continue;
