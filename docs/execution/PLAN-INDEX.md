@@ -28,3 +28,5 @@ F3 can proceed in parallel only after its dependencies, licensing and cost appro
 - Access credentials belong in secure runtime configuration, never in this plan or repository.
 
 See [STATUS.md](STATUS.md) for current evidence and remaining work.
+
+F4 race engine (in review, not wired into the live game): [F4-RACE-ENGINE.md](F4-RACE-ENGINE.md).
