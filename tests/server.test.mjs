@@ -338,6 +338,17 @@ try {
   ok("...and the horse arrives in room B", buyerHerd.some((horse) => horse.id === crossLot.horseId), `${buyerHerd.length} horses`);
   const afterMarket = await api("/api/market");
   ok("...and the lot leaves the catalogue", !afterMarket.json.lots.some((lot) => lot.roomId === crossLot.roomId && lot.listingId === crossLot.listingId));
+  {
+    const { readdir } = await import("node:fs/promises");
+    const journal = [];
+    for (const name of await readdir(join(dataDir, "room-transfers"))) {
+      journal.push(JSON.parse(await readFile(join(dataDir, "room-transfers", name), "utf8")));
+    }
+    const record = journal.find((r) => r.rooms.some((room) => room.id === crossLot.roomId) && r.rooms.some((room) => room.state.horses.some((h) => h.id === crossLot.horseId && room.id !== crossLot.roomId)));
+    const sellerFile = JSON.parse(await readFile(join(dataDir, "rooms", crossLot.roomId + ".json"), "utf8"));
+    ok("a cross-room sale is journaled before it is acknowledged", Boolean(record));
+    ok("...and the seller room on disk no longer lists the lot", !(sellerFile.state.listings ?? []).some((lot) => lot.id === crossLot.listingId));
+  }
   const againBuy = await api("/api/market/buy", { method: "POST", token: buyerToken, body: { roomId: crossLot.roomId, listingId: crossLot.listingId } });
   ok("a sold lot cannot be bought twice", againBuy.status === 404);
   const ownRoomLot = afterMarket.json.lots.find((lot) => lot.roomCode === buyerRoom);
