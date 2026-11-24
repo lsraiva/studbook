@@ -2,9 +2,12 @@
 
 ## Publicado e verificado
 
-- Produção: https://studbook.fly.dev — versão 0.33.0, revisão `d76faf908c0d26d19a0c130305b93561d1025d91`, manutenção desligada, 6 contas preservadas.
+- Produção: https://studbook.fly.dev — versão 0.33.0, revisão `564bd0c4839eef6b77ecc99476d8ee2d580e9050`, manutenção desligada, 6 contas preservadas.
+- Cartão premium: selo SB de demonstração, pedigree curto, textura de papel, hierarquia revisada e sem colisões no rodapé.
+- Viewer mobile: alvos de toque ≥44 px, painel recomposto, sombras/pixel ratio reduzidos e enquadramento adaptativo; testado em 390×844.
+- Limitação preservada: o 3D ainda não reproduz com exatidão crina e todas as meias porque a textura base está baked. Corrigir exige separar malha/materiais de crina, cauda, face e membros — não apenas shader. Não declarar paridade 3D/ficha concluída.
 - Fluxo publicado testado no navegador: entrar na demo offline → cartão de pelagem → viewer 3D → mesmo cavalo.
-- O cartão mostrou `Cremello · plain face · 2 socks`; o viewer mostrou o mesmo cavalo claro, crina clara, cara limpa e duas meias. Zero pageerrors.
+- O fluxo publicado abriu cartão e viewer sem pageerrors; a conferência exata de crina/meias no 3D segue pendente pela limitação acima.
 - Sem migração de dados, compra de assets ou geração paga de mídia.
 
 ## Objetivo e limites
