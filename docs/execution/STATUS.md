@@ -1,5 +1,9 @@
 # Studbook 3D — execution status
 
+## Current publication
+
+Version 0.32.0 is deployed to Fly with the welcome page and experimental 3D viewer. PR #2 is merged. See RELEASE-0.32.md and ../HANDOFF.md. The sections below record earlier batches and must not be interpreted as the current no-deploy status.
+
 Updated: 2026-11-23. This document records implemented work, not future promises.
 
 ## Scope and safety

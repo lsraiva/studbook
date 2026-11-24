@@ -1,5 +1,7 @@
 # Studbook — continuidade em outro modelo
 
+**Publicado:** versão 0.32.0 no Fly. Leia também [registro da publicação](execution/RELEASE-0.32.md), com revisão, verificação e backup mais recente. PR #2 foi mesclado; não continue tratando-o como pendente.
+
 ## Pedido do proprietário
 
 Continuar o Studbook existente, economizando créditos e sem recomeçar o projeto. O proprietário autorizou publicar a página de entrada e a prévia 3D no Fly. Não autorizou compras externas de assets, dinheiro real, mainnet ou criação indiscriminada de infraestrutura.
@@ -50,7 +52,7 @@ Para rodar: `node server/index.mjs` (API + site) ou `node tools/serve.mjs` (some
 
 Antes desta publicação foi criado backup cifrado AES-256-GCM fora do Fly e testada a restauração local com os arquivos do aplicativo. Foram encontrados 6 usuários e 5 estábulos/salas; uma conta já estava sem sala antes da alteração. Não recriar nem apagar patrimônio automaticamente para esconder esse estado legado.
 
-Backup cifrado: https://d2ol7oe51mr4n9.cloudfront.net/user_3KyFSDOS9fOAEJYue9ZEhXEnxpo/81e69cf6-11d0-468f-959a-5a05e81f5383.zip
+Backup cifrado: https://d2ol7oe51mr4n9.cloudfront.net/user_3KyFSDOS9fOAEJYue9ZEhXEnxpo/bc7fadb9-d8d9-40d6-8e0c-96e385f3a578.zip
 A chave está sob um secret do Fly chamado `STUDBOOK_BACKUP_KEY_20261124`, não neste documento. O ZIP não contém a chave. Restaurar primeiro em diretório/ambiente isolado; nunca sobrescrever `/data` sem novo backup e conciliação.
 
 Topologia observada: uma máquina shared CPU, 256 MB, região ams, volume criptografado de 1 GB. Não aumentar recursos nem criar réplica/serviços pagos sem orçamento aprovado. O journal atual depende de um único processo escritor; não escalar horizontalmente antes do Postgres.
