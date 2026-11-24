@@ -1,6 +1,6 @@
 # Studbook — continuidade em outro modelo
 
-**Publicado:** versão 0.32.0 no Fly. Leia também [registro da publicação](execution/RELEASE-0.32.md), com revisão, verificação e backup mais recente. PR #2 foi mesclado; não continue tratando-o como pendente.
+**Publicado:** versão 0.33.0 com identidade visual individual por cavalo. Ver [RELEASE-0.33](execution/RELEASE-0.33.md). A publicação anterior está em [RELEASE-0.32](execution/RELEASE-0.32.md). PR #2 foi mesclado; não continue tratando-o como pendente.
 
 ## Pedido do proprietário
 

@@ -33,12 +33,30 @@ function lighting(name){const p=palettes[name];scene.background=new THREE.Color(
 function play(name){const clip=THREE.AnimationClip.findByName(clips,name);if(!clip)return;const next=mixer.clipAction(clip);if(activeAction!==next){next.reset().fadeIn(.35).play();activeAction?.fadeOut(.35);activeAction=next;}document.querySelectorAll('[data-clip]').forEach(b=>b.classList.toggle('selected',b.dataset.clip===name));$('motion').textContent={Idle:'Repouso',Idle_2:'Repouso II',Walk:'Passo',Trot:'Trote',Canter:'Galope curto',Gallop:'Galope'}[name]||name;window.__horseProof.activeClip=name;}
 lighting('studio');controls.target.set(0,1.2,0);camera.position.fromArray(cameraPresets.three);
 function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();setCamera(cameraView);}new ResizeObserver(resize).observe(host);resize();
+function paintCoat(material,look){
+ const sockHeight=[-1,0.3,0.38,0.46,0.55][look.sockCount??0];
+ const blaze=(look.blazeWidth??0)>0?1:0;
+ material.color.set(0xffffff);
+ material.onBeforeCompile=(shader)=>{
+  shader.uniforms.uCoat={value:new THREE.Color(look.bodyColor)};
+  shader.uniforms.uSockHeight={value:sockHeight};
+  shader.uniforms.uBlaze={value:blaze};
+  shader.vertexShader='varying vec3 vRestPos;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vRestPos = position;');
+  shader.fragmentShader='varying vec3 vRestPos;\nuniform vec3 uCoat;\nuniform float uSockHeight;\nuniform float uBlaze;\n'+shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+   float lum = dot(diffuseColor.rgb, vec3(0.299,0.587,0.114));
+   diffuseColor.rgb = mix(diffuseColor.rgb, uCoat * (0.45 + lum * 1.25), 0.78);
+   if (vRestPos.y < uSockHeight) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93,0.91,0.86), 0.9);
+   if (uBlaze > 0.05 && vRestPos.z > 1.28 && vRestPos.y > 2.0 && abs(vRestPos.x) < 0.11) diffuseColor.rgb = vec3(0.93,0.91,0.86);`);
+ };
+ material.needsUpdate=true;
+}
 try{
  const gltf=await new GLTFLoader().loadAsync(profile.modelUrl);model=gltf.scene;clips=gltf.animations;
+ const appearance=(window.__horseAppearance)??(await window.__horseAppearancePromise)??{bodyColor:'#7a4b2e',maneColor:'#241a14',sockCount:0,blazeWidth:0,labelPt:'Castanho'};
  const bounds=new THREE.Box3().setFromObject(model),center=new THREE.Vector3(),size=new THREE.Vector3();bounds.getCenter(center);bounds.getSize(size);model.position.set(-center.x,-bounds.min.y,-center.z);scene.add(model);
- model.traverse(node=>{if(node.isMesh){const shape=node.morphTargetDictionary?.StudbookAthleticStudy;if(Number.isInteger(shape))anatomyMeshes.push({mesh:node,index:shape});node.castShadow=true;node.receiveShadow=false;node.frustumCulled=false;const mats=Array.isArray(node.material)?node.material:[node.material];for(const material of mats){if(material.map)material.map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());if(material.alphaTest>0)material.side=THREE.DoubleSide;}}});
+ model.traverse(node=>{if(node.isMesh){const shape=node.morphTargetDictionary?.StudbookAthleticStudy;if(Number.isInteger(shape))anatomyMeshes.push({mesh:node,index:shape});node.castShadow=true;node.receiveShadow=false;node.frustumCulled=false;const mats=Array.isArray(node.material)?node.material:[node.material];for(const material of mats){if(material.map)material.map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());if(material.alphaTest>0)material.side=THREE.DoubleSide;if(material.name==='coat_B'&&!new URLSearchParams(location.search).has('plain'))paintCoat(material,appearance);if(material.name==='tail_hair')material.color.set(appearance.maneColor);}}});
  mixer=new THREE.AnimationMixer(model);controls.target.set(0,size.y*.5,0);
- window.__horseProof={loaded:true,profile:profile.name,modelBytes:profile.bytes,animations:clips.map(c=>({name:c.name,duration:c.duration})),softwareRenderer:!!software,dimensions:size.toArray(),errors:[]};
+ window.__horseProof={loaded:true,profile:profile.name,modelBytes:profile.bytes,appearance,animations:clips.map(c=>({name:c.name,duration:c.duration})),softwareRenderer:!!software,dimensions:size.toArray(),errors:[]};
  $('loading').hidden=true;document.querySelectorAll('button,input').forEach(e=>e.disabled=false);$('status').textContent=software?'Modelo carregado · renderização por software':'Modelo 3D carregado';$('loading-progress').hidden=true;play('Idle');setAnatomy(1);window.__horseProof.anatomyMeshes=anatomyMeshes.length;
 }catch(e){$('loading').innerHTML='<h2>Não foi possível abrir o modelo</h2><p>O arquivo pode estar incompleto. Abra a cópia baixada integralmente.</p>';window.__horseProof={loaded:false,error:String(e)};console.error(e);}
 document.querySelectorAll('[data-clip]').forEach(b=>b.onclick=()=>play(b.dataset.clip));document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>setCamera(b.dataset.camera));document.querySelectorAll('[data-light]').forEach(b=>b.onclick=()=>lighting(b.dataset.light));

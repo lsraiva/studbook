@@ -570,7 +570,7 @@ const server = createServer(async (req, res) => {
 
   try {
     if (path === "/api/health" && req.method === "GET") {
-      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: "0.32.0", revision: process.env.STUDBOOK_RELEASE_SHA ?? null, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
+      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: "0.33.0", revision: process.env.STUDBOOK_RELEASE_SHA ?? null, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
     }
 
     if ((path === "/api/register" || path === "/api/login") && req.method === "POST") {

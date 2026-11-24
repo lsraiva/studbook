@@ -2,6 +2,8 @@
 
 ## Current publication
 
+Version 0.33 adds deterministic individual appearance (coat, mane, face mark, socks) to the yard, detail card, market and 3D viewer. Identity derives from public horse id+lineage only: no hidden genotype leak, no performance effect, no data migration. See RELEASE-0.33.md.
+
 Version 0.32.0 is deployed to Fly with the welcome page and experimental 3D viewer. PR #2 is merged. See RELEASE-0.32.md and ../HANDOFF.md. The sections below record earlier batches and must not be interpreted as the current no-deploy status.
 
 Updated: 2026-11-23. This document records implemented work, not future promises.

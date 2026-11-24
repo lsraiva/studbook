@@ -6,9 +6,9 @@ import { join } from 'node:path';
 
 const MODULES = new Set([
   '/assets/ui.js', '/assets/engine.js', '/assets/net.js',
-  '/assets/config.js', '/assets/token.js', '/assets/styles.css',
+  '/assets/config.js', '/assets/token.js', '/assets/styles.css', '/assets/phenotype.js',
   '/assets/welcome.css', '/assets/welcome.js',
-  '/assets/horse-viewer-v032.js', '/assets/horse-viewer-v032.css',
+  '/assets/horse-viewer-v033.js', '/assets/horse-viewer-v033.css',
   '/assets/models/horse-lite-v03.glb', '/assets/models/horse-high-v03.glb',
   '/assets/models/NOTICE.txt',
 ]);

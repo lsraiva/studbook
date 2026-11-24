@@ -3,6 +3,7 @@
 
 import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2";
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
+import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 
 import {
   applyAction,
@@ -1537,6 +1538,11 @@ function renderYardCards(v) {
     const head = document.createElement("div");
     head.className = "name";
     head.append(horseArt(horse.lineage, horse.age));
+    const coat = document.createElement("span");
+    coat.className = "coat-inline";
+    coat.innerHTML = coatSvg(appearanceFor(horse));
+    coat.title = appearanceFor(horse).label;
+    head.append(coat);
     const title = document.createElement("span");
     title.textContent = horse.name;
     head.append(title);
@@ -2232,11 +2238,19 @@ function openHorse(horseId) {
 
   card.innerHTML = "";
 
-  const art = document.createElement("img");
-  art.className = "hv-portrait";
-  art.src = portraitOf(horse.lineage, horse.age);
-  art.alt = "";
-  card.append(art);
+  const appearance = appearanceFor(horse);
+  const portrait = document.createElement("div");
+  portrait.className = "hv-portrait coat-portrait";
+  portrait.innerHTML = coatSvg(appearance, "coat-badge");
+  card.append(portrait);
+
+  const coat = document.createElement("div");
+  coat.className = "hv-coat";
+  coat.innerHTML = coatSvg(appearance, "coat-badge large");
+  const coatName = document.createElement("span");
+  coatName.textContent = appearance.label;
+  coat.append(coatName);
+  card.append(coat);
 
   const stamp = document.createElement("span");
   stamp.className = "stamp" + (horse.stakes ? " high" : "");
@@ -2331,11 +2345,12 @@ function renderGallery(v) {
       draw();
     });
 
-    const art = document.createElement("img");
-    art.src = portraitOf(horse.lineage, horse.age);
-    art.alt = "";
-    art.loading = "lazy";
-    card.append(art);
+    const appearance = appearanceFor(horse);
+    const portrait = document.createElement("span");
+    portrait.className = "gportrait";
+    portrait.innerHTML = coatSvg(appearance);
+    portrait.title = appearance.label;
+    card.append(portrait);
 
     const name = document.createElement("span");
     name.className = "gname";
@@ -2344,7 +2359,7 @@ function renderGallery(v) {
 
     const meta = document.createElement("span");
     meta.className = "gmeta";
-    meta.textContent = `${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
+    meta.textContent = `${appearance.label} · ${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
     card.append(meta);
 
     const value = document.createElement("span");
@@ -2572,6 +2587,11 @@ function draw() {
     const nameline = document.createElement("div");
     nameline.className = "nameline";
     nameline.append(horseArt(horse.lineage, horse.age));
+    const coat = document.createElement("span");
+    coat.className = "coat-inline";
+    coat.innerHTML = coatSvg(appearanceFor(horse));
+    coat.title = appearanceFor(horse).label;
+    nameline.append(coat);
     const nameSpan = document.createElement("span");
     nameSpan.className = "name";
     nameSpan.textContent = horse.name;
