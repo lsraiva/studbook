@@ -1,6 +1,6 @@
 # Release 0.40.0 — Portuguese for a played game
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-25 as Fly release v23, revision `bd067085c3f79a7fdbd09cdb98d3f46cc7f832f7`, after a verified backup and restore test (10 accounts, 295 horses, dry run 0 problems).
 
 ## Change
 

@@ -1,6 +1,6 @@
 # Release 0.39.0 — race sound, opening card, empty states
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-25 as Fly release v22, revision `6f98ca8f6b178c13712e3d398ca4daefa9077a65`, after a verified backup and restore test (10 accounts, 301 horses, dry run 0 problems).
 
 ## Changes
 
