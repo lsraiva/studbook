@@ -15,7 +15,7 @@ test('every horse shows a deterministic coat portrait in the yard and the same c
   const look = appearanceFor(horse);
   const card = page.locator('#gallery .gcard').first();
   await expect(card.locator('.gportrait img')).toBeVisible();
-  await expect(card.locator('.coat-strip')).toContainText(look.label);
+  await expect(card.locator('.coat-strip')).toContainText(look.labelPt);
   await expect(card.locator('.coat-strip i')).toHaveAttribute('style', new RegExp(look.bodyColor));
   await expect(card.locator('.gseal')).toContainText('SB');
   await expect(card.locator('.gped')).toContainText(horse.lineage);
@@ -28,7 +28,7 @@ test('every horse shows a deterministic coat portrait in the yard and the same c
   await expect(page.locator('#coat-label')).toContainText(look.labelPt.split(' · ')[0]);
 
   await page.locator('a[href="index.html"]').click();
-  await expect(page.locator('#gallery .coat-strip')).toContainText(look.label);
+  await expect(page.locator('#gallery .coat-strip')).toContainText(look.labelPt);
 });
 
 test('the detail card and the row agree with the gallery identity', async ({ page }) => {
@@ -36,7 +36,7 @@ test('the detail card and the row agree with the gallery identity', async ({ pag
   const horse = await savedHorse(page);
   const look = appearanceFor(horse);
   await page.locator('#gallery .gcard').first().click();
-  await expect(page.locator('#horseview .hv-coat')).toContainText(look.label);
+  await expect(page.locator('#horseview .hv-coat')).toContainText(look.labelPt);
   await expect(page.locator('#herd .coat-inline svg')).toHaveCount(1);
 });
 
