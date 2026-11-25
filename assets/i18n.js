@@ -368,6 +368,7 @@ const DICT = new Map(Object.entries({
   "The field": "O campo",
   "sire × dam": "pai × mãe",
   "Prioritise": "Priorize",
+  "Assistir à corrida ao vivo": "Assistir à corrida ao vivo",
   "next up": "próxima",
   "meeting": "reunião",
   "field average": "média do campo",
@@ -510,7 +511,9 @@ const ERROR_MAP = new Map(Object.entries({
   "Join a new room to race.": "Entre em uma nova sala para correr.",
   "That action is not allowed.": "Essa ação não é permitida.",
   "select a horse in the lobby before starting": "Escolha um cavalo no lobby antes de iniciar.",
-  "Invalid action": "Ação inválida."
+  "Invalid action": "Ação inválida.",
+  "declare at least two runners first": "Ainda não há dois corredores declarados para esta reunião.",
+  "the stable is still loading": "O estábulo ainda está carregando."
 }));
 
 export function translateError(message) {

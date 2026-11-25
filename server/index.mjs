@@ -30,6 +30,7 @@ import { publicAsset } from "./public-files.mjs";
 import { planRoomTransfer } from "./room-transfer.mjs";
 import { writeJsonDurable, roomSnapshots, commitRoomTransfer, recoverRoomTransfers } from "./transfer-store.mjs";
 import { createWindowLimiter, clientAddress, sameCode } from "./auth-guard.mjs";
+import { exhibitionRace } from "../assets/race/exhibition.js";
 
 import {
   LOCI as LOCUS_ORDER,
@@ -907,6 +908,18 @@ const server = createServer(async (req, res) => {
       const listingId = String(body.listingId ?? "");
       const sale = await buyAcrossRooms(user.id, roomId, listingId);
       return send(res, 200, { sale, state: frame(roomOf(user.id), user.id) });
+    }
+
+    // An exhibition: the declared field run through the causal engine, positions only. It reads
+    // the room and writes nothing, so it stays available in maintenance; a fresh seed each time.
+    if (path === "/api/race/exhibition" && req.method === "GET") {
+      const user = requireUser(req);
+      rateLimit(user.id);
+      const room = roomOf(user.id);
+      if (!room) throw httpError(404, "no room for this account", "noroom");
+      const race = exhibitionRace(room.state, { seed: randomBytes(16).toString("hex") });
+      if (!race) throw httpError(409, "declare at least two runners first", "field");
+      return send(res, 200, { race });
     }
 
     if (path === "/api/room" && req.method === "GET") {

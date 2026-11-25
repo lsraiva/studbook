@@ -3692,3 +3692,71 @@ window.addEventListener("error", (event) => surfaceError("error", event.error ??
 window.addEventListener("unhandledrejection", (event) => surfaceError("promise", event.reason));
 
 start();
+
+/* ------------------------------------------------------------------ live race (exhibition) */
+
+/**
+ * The declared field, run through the causal engine and shown as a race. An exhibition: it never
+ * changes a result, a balance or a record. Online the server simulates it (the genotypes stay
+ * there); offline this tab already holds the whole save and runs the same module locally.
+ */
+function randomSeed() {
+  const bytes = new Uint8Array(16);
+  (globalThis.crypto ?? window.crypto).getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function loadExhibition() {
+  if (CLOUD()) {
+    const out = await cloudApi("/api/race/exhibition", { token: tokenStore.get() });
+    return out.race;
+  }
+  const { exhibitionRace } = await import("./race/exhibition.js");
+  const state = socket?.game?.state;
+  if (!state) throw new Error("the stable is still loading");
+  const race = exhibitionRace(state, { seed: randomSeed() });
+  if (!race) throw new Error("declare at least two runners first");
+  return race;
+}
+
+async function openLiveRace() {
+  const button = el("live-race");
+  if (button) button.disabled = true;
+  try {
+    const [race, { RaceScene }] = await Promise.all([loadExhibition(), import("./race/scene.js")]);
+    document.querySelectorAll(".race-stage").forEach((node) => node.remove());
+    const overlay = document.createElement("div");
+    overlay.className = "race-stage";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Corrida ao vivo");
+    const host = document.createElement("div");
+    host.className = "race-stage-host";
+    overlay.append(host);
+    document.body.append(overlay);
+    document.body.classList.add("stage-open");
+    const close = () => {
+      overlay.remove();
+      document.body.classList.remove("stage-open");
+      document.removeEventListener("keydown", onKey);
+      button?.focus();
+    };
+    const onKey = (event) => { if (event.key === "Escape") scene.close(); };
+    document.addEventListener("keydown", onKey);
+    const scene = new RaceScene(host, race, { reducedMotion: REDUCED_MOTION, onClose: close });
+    window.__studbookRace = { race, scene }; // inspection hook for tests and support
+    scene.play();
+    overlay.querySelector("button")?.focus();
+  } catch (error) {
+    toast(translateMessage(error.message ?? String(error)), true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+/** Errors arrive in English from the engine and server; the i18n layer owns their wording. */
+function translateMessage(message) {
+  return window.__studbookI18n?.translateError?.(message) ?? message;
+}
+
+el("live-race")?.addEventListener("click", openLiveRace);
