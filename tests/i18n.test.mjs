@@ -55,4 +55,20 @@ test('unknown composites are left alone', () => {
   assert.equal(translate('Belmont × Kelvale · L2'), 'Belmont × Kelvale · L2');
   assert.equal(translate('Ashgrove · age 1'), 'Ashgrove · 1 ano');
 });
+test('a played game reads in Portuguese: race reports, diary, foal, market', () => {
+  const cases = {
+    'S4 · Morcrest (L7) finished 10 of 10 in the yielding, 4.6 behind — lost it on stamina.': 'T4 · Morcrest (L7) chegou em 10º de 10 na pista macia, 4.6 atrás — perdeu em resistência.',
+    'The clock ran out — Meeting 2 of 4 is run. Entries for meeting 3 are open — up to three runners.': 'O relógio acabou — Reunião 2 de 4 disputada. Inscrições abertas para a reunião 3 — até três corredores.',
+    'mile meeting: Ravstone (L2) wins a pot of 180 GNS from 10 runners.': 'Reunião de milha: Ravstone (L2) leva o prêmio de 180 GNS entre 10 corredores.',
+    'won by half a length clear of the runner-up': 'venceu por meio corpo à frente do segundo',
+    '10th · Morcrest (L7) — beaten 4.6, won 0 ₲ · ran steady': '10º · Morcrest (L7) — atrás 4.6, ganhou 0 ₲ · manter',
+    'the yard finished ₲ 98 down · 4 runs, 0 won, 0 placed, ₲ 0 in prizes': 'o estábulo fechou com ₲ 98 a menos · 4 corridas, 0 vitórias, 0 colocações, ₲ 0 em prêmios',
+    'A filly is born': 'Nasce uma potra',
+    'covering · 78% · hit — Morbrook (L8)': 'cobertura · 78% · acertou — Morbrook (L8)',
+    "S3 · Ravensmoor's barn was full: 3 coverings went to the market at 20 GNS and 7 were culled.": 'T3 · O depósito de Ravensmoor lotou: 3 coberturas foram ao mercado por 20 GNS e 7 foram descartadas.',
+    'Ashgrove · horse lot · price cut each season it sits': 'Ashgrove · lote de cavalo · o preço cai a cada temporada',
+    '1 foal due when the season turns.': '1 potro previsto para a virada da temporada.',
+  };
+  for (const [en, pt] of Object.entries(cases)) assert.equal(translate(en), pt);
+});
 console.log(`${passed} i18n cases passed.`);
