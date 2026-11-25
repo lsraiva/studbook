@@ -4,6 +4,7 @@
 import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2";
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
+import { paintCoat } from "./coat-portrait.js?v=0.38.0";
 
 import {
   applyAction,
@@ -2297,9 +2298,8 @@ function openHorse(horseId) {
   const appearance = appearanceFor(horse);
   const portrait = document.createElement("img");
   portrait.className = "hv-portrait";
-  portrait.src = portraitOf(horse.lineage, horse.age);
   portrait.alt = "";
-  portrait.style.filter = appearance.filter;
+  paintCoat(portrait, portraitOf(horse.lineage, horse.age), appearance);
   card.append(portrait);
 
   const coat = document.createElement("div");
@@ -2408,10 +2408,9 @@ function renderGallery(v) {
     portrait.className = "gportrait";
     portrait.title = appearance.labelPt;
     const photo = document.createElement("img");
-    photo.src = portraitOf(horse.lineage, horse.age);
     photo.alt = "";
     photo.loading = "lazy";
-    photo.style.filter = appearance.filter;
+    paintCoat(photo, portraitOf(horse.lineage, horse.age), appearance);
     portrait.append(photo);
     const seal = document.createElement("span");
     seal.className = "gseal";

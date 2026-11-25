@@ -1,13 +1,13 @@
 {
   "name": "studbook",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "private": true,
   "type": "module",
   "description": "Studbook — a bloodstock breeding game: simulated genotypes, a stallion market, seasonal racing.",
   "scripts": {
     "start": "node server/index.mjs",
     "serve": "node tools/serve.mjs",
-    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/ui.test.mjs && node tests/wallet-ui.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs && node tests/auth-guard.test.mjs && node tests/room-transfer.test.mjs && node tests/transfer-store.test.mjs && node tests/phenotype.test.mjs && node tests/ledger.test.mjs && node tests/race.test.mjs && node tests/race-scene.test.mjs && node tests/i18n.test.mjs",
+    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/ui.test.mjs && node tests/wallet-ui.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs && node tests/auth-guard.test.mjs && node tests/room-transfer.test.mjs && node tests/transfer-store.test.mjs && node tests/phenotype.test.mjs && node tests/ledger.test.mjs && node tests/race.test.mjs && node tests/race-scene.test.mjs && node tests/coat-portrait.test.mjs && node tests/i18n.test.mjs",
     "test:engine": "node tests/engine.test.mjs",
     "test:design": "node tests/design.test.mjs",
     "test:server": "node tests/server.test.mjs",
