@@ -151,6 +151,15 @@ try {
   const persistedAction = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8"));
   ok("action acknowledgment follows durable room persistence", persistedAction.state.stables.find((s) => s.player === reg.json.user.id).guineas === startGuineas - 20);
 
+  /* ---------- live race exhibition: read-only, positions only ---------- */
+  ok("exhibition needs an account", (await api("/api/race/exhibition")).status === 401);
+  const show = await api("/api/race/exhibition", { token });
+  const showText = JSON.stringify(show.json);
+  ok("exhibition returns a simulated race of the declared field", show.status === 200 && show.json.race?.kind === "exhibition" && show.json.race.frames.length > 10 && show.json.race.placings.length === show.json.race.runners.length, `${show.status} ${show.json.race?.runners?.length}`);
+  ok("exhibition never sends genotypes or traits", !/"(genome|traits|stamina|soundness)"/.test(showText));
+  const roomAfterShow = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8"));
+  ok("exhibition writes nothing", roomAfterShow.version === persistedAction.version);
+
   /* ---------- the same stable from a second device ---------- */
   const again = await api("/api/login", { method: "POST", body: { email: "owner@studbook.test", password: "correct horse battery" } });
   const token2 = again.json.token;

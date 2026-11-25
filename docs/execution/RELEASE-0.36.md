@@ -1,6 +1,6 @@
 # Release 0.36.0 — catalogue design pass (game screens)
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-25 as Fly release v20, revision `11066d47be5370d3d379079fef9d2df143c49205`, after a verified backup and restore test (8 accounts, 237 horses, dry run 0 problems).
 
 ## Goal
 
