@@ -484,9 +484,11 @@ const COATS = {
 /** A code-drawn horse, coloured by lineage. Placeholder art pending credits. */
 function portraitOf(lineage, age) {
   // One plate per lineage: an animal you can recognise across the yard.
-  if (age !== null && age !== undefined && age <= 1) return "assets/art/foal.webp";
+  // The 2026-11 plates: full-body thoroughbreds, bay with black points and no white markings,
+  // on transparent ground, so the coat repaint is exact (docs/art/BRIEF-HORSE-ART.md).
+  if (age !== null && age !== undefined && age <= 1) return "assets/art/plate-foal.webp";
   const file = String(lineage ?? "").toLowerCase();
-  return /^l[1-8]$/.test(file) ? `assets/art/${file}.webp` : "assets/art/stallion.webp";
+  return /^l[1-8]$/.test(file) ? `assets/art/plate-${file}.webp` : "assets/art/plate-stallion.webp";
 }
 
 function horseArt(lineage, age = null) {

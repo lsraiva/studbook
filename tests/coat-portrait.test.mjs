@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Coat portraits: the pure pixel remap (the canvas part is covered by the browser spec). */
 import assert from "node:assert/strict";
-import { remapPixels } from "../assets/coat-portrait.js";
+import { remapPixels, findAnchors } from "../assets/coat-portrait.js";
 
 let n = 0;
 const test = (label, fn) => { fn(); n += 1; console.log(`PASS ${label}`); };
@@ -37,5 +37,22 @@ test("the output has the same length and never NaN", () => {
   const out = remapPixels(data, ...CHESTNUT);
   assert.equal(out.length, data.length);
   assert.ok([...out].every(Number.isFinite));
+});
+test("anchors are read from the mask: nose, ground and four legs", () => {
+  // a 100x60 stick horse facing left: head block at top-left, body, four legs to the ground
+  const w = 100, h = 60, a = new Uint8ClampedArray(w * h);
+  const fill = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y += 1) for (let x = x0; x <= x1; x += 1) a[y * w + x] = 255; };
+  fill(10, 2, 22, 18);   // head, nose reaching x=10
+  fill(20, 12, 85, 34);  // body
+  for (const x of [26, 36, 66, 76]) fill(x, 35, x + 3, 57); // legs down to y=57
+  const anchors = findAnchors(a, w, h);
+  assert.equal(anchors.noseX, 10);
+  assert.equal(anchors.ground, 57);
+  assert.equal(anchors.top, 2);
+  assert.equal(anchors.legs.length, 4);
+  assert.deepEqual(anchors.legs.map((l) => Math.round(l.cx)), [28, 38, 68, 78]);
+});
+test("an empty mask has no anchors", () => {
+  assert.equal(findAnchors(new Uint8ClampedArray(400), 20, 20), null);
 });
 console.log(`${n} coat portrait cases passed.`);

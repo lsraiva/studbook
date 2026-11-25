@@ -385,6 +385,9 @@ const DICT = new Map(Object.entries({
 
   // a played game
   "Run the meeting when your runners are entered — a season is three of them.": "Dispute a reunião quando seus corredores estiverem inscritos.",
+  "value": "valor",
+  "inbreeding": "consanguinidade",
+  "record": "histórico",
   "run the meeting": "disputar a reunião",
   "✓ cover a mare": "✓ cobrir uma égua",
   "✓ win a meeting": "✓ vencer uma reunião",
@@ -478,6 +481,12 @@ function lateGame(text) {
   if (m) return `${m[1]} foi recomprado pela casa no preço mínimo de ${m[2]} GNS.`;
   m = text.match(/^(.+)'s barn was full: (\d+) coverings? went to the market at ([\d,.]+) GNS(?: and (\d+) were culled)?\.$/);
   if (m) return `O depósito de ${m[1]} lotou: ${plural(m[2], "cobertura foi", "coberturas foram")} ao mercado por ${m[3]} GNS${m[4] ? ` e ${m[4]} foram descartadas` : ""}.`;
+
+  // the horse card
+  m = text.match(/^₲ ([\d,.]+) a season$/);
+  if (m) return `₲ ${m[1]} por temporada`;
+  m = text.match(/^(\d+) runs · (\d+) won · (\d+) placed$/);
+  if (m) return `${plural(m[1], "corrida", "corridas")} · ${plural(m[2], "vitória", "vitórias")} · ${plural(m[3], "colocação", "colocações")}`;
 
   // racing screen
   m = text.match(/^checkpoint (\d+) of (\d+) — (.+) leads$/);

@@ -1440,3 +1440,7 @@
       .going.next { position: relative; }
       .going-watch { position: absolute; top: 0.75rem; right: 0.8rem; }
       @media (max-width: 620px) { .going-watch { position: static; margin: 0.2rem 0 0.4rem; } }
+
+      /* the 2026-11 plates are full-body side profiles: show the whole horse, never crop it */
+      .gportrait img { object-fit: contain; object-position: center 70%; padding: 0.2rem 0.3rem 0; }
+      .hv-portrait.coat-portrait img, img.hv-portrait { object-fit: contain; }
