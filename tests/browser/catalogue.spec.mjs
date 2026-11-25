@@ -28,3 +28,11 @@ test('the masthead shows the wordmark on every screen', async ({ page }) => {
     await expect(page.locator('header.bar .brand')).toBeVisible();
   }
 });
+
+test('yard portraits are repainted in each horse\'s own coat', async ({ page }) => {
+  await page.goto('/index.html');
+  const img = page.locator('#gallery .gportrait img').first();
+  await expect(img).toHaveAttribute('data-coat', 'painted', { timeout: 15000 });
+  expect(await img.getAttribute('src')).toMatch(/^data:image\//);
+  expect(await img.evaluate((node) => node.style.filter)).toBe('');
+});
