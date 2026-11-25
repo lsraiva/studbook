@@ -1380,3 +1380,54 @@
       .rs-call[hidden] { display: none; }
       /* no backdrop blur over a canvas that repaints every frame: it costs more than the race */
       .rs-board { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--ink-1); }
+
+      /* ================================================================
+         Opening card and empty states (2026-11).
+         ================================================================ */
+      .splash {
+        position: fixed;
+        inset: 0;
+        z-index: 90;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 0.9rem;
+        background: linear-gradient(180deg, var(--veil), var(--ink-0)), url('art/hero-wide.webp') 70% center / cover;
+        transition: opacity 420ms var(--ease), visibility 0s linear 420ms;
+        /* if the app never reports ready, the card still steps aside */
+        animation: splash-out 0.42s var(--ease) 9s forwards;
+      }
+      body.ready .splash { opacity: 0; visibility: hidden; pointer-events: none; }
+      @keyframes splash-out { to { opacity: 0; visibility: hidden; } }
+      .splash-mark { font: 600 clamp(1.8rem, 5vw, 2.8rem)/1 var(--font-display); letter-spacing: 0.24em; color: var(--cream); animation: rise var(--dur-3) var(--ease) both; }
+      .splash-mark span { color: var(--brass); }
+      .splash-line { margin: 0; font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+      .splash-rule { display: block; width: 9rem; height: 1px; background: var(--line-strong); overflow: hidden; position: relative; }
+      .splash-rule::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, var(--brass), transparent); animation: splash-sweep 1.3s var(--ease) infinite; }
+      @keyframes splash-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+      /* empty states: a quiet mark and a sentence that says what to do next */
+      .empty-state {
+        display: grid;
+        justify-items: center;
+        gap: 0.55rem;
+        margin: 0.4rem 0;
+        padding: 1.4rem 1rem 1.3rem;
+        border: 1px dashed var(--line-strong);
+        border-radius: 8px;
+        background: radial-gradient(ellipse at 50% 0%, var(--row-mine), transparent 70%);
+        text-align: center;
+        font-size: 0.86rem;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .empty-state::before {
+        content: "";
+        width: 2.1rem;
+        height: 2.1rem;
+        background: var(--brass);
+        opacity: 0.85;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='black' d='M32 6C18 6 9 18 9 33c0 9 3 17 7 25h9c-4-8-7-16-7-25 0-10 6-18 14-18s14 8 14 18c0 9-3 17-7 25h9c4-8 7-16 7-25C55 18 46 6 32 6z'/%3E%3Ccircle cx='17' cy='30' r='2.2' fill='black'/%3E%3Ccircle cx='47' cy='30' r='2.2' fill='black'/%3E%3Ccircle cx='19' cy='42' r='2.2' fill='black'/%3E%3Ccircle cx='45' cy='42' r='2.2' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='black' d='M32 6C18 6 9 18 9 33c0 9 3 17 7 25h9c-4-8-7-16-7-25 0-10 6-18 14-18s14 8 14 18c0 9-3 17-7 25h9c4-8 7-16 7-25C55 18 46 6 32 6z'/%3E%3Ccircle cx='17' cy='30' r='2.2' fill='black'/%3E%3Ccircle cx='47' cy='30' r='2.2' fill='black'/%3E%3Ccircle cx='19' cy='42' r='2.2' fill='black'/%3E%3Ccircle cx='45' cy='42' r='2.2' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+      }
+      .track:has(> .empty-state) { background: linear-gradient(180deg, var(--ink-1), var(--ink-0)); }

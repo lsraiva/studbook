@@ -52,3 +52,18 @@ test('with reduced motion the race shows the finish and result at once', async (
   await expect(page.locator('.rs-result')).toBeVisible();
   await context.close();
 });
+
+test('race sound has its own switch and never breaks the race', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await openRace(page);
+  const sound = page.locator('.rs-controls button', { hasText: /^Som:/ });
+  await expect(sound).toHaveText('Som: ligado');
+  await sound.click();
+  await expect(sound).toHaveText('Som: desligado');
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
+  await sound.click();
+  await page.locator('.rs-controls button', { hasText: 'Ir para a chegada' }).click();
+  await expect(page.locator('.rs-result')).toBeVisible();
+  expect(errors).toEqual([]);
+});
