@@ -88,6 +88,14 @@ test("frames are positions only and end with every runner past the post", () => 
   const last = race.frames.at(-1);
   assert.ok(last.r.every((row) => row.length === 3 && row[1] >= race.distance - 30));
 });
+test("runners carry their real coat and mane colours (not a default)", () => {
+  const race = exhibitionRace(state, { seed: SEED });
+  for (const r of race.runners) {
+    assert.match(r.coat, /^#[0-9a-f]{6}$/i);
+    assert.match(r.mane, /^#[0-9a-f]{6}$/i);
+  }
+  assert.ok(new Set(race.runners.map((r) => r.coat)).size > 1, "a field of nine is not one colour");
+});
 test("fewer than two declared runners: no exhibition", () => {
   const empty = structuredClone(state);
   for (const stable of empty.stables) stable.entries = [];

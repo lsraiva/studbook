@@ -64,8 +64,8 @@ export function exhibitionRace(state, { seed }) {
       stable: stable.name,
       mine: Boolean(stable.player),
       tactic,
-      coat: look.body,
-      mane: look.mane,
+      coat: look.bodyColor,
+      mane: look.maneColor,
       coatName: look.labelPt,
     });
   });
