@@ -181,9 +181,53 @@ let retry = 0;
 /** Where the rules run: the server if there is one, this tab otherwise. */
 let cloudBase = null;
 const CLOUD = () => cloudBase !== null;
+/** A server that exists even while this tab plays the offline demo (F1-07). */
+let serverBase = null;
+
+/**
+ * The only door to the account API. The offline demo is a separate world: nothing it does may
+ * reach the online stable, even when a token from an earlier session is still in this browser.
+ */
+function cloudApi(path, options = {}) {
+  if (!CLOUD()) {
+    const error = new Error("offline demo — sign in to use your online stable");
+    error.code = "offline";
+    return Promise.reject(error);
+  }
+  return apiCall(cloudBase, path, options);
+}
+
+/** Says, on every screen, which world this tab is in (F1-07). */
+function markMode() {
+  const mode = CLOUD() ? "cloud" : "offline";
+  document.body.dataset.mode = mode;
+  let banner = document.getElementById("mode-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "mode-banner";
+    banner.setAttribute("role", "status");
+    const bar = document.querySelector(".bar");
+    if (bar) bar.after(banner);
+    else document.body.prepend(banner);
+  }
+  banner.className = `mode-banner ${mode}`;
+  if (mode === "cloud") {
+    banner.innerHTML = `<b>Online</b> · estábulo salvo no servidor`;
+    return;
+  }
+  banner.innerHTML =
+    `<b>Demonstração offline</b> · salva apenas neste navegador. Nada aqui altera um estábulo online.` +
+    (serverBase !== null ? ` <button class="tiny" type="button" data-mode-signin>Entrar na conta</button>` : "");
+  banner.querySelector("[data-mode-signin]")?.addEventListener("click", () => {
+    const url = new URL(location.href);
+    url.searchParams.delete("offline");
+    location.href = url.toString(); // a clean start goes through the account gate
+  });
+}
 
 function connect(makeSocket = () => new LocalSocket()) {
   socket = makeSocket();
+  markMode();
   socket.addEventListener("open", () => {
     retry = 0;
     net("live", CLOUD() ? "cloud" : "offline");
@@ -1925,8 +1969,7 @@ let worldError = null;
 async function loadWorldMarket() {
   if (!CLOUD() || !socket?.call) return;
   try {
-    const base = cloudBase ?? "";
-    const out = await apiCall(base, "/api/market", {});
+    const out = await cloudApi("/api/market", {});
     const here = view?.room?.id;
     worldLots = (out.lots ?? []).filter((lot) => lot.roomId !== here);
     worldError = null;
@@ -1987,7 +2030,7 @@ function renderWorldMarket() {
     buy.addEventListener("click", async () => {
       buy.disabled = true;
       try {
-        await apiCall(cloudBase ?? "", "/api/market/buy", {
+        await cloudApi("/api/market/buy", {
           method: "POST",
           token: tokenStore.get(),
           body: { roomId: lot.roomId, listingId: lot.listingId },
@@ -2015,7 +2058,7 @@ let tokenError = null;
 async function loadTokens() {
   if (!CLOUD()) return;
   try {
-    const out = await apiCall(cloudBase ?? "", "/api/mints", { token: tokenStore.get() });
+    const out = await cloudApi("/api/mints", { token: tokenStore.get() });
     tokenRows = out.mints ?? [];
     tokenError = null;
   } catch (error) {
@@ -2083,12 +2126,12 @@ function renderTokens() {
       mint.addEventListener("click", async () => {
         mint.disabled = true;
         try {
-          await apiCall(cloudBase ?? "", "/api/mints/sign", {
+          await cloudApi("/api/mints/sign", {
             method: "POST",
             token: tokenStore.get(),
             body: { nullifier: row.nullifier },
           });
-          await apiCall(cloudBase ?? "", "/api/mints/confirm", {
+          await cloudApi("/api/mints/confirm", {
             method: "POST",
             token: tokenStore.get(),
             body: { nullifier: row.nullifier },
@@ -2163,7 +2206,7 @@ function bindForm(rows, labelText) {
       }
       bind.disabled = true;
       try {
-        await apiCall(cloudBase ?? "", "/api/wallet", {
+        await cloudApi("/api/wallet", {
           method: "POST",
           token: tokenStore.get(),
           body: { address },
@@ -2239,14 +2282,16 @@ function openHorse(horseId) {
   card.innerHTML = "";
 
   const appearance = appearanceFor(horse);
-  const portrait = document.createElement("div");
-  portrait.className = "hv-portrait coat-portrait";
-  portrait.innerHTML = coatSvg(appearance, "coat-badge");
+  const portrait = document.createElement("img");
+  portrait.className = "hv-portrait";
+  portrait.src = portraitOf(horse.lineage, horse.age);
+  portrait.alt = "";
+  portrait.style.filter = appearance.filter;
   card.append(portrait);
 
   const coat = document.createElement("div");
   coat.className = "hv-coat";
-  coat.innerHTML = coatSvg(appearance, "coat-badge large");
+  coat.innerHTML = `<i class="coat-swatch" style="background:${appearance.bodyColor}"></i>`;
   const coatName = document.createElement("span");
   coatName.textContent = appearance.label;
   coat.append(coatName);
@@ -2348,9 +2393,32 @@ function renderGallery(v) {
     const appearance = appearanceFor(horse);
     const portrait = document.createElement("span");
     portrait.className = "gportrait";
-    portrait.innerHTML = coatSvg(appearance);
     portrait.title = appearance.label;
+    const photo = document.createElement("img");
+    photo.src = portraitOf(horse.lineage, horse.age);
+    photo.alt = "";
+    photo.loading = "lazy";
+    photo.style.filter = appearance.filter;
+    portrait.append(photo);
+    const seal = document.createElement("span");
+    seal.className = "gseal";
+    seal.title = "Selo de demonstração do Studbook — não é certificado on-chain";
+    seal.innerHTML = `<b>SB</b><small>SEAL</small>`;
+    portrait.append(seal);
     card.append(portrait);
+
+    const strip = document.createElement("span");
+    strip.className = "coat-strip";
+    strip.innerHTML = `<i style="background:${appearance.bodyColor}"></i>`;
+    const stripText = document.createElement("span");
+    stripText.textContent = appearance.label;
+    strip.append(stripText);
+    card.append(strip);
+
+    const pedigree = document.createElement("span");
+    pedigree.className = "gped";
+    pedigree.textContent = `${horse.sireName ?? "founder"} × ${horse.damName ?? "founder"} · ${horse.lineage}`;
+    card.append(pedigree);
 
     const name = document.createElement("span");
     name.className = "gname";
@@ -2359,7 +2427,7 @@ function renderGallery(v) {
 
     const meta = document.createElement("span");
     meta.className = "gmeta";
-    meta.textContent = `${appearance.label} · ${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
+    meta.textContent = `${horse.sex === "M" ? "colt" : "filly"} · age ${nf(horse.age)}${horse.inFoal ? " · in foal" : ""}`;
     card.append(meta);
 
     const value = document.createElement("span");
@@ -2373,11 +2441,6 @@ function renderGallery(v) {
       verdict.textContent = horse.verdict;
       card.append(verdict);
     }
-    const band = document.createElement("span");
-    band.className = "gband" + (horse.stakes ? " stakes" : "");
-    band.textContent = horse.band ?? "";
-    card.append(band);
-
     box.append(card);
   }
   if (!herd.length) {
@@ -3469,7 +3532,7 @@ function mountWho(user) {
   out.textContent = "sign out";
   out.addEventListener("click", async () => {
     try {
-      await apiCall(cloudBase ?? "", "/api/logout", { method: "POST", token: tokenStore.get() });
+      await cloudApi("/api/logout", { method: "POST", token: tokenStore.get() });
     } catch {
       /* the token is going away either way */
     }
@@ -3554,6 +3617,7 @@ async function start() {
     connect();
     return;
   }
+  serverBase = base;
   cloudBase = base;
   const token = tokenStore.get();
   if (!token) {

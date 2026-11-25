@@ -9,7 +9,8 @@
  *
  *   node server/index.mjs            # serves the game AND the API on :8787
  *
- * Env: PORT, DATA_DIR, ALLOWED_ORIGINS, ACTION_LIMIT, ACTION_WINDOW_MS
+ * Env: PORT, DATA_DIR, ALLOWED_ORIGINS, ACTION_LIMIT, ACTION_WINDOW_MS,
+ *      AUTH_IP_LIMIT, LOGIN_FAIL_LIMIT, AUTH_WINDOW_MS, CODE_ATTEMPTS
  */
 import { createServer } from "node:http";
 import {
@@ -28,6 +29,7 @@ import { fileURLToPath } from "node:url";
 import { publicAsset } from "./public-files.mjs";
 import { planRoomTransfer } from "./room-transfer.mjs";
 import { writeJsonDurable, roomSnapshots, commitRoomTransfer, recoverRoomTransfers } from "./transfer-store.mjs";
+import { createWindowLimiter, clientAddress, sameCode } from "./auth-guard.mjs";
 
 import {
   LOCI as LOCUS_ORDER,
@@ -52,6 +54,14 @@ const ACTION_LIMIT = Number(process.env.ACTION_LIMIT ?? 40);
 const ACTION_WINDOW_MS = Number(process.env.ACTION_WINDOW_MS ?? 10_000);
 const SESSION_DAYS = Number(process.env.SESSION_DAYS ?? 30);
 const MAX_BODY = 16 * 1024;
+/** F1-06: every unauthenticated account endpoint shares one per-address budget; wrong passwords
+ * are additionally counted per email, and a mailed code dies after a few wrong guesses. */
+const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS ?? 15 * 60_000);
+const AUTH_IP_LIMIT = Number(process.env.AUTH_IP_LIMIT ?? 60);
+const LOGIN_FAIL_LIMIT = Number(process.env.LOGIN_FAIL_LIMIT ?? 5);
+const CODE_ATTEMPTS = Number(process.env.CODE_ATTEMPTS ?? 5);
+const authByAddress = createWindowLimiter({ limit: AUTH_IP_LIMIT, windowMs: AUTH_WINDOW_MS });
+const loginFailures = createWindowLimiter({ limit: LOGIN_FAIL_LIMIT, windowMs: AUTH_WINDOW_MS });
 
 /* ---------------------------------------------------------------- storage */
 
@@ -129,9 +139,21 @@ async function loadAll() {
   }
 }
 
-const persistUsers = () => writeJsonAtomic(userFile, [...users.values()]);
+const writeUsersFile = () => writeJsonAtomic(userFile, [...users.values()]);
+/** Accounts are acknowledged only once durable. A failed write leaves memory ahead of disk,
+ * so writes pause until an operator reconciles — the same rule rooms already follow. */
+async function persistUsers() {
+  try {
+    await writeUsersFile();
+  } catch (error) {
+    storageFault = true;
+    console.error("users write failed:", error.message);
+    throw httpError(503, "save interrupted; writes paused pending recovery", "storage");
+  }
+}
+/** Losing a session only means signing in again, so this stays best-effort — but it is logged. */
 const persistSessions = () =>
-  writeJsonAtomic(sessionFile, Object.fromEntries(sessions));
+  writeJsonAtomic(sessionFile, Object.fromEntries(sessions)).catch((error) => console.error("sessions write failed:", error.message));
 const persistRoom = (room) => writeJsonAtomic(join(roomDir, `${room.id}.json`), room);
 
 const newCode = () => randomBytes(3).toString("hex").toUpperCase();
@@ -274,7 +296,22 @@ function createAccount(email, password) {
   return user;
 }
 
+/** Undo an account whose first save failed, so nothing unsaved is ever served as real. */
+function forgetAccount(user) {
+  const roomId = userRoom.get(user.id);
+  users.delete(user.id);
+  emails.delete(user.email);
+  userRoom.delete(user.id);
+  if (roomId) rooms.delete(roomId);
+  for (const [nullifier, intent] of mints) if (intent.owner === user.id) mints.delete(nullifier);
+}
+
+const DUMMY_SALT = randomBytes(16).toString("hex");
 function checkPassword(user, password) {
+  if (!user) {
+    hashPassword(String(password ?? ""), DUMMY_SALT); // same cost whether or not the email exists
+    return false;
+  }
   const attempt = Buffer.from(hashPassword(String(password ?? ""), user.salt), "hex");
   const known = Buffer.from(user.hash, "hex");
   return attempt.length === known.length && timingSafeEqual(attempt, known);
@@ -283,8 +320,32 @@ function checkPassword(user, password) {
 function openSession(user) {
   const token = newToken();
   sessions.set(token, { userId: user.id, expiresAt: Date.now() + SESSION_DAYS * 86_400_000 });
-  persistSessions().catch(() => {});
+  persistSessions();
   return token;
+}
+
+/** Throws 429 when this address has spent its account-endpoint budget; otherwise spends one. */
+function spendAuthBudget(req) {
+  const key = `ip:${clientAddress(req)}`;
+  const wait = authByAddress.retryAfter(key);
+  if (wait) throw Object.assign(httpError(429, "too many attempts: wait a few minutes", "rate"), { retryAfter: wait });
+  authByAddress.hit(key);
+}
+
+/** A mailed code survives CODE_ATTEMPTS wrong guesses, then must be requested again. */
+function checkMailedCode(user, field, given) {
+  const expires = field === "verifyCode" ? "verifyExpires" : "resetExpires";
+  const attempts = field === "verifyCode" ? "verifyAttempts" : "resetAttempts";
+  if (!user?.[field] || Date.now() > (user[expires] ?? 0)) return "expired";
+  if (sameCode(given, user[field])) return "ok";
+  user[attempts] = (user[attempts] ?? 0) + 1;
+  if (user[attempts] >= CODE_ATTEMPTS) {
+    user[field] = null;
+    user[expires] = null;
+    user[attempts] = 0;
+    return "burned";
+  }
+  return "wrong";
 }
 
 /* ---------------------------------------------------------------- replies */
@@ -435,13 +496,16 @@ function members(room) {
  * A sale across rooms. Two states change at once, which is exactly what the engine's own actions
  * cannot express — and exactly what a global market needs.
  */
-function buyAcrossRooms(buyerId, roomId, listingId) {
-  const sellerRoom = rooms.get(roomId);
-  if (!sellerRoom) throw httpError(404, "no such room", "room");
-  const buyerRoom = roomOf(buyerId);
-  if (!buyerRoom) throw httpError(404, "no room for this account", "noroom");
-  assertRoomsWritable(sellerRoom.id, buyerRoom.id);
-  if (buyerRoom.id === sellerRoom.id) throw httpError(400, "that lot is in your own room", "same");
+async function buyAcrossRooms(buyerId, roomId, listingId) {
+  const liveSeller = rooms.get(roomId);
+  if (!liveSeller) throw httpError(404, "no such room", "room");
+  const liveBuyer = roomOf(buyerId);
+  if (!liveBuyer) throw httpError(404, "no room for this account", "noroom");
+  assertRoomsWritable(liveSeller.id, liveBuyer.id);
+  if (liveBuyer.id === liveSeller.id) throw httpError(400, "that lot is in your own room", "same");
+  // Work on copies: the live rooms change only after the sale is journaled (F1-06).
+  const sellerRoom = structuredClone(liveSeller);
+  const buyerRoom = structuredClone(liveBuyer);
 
   const index = (sellerRoom.state.listings ?? []).findIndex((lot) => lot.id === listingId);
   if (index < 0) throw httpError(404, "that lot is gone", "lot");
@@ -481,8 +545,25 @@ function buyAcrossRooms(buyerId, roomId, listingId) {
   scorePopulation(buyerRoom.state);
   sellerRoom.version += 1;
   buyerRoom.version += 1;
-  persistRoom(sellerRoom).catch(() => {});
-  persistRoom(buyerRoom).catch(() => {});
+  // Two rooms change together: the same durable journal as a room transfer is the commit point,
+  // so a crash between the two room files is replayed on start instead of losing or doubling money.
+  roomLocks.add(sellerRoom.id); roomLocks.add(buyerRoom.id);
+  try {
+    let committed;
+    try {
+      committed = await commitRoomTransfer({
+        directory: transferDir, snapshots: [sellerRoom, buyerRoom], userId: buyerId, writeRoom: persistRoom,
+        publish: (states) => { for (const room of states) rooms.set(room.id, room); },
+      });
+    } catch (error) {
+      storageFault = true;
+      console.error("sale journal failed:", error.message);
+      throw httpError(503, "sale interrupted; writes paused pending recovery", "storage");
+    }
+    if (!committed.materialized) storageFault = true; // journaled: replayed on restart
+  } finally {
+    roomLocks.delete(sellerRoom.id); roomLocks.delete(buyerRoom.id);
+  }
   return { roomId: sellerRoom.id, listingId, price: listing.price, rake, seller: seller?.id ?? null, buyer: buyer.id };
 }
 
@@ -574,12 +655,24 @@ const server = createServer(async (req, res) => {
     }
 
     if ((path === "/api/register" || path === "/api/login") && req.method === "POST") {
+      spendAuthBudget(req);
       const body = await readBody(req);
       const email = String(body.email ?? "").trim().toLowerCase();
       if (path === "/api/register") {
         const user = createAccount(email, body.password);
-        await persistUsers();
-        await persistRoom(roomOf(user.id));
+        try {
+          await writeUsersFile();
+          await persistRoom(roomOf(user.id));
+        } catch (error) {
+          // Nothing was acknowledged yet: undo in memory and drop the account from disk again.
+          forgetAccount(user);
+          await writeUsersFile().catch((again) => {
+            storageFault = true;
+            console.error("users rollback failed:", again.message);
+          });
+          console.error("register write failed:", error.message);
+          throw httpError(503, "could not save the new stable; try again shortly", "storage");
+        }
         const token = openSession(user);
         const devCode = deliver(user.email, user.verifyCode, "verify");
         return send(res, 201, {
@@ -589,9 +682,16 @@ const server = createServer(async (req, res) => {
           state: frame(roomOf(user.id), user.id),
         });
       }
+      const failKey = `email:${email}`;
+      const wait = loginFailures.retryAfter(failKey);
+      if (wait) throw Object.assign(httpError(429, "too many wrong passwords: wait a few minutes", "locked"), { retryAfter: wait });
       const id = emails.get(email);
       const user = id ? users.get(id) : null;
-      if (!user || !checkPassword(user, body.password)) throw httpError(401, "wrong email or password", "credentials");
+      if (!checkPassword(user, body.password)) {
+        loginFailures.hit(failKey); // unknown emails count too, so the lockout reveals nothing
+        throw httpError(401, "wrong email or password", "credentials");
+      }
+      loginFailures.clear(failKey);
       const token = openSession(user);
       return send(res, 200, { token, user: { id: user.id, email: user.email }, state: frame(roomOf(user.id) ?? openRoom(user.id), user.id) });
     }
@@ -618,13 +718,18 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/api/verify" && req.method === "POST") {
+      spendAuthBudget(req);
       const user = requireUser(req);
       const body = await readBody(req);
       const code = String(body.code ?? "").trim();
-      if (!user.verifyCode || Date.now() > (user.verifyExpires ?? 0)) {
-        throw httpError(400, "the code has expired — ask for another", "expired");
+      const outcome = checkMailedCode(user, "verifyCode", code);
+      if (outcome === "expired") throw httpError(400, "the code has expired — ask for another", "expired");
+      if (outcome !== "ok") {
+        await persistUsers(); // the attempt counter must survive a restart
+        if (outcome === "burned") throw httpError(400, "too many wrong codes — ask for another", "expired");
+        throw httpError(400, "that is not the code", "code");
       }
-      if (code !== user.verifyCode) throw httpError(400, "that is not the code", "code");
+      user.verifyAttempts = 0;
       user.verified = true;
       user.verifyCode = null;
       user.verifyExpires = null;
@@ -633,6 +738,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/api/recover" && req.method === "POST") {
+      spendAuthBudget(req);
       const body = await readBody(req);
       const email = String(body.email ?? "").trim().toLowerCase();
       const user = users.get(emails.get(email));
@@ -641,6 +747,7 @@ const server = createServer(async (req, res) => {
       if (user) {
         user.resetCode = newCode6();
         user.resetExpires = Date.now() + CODE_MINUTES * 60_000;
+        user.resetAttempts = 0;
         await persistUsers();
         devCode = deliver(email, user.resetCode, "reset");
       }
@@ -648,15 +755,20 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/api/reset" && req.method === "POST") {
+      spendAuthBudget(req);
       const body = await readBody(req);
       const email = String(body.email ?? "").trim().toLowerCase();
       const user = users.get(emails.get(email));
       const code = String(body.code ?? "").trim();
       const password = String(body.password ?? "");
-      if (!user || !user.resetCode || Date.now() > (user.resetExpires ?? 0) || code !== user.resetCode) {
+      if (password.length < 8) throw httpError(400, "a password is at least 8 characters", "password");
+      const outcome = user ? checkMailedCode(user, "resetCode", code) : "expired";
+      if (outcome !== "ok") {
+        if (outcome === "wrong" || outcome === "burned") await persistUsers();
         throw httpError(400, "that code is not valid for this address", "code");
       }
-      if (password.length < 8) throw httpError(400, "a password is at least 8 characters", "password");
+      user.resetAttempts = 0;
+      loginFailures.clear(`email:${email}`);
       user.salt = randomBytes(16).toString("hex");
       user.hash = hashPassword(password, user.salt);
       user.resetCode = null;
@@ -666,7 +778,7 @@ const server = createServer(async (req, res) => {
       for (const [token, session] of sessions) {
         if (session.userId === user.id) sessions.delete(token);
       }
-      persistSessions().catch(() => {});
+      persistSessions();
       const token = openSession(user);
       return send(res, 200, { token, user: { id: user.id, email: user.email } });
     }
@@ -789,7 +901,7 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const roomId = String(body.roomId ?? "");
       const listingId = String(body.listingId ?? "");
-      const sale = buyAcrossRooms(user.id, roomId, listingId);
+      const sale = await buyAcrossRooms(user.id, roomId, listingId);
       return send(res, 200, { sale, state: frame(roomOf(user.id), user.id) });
     }
 
@@ -846,7 +958,7 @@ const server = createServer(async (req, res) => {
       const token = bearer(req);
       if (token) {
         sessions.delete(token);
-        persistSessions().catch(() => {});
+        persistSessions();
       }
       return send(res, 200, { ok: true });
     }
@@ -855,6 +967,7 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     const status = error.status ?? 500;
     if (status >= 500) console.error("server error:", error);
+    if (error.retryAfter) res.setHeader("retry-after", String(error.retryAfter));
     return send(res, status, { error: error.message ?? "server error", code: error.code ?? "error" });
   }
 });
@@ -866,15 +979,25 @@ async function tick() {
   for (const room of rooms.values()) {
     if (room.closesAt > now || !humanSeats(room) || roomLocks.has(room.id)) continue;
     roomLocks.add(room.id);
+    let next;
     try {
-      room.state = runRound(room.state, "The clock ran out —");
-      issueMints(room); // a foal born this turn becomes an intent, once
-      room.version += 1;
-      rearm(room);
-      await persistRoom(room);
+      // runRound mutates what it is given: resolve a copy so a failed save leaves the room untouched.
+      next = { ...room, state: runRound(structuredClone(room.state), "The clock ran out —"), version: room.version + 1 };
+      rearm(next);
     } catch (error) {
       console.error("turn failed for", room.id, error.message);
       rearm(room);
+      roomLocks.delete(room.id);
+      continue;
+    }
+    try {
+      await persistRoom(next);
+      rooms.set(room.id, next);
+      issueMints(next); // a foal born this turn becomes an intent, once — only after it is saved
+    } catch (error) {
+      // Disk may now hold either version; stop all writes until an operator reconciles.
+      storageFault = true;
+      console.error("turn save failed for", room.id, error.message);
     } finally {
       roomLocks.delete(room.id);
     }

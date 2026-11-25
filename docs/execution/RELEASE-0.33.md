@@ -2,9 +2,12 @@
 
 ## Publicado e verificado
 
-- Produção: https://studbook.fly.dev — versão 0.33.0, revisão `09719c7b09beaf2df47c2acb66bfc760a84e2c3e`, manutenção desligada, 6 contas preservadas.
+- Produção: https://studbook.fly.dev — versão 0.33.0, revisão `564bd0c4839eef6b77ecc99476d8ee2d580e9050`, manutenção desligada, 6 contas preservadas.
+- Cartão premium: selo SB de demonstração, pedigree curto, textura de papel, hierarquia revisada e sem colisões no rodapé.
+- Viewer mobile: alvos de toque ≥44 px, painel recomposto, sombras/pixel ratio reduzidos e enquadramento adaptativo; testado em 390×844.
+- Limitação preservada: o 3D ainda não reproduz com exatidão crina e todas as meias porque a textura base está baked. Corrigir exige separar malha/materiais de crina, cauda, face e membros — não apenas shader. Não declarar paridade 3D/ficha concluída.
 - Fluxo publicado testado no navegador: entrar na demo offline → cartão de pelagem → viewer 3D → mesmo cavalo.
-- O cartão mostrou `Cremello · plain face · 2 socks`; o viewer mostrou o mesmo cavalo claro, crina clara, cara limpa e duas meias. Zero pageerrors.
+- O fluxo publicado abriu cartão e viewer sem pageerrors; a conferência exata de crina/meias no 3D segue pendente pela limitação acima.
 - Sem migração de dados, compra de assets ou geração paga de mídia.
 
 ## Objetivo e limites
@@ -15,7 +18,7 @@ A identidade é derivada do **id público** do cavalo e da linhagem, por funçã
 
 ## Onde aparece
 
-- Cartão do estábulo (retrato de pelagem).
+- Cartão do estábulo: retrato de linhagem tonalizado para a pelagem do animal, mais faixa compacta com pelagem, marca facial e meias.
 - linha do plantel (amostra compacta; oculta em telas estreitas para não alargar a tabela).
 - ficha detalhada do cavalo.
 - cavalo no mercado.
@@ -24,7 +27,7 @@ A identidade é derivada do **id público** do cavalo e da linhagem, por funçã
 
 ## Implementação
 
-- `assets/phenotype.js`: 8 pelagens, 4 tipos de marca facial e 0–4 meias; hash FNV-1a estável; nenhuma aleatoriedade em tempo de execução; validação/escape do markup SVG.
+- `assets/phenotype.js`: 8 pelagens, 4 tipos de marca facial e 0–4 meias; hash FNV-1a estável; nenhuma aleatoriedade em tempo de execução; filtro de cor do retrato e validação/escape do markup SVG.
 - Reutiliza o símbolo de cavalo já existente na interface, sem novos arquivos de arte.
 - Shader do viewer aplica pelagem/marcações sobre o material `coat_B`; a crina/cauda usa o material `hair`. O morph anatômico e as seis animações permanecem.
 - Nenhuma migração de dados: a aparência é calculada a partir de campos já existentes, e por isso vale imediatamente para cavalos antigos.

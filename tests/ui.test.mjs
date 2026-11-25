@@ -88,6 +88,9 @@ const { window, document, errors, wait, byText, savedState } = app;
 /* ---------- 1. the page is alive ---------- */
 ok("the page boots without an error", errors.length === 0, errors.join(" | "));
 ok("the hero shows the stable", /Studbook/.test(document.querySelector("h1")?.textContent ?? ""));
+const modeBanner = document.getElementById("mode-banner");
+ok("F1-07: the offline demo says so on screen", document.body.dataset.mode === "offline" && /offline/i.test(modeBanner?.textContent ?? "") && /neste navegador/.test(modeBanner?.textContent ?? ""));
+ok("F1-07: without a server there is no sign-in offer", !modeBanner?.querySelector("[data-mode-signin]"));
 const startGuineas = savedState()?.stables?.[0]?.guineas;
 ok("a fresh stable starts with 2000 guineas", startGuineas === 2000, String(startGuineas));
 

@@ -1,6 +1,8 @@
 # Studbook — continuidade em outro modelo
 
-**Publicado:** versão 0.33.0 em produção, revisão `09719c7b09beaf2df47c2acb66bfc760a84e2c3e`, com identidade visual individual por cavalo. Ver [RELEASE-0.33](execution/RELEASE-0.33.md). A publicação anterior está em [RELEASE-0.32](execution/RELEASE-0.32.md). PR #2 foi mesclado; não continue tratando-o como pendente.
+**Publicado:** versão 0.33.0 em produção, revisão `564bd0c4839eef6b77ecc99476d8ee2d580e9050`, com identidade visual, cartão premium e viewer mobile. Ver [RELEASE-0.33](execution/RELEASE-0.33.md). A publicação anterior está em [RELEASE-0.32](execution/RELEASE-0.32.md). PR #2 foi mesclado; não continue tratando-o como pendente.
+
+**Em revisão (não publicado):** branch `feat/f1-f2-foundations-20261124` com F1-06, F1-07 e F2-01. Ver `docs/execution/STATUS.md` e `docs/execution/F2-SCHEMA.md`. Novas variáveis opcionais: `AUTH_IP_LIMIT` (60), `LOGIN_FAIL_LIMIT` (5), `AUTH_WINDOW_MS` (15 min), `CODE_ATTEMPTS` (5).
 
 ## Pedido do proprietário
 

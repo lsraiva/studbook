@@ -8,14 +8,14 @@
  */
 
 const COATS = [
-  { key: "bay", en: "Bay", pt: "Castanho", body: "#7a4b2e", mane: "#241a14" },
-  { key: "chestnut", en: "Chestnut", pt: "Alazão", body: "#8f4b2b", mane: "#a9603a" },
-  { key: "buckskin", en: "Buckskin", pt: "Baio", body: "#b58a57", mane: "#2a2019" },
-  { key: "grey", en: "Grey", pt: "Tordilho", body: "#a9a9a2", mane: "#e2ded4" },
-  { key: "black", en: "Black", pt: "Preto", body: "#332e2a", mane: "#1a1816" },
-  { key: "roan", en: "Roan", pt: "Rosilho", body: "#9c6b58", mane: "#6b4a3e" },
-  { key: "palomino", en: "Palomino", pt: "Palomino", body: "#c9a263", mane: "#f0e3c3" },
-  { key: "cremello", en: "Cremello", pt: "Isabelino", body: "#d8c9ad", mane: "#f7efdd" },
+  { key: "bay", en: "Bay", pt: "Castanho", body: "#7a4b2e", mane: "#241a14", filter: "sepia(.45) saturate(1.25) brightness(.82)" },
+  { key: "chestnut", en: "Chestnut", pt: "Alazão", body: "#8f4b2b", mane: "#a9603a", filter: "sepia(.65) saturate(1.5) brightness(.95)" },
+  { key: "buckskin", en: "Buckskin", pt: "Baio", body: "#b58a57", mane: "#2a2019", filter: "sepia(.55) saturate(1.15) brightness(1.12)" },
+  { key: "grey", en: "Grey", pt: "Tordilho", body: "#a9a9a2", mane: "#e2ded4", filter: "grayscale(.92) brightness(1.18) contrast(.95)" },
+  { key: "black", en: "Black", pt: "Preto", body: "#332e2a", mane: "#1a1816", filter: "grayscale(1) brightness(.42) contrast(1.15)" },
+  { key: "roan", en: "Roan", pt: "Rosilho", body: "#9c6b58", mane: "#6b4a3e", filter: "grayscale(.45) sepia(.4) brightness(1.02)" },
+  { key: "palomino", en: "Palomino", pt: "Palomino", body: "#c9a263", mane: "#f0e3c3", filter: "sepia(.45) saturate(1.35) brightness(1.28)" },
+  { key: "cremello", en: "Cremello", pt: "Isabelino", body: "#d8c9ad", mane: "#f7efdd", filter: "grayscale(.65) sepia(.3) brightness(1.4)" },
 ];
 
 const BLAZES = [
@@ -62,6 +62,7 @@ export function appearanceFor(horse) {
     coatNamePt: coat.pt,
     bodyColor: coat.body,
     maneColor: coat.mane,
+    filter: coat.filter,
     blaze: blaze.key,
     blazeWidth: blaze.width,
     blazeName: blaze.en,
@@ -71,6 +72,25 @@ export function appearanceFor(horse) {
     maneSide,
     label: `${coat.en} · ${blaze.key === "plain" ? "plain face" : blaze.key}${footwear ? ` · ${footwear} sock${footwear === 1 ? "" : "s"}` : ""}`,
     labelPt: `${coat.pt} · ${blaze.pt}${footwear ? ` · ${footwear} ${footwear === 1 ? "meia" : "meias"}` : ""}`,
+  };
+}
+
+/** Explicit look for studio renders; same shape as appearanceFor. */
+export function appearanceFromSpec({ coat = "bay", socks = 0, blaze = 0 } = {}) {
+  const chosen = COATS.find((entry) => entry.key === coat) ?? COATS[0];
+  const mark = BLAZES[Math.max(0, Math.min(3, Number(blaze) || 0))];
+  const count = Math.max(0, Math.min(4, Number(socks) || 0));
+  return {
+    version: PHENOTYPE_VERSION, seed: 0, coat: chosen.key,
+    coatName: chosen.en, coatNamePt: chosen.pt,
+    bodyColor: chosen.body, maneColor: chosen.mane,
+    filter: chosen.filter,
+    blaze: mark.key, blazeWidth: mark.width, blazeName: mark.en,
+    socksMask: count, sockCount: count,
+    sockLegs: [1, 2, 3, 4].filter((leg) => count >= leg),
+    maneSide: "right",
+    label: `${chosen.en} · ${mark.en}${count ? ` · ${count} sock${count === 1 ? "" : "s"}` : ""}`,
+    labelPt: `${chosen.pt} · ${mark.pt}${count ? ` · ${count} ${count === 1 ? "meia" : "meias"}` : ""}`,
   };
 }
 
