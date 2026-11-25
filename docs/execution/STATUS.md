@@ -14,6 +14,8 @@ No deploy, schema migration, provisioning, paid resource or blockchain call happ
 
 ## Current publication
 
+Version 0.35 translates the game chrome to Portuguese (tabs, buttons, tables, filters, errors and central states) via assets/i18n.js, while preserving names and numbers. Long engine-generated editorial copy is only partially covered; see RELEASE-0.35.md. Do not claim full translation yet.
+
 Version 0.33 adds deterministic individual appearance (coat, mane, face mark, socks) to the yard, detail card, market and 3D viewer. Identity derives from public horse id+lineage only: no hidden genotype leak, no performance effect, no data migration. See RELEASE-0.33.md.
 
 Version 0.32.0 is deployed to Fly with the welcome page and experimental 3D viewer. PR #2 is merged. See RELEASE-0.32.md and ../HANDOFF.md. The sections below record earlier batches and must not be interpreted as the current no-deploy status.

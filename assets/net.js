@@ -3,6 +3,8 @@
  * readyState, addEventListener, send — but every message is an HTTP call to the server, which
  * owns the state. Nothing here can change a horse: the server sends a view back.
  */
+import { translateError } from "./i18n.js";
+
 const TOKEN_KEY = "hf:studbook:token";
 
 export const tokenStore = {
@@ -38,7 +40,7 @@ export async function apiCall(base, path, { method = "GET", token, body } = {}) 
     json = {};
   }
   if (!res.ok) {
-    const error = new Error(json.error ?? `server said ${res.status}`);
+    const error = new Error(translateError(json.error ?? `server said ${res.status}`));
     error.status = res.status;
     error.code = json.code;
     throw error;
