@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.mjs",
     "serve": "node tools/serve.mjs",
-    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/ui.test.mjs && node tests/wallet-ui.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs && node tests/room-transfer.test.mjs && node tests/transfer-store.test.mjs && node tests/phenotype.test.mjs",
+    "test": "node tests/engine.test.mjs && node tests/token.test.mjs && node tests/ui.test.mjs && node tests/wallet-ui.test.mjs && node tests/design.test.mjs && node tests/server.test.mjs && node tests/auth-guard.test.mjs && node tests/room-transfer.test.mjs && node tests/transfer-store.test.mjs && node tests/phenotype.test.mjs && node tests/ledger.test.mjs",
     "test:engine": "node tests/engine.test.mjs",
     "test:design": "node tests/design.test.mjs",
     "test:server": "node tests/server.test.mjs",
@@ -22,7 +22,8 @@
     "deploy:dry": "node tools/deploy.mjs --dry-run",
     "test:wallet": "node tests/wallet-ui.test.mjs",
     "test:browser": "playwright test",
-    "build:visual": "node tools/build-visual.mjs"
+    "build:visual": "node tools/build-visual.mjs",
+    "import:dry": "node tools/import-dry-run.mjs"
   },
   "license": "MIT",
   "devDependencies": {

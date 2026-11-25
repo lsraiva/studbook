@@ -6,19 +6,27 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const queues = new Map();
 
+/** Directory fsync makes a rename durable on POSIX. Windows cannot open/flush a
+ * directory handle (EPERM/EISDIR); NTFS journals the rename itself, so there the
+ * step is skipped. Production (Fly, Linux) always performs it. */
+async function syncDirectory(path) {
+  let handle;
+  try{handle=await open(path,'r');await handle.sync();}
+  catch(error){if(!(process.platform==='win32'&&['EPERM','EISDIR','EACCES'].includes(error.code)))throw error;}
+  finally{await handle?.close();}
+}
+
 export function writeJsonDurable(path, value) {
   const text=JSON.stringify(value); // snapshot before waiting for a prior writer
   const previous=queues.get(path)??Promise.resolve();
   const pending=previous.catch(()=>{}).then(async()=>{
     await mkdir(dirname(path),{recursive:true});
-    const parent=await open(dirname(dirname(path)),'r');
-    try{await parent.sync();}finally{await parent.close();}
+    await syncDirectory(dirname(dirname(path)));
     const tmp=`${path}.${process.pid}.${randomUUID()}.tmp`;
     const file=await open(tmp,'wx',0o600);
     try{await file.writeFile(text);await file.sync();}finally{await file.close();}
     await rename(tmp,path);
-    const directory=await open(dirname(path),'r');
-    try{await directory.sync();}finally{await directory.close();}
+    await syncDirectory(dirname(path));
   });
   queues.set(path,pending);
   pending.then(()=>{if(queues.get(path)===pending)queues.delete(path);},()=>{if(queues.get(path)===pending)queues.delete(path);});

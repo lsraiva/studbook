@@ -1,5 +1,17 @@
 # Studbook 3D — execution status
 
+## In review — `feat/f1-f2-foundations-20261124` (not deployed)
+
+| Task | State | Evidence |
+|---|---|---|
+| F1-06 auth hardening and write failures | review | per-address auth budget, per-email lockout (unknown emails too), constant-time codes burned after N guesses, register rollback, users-write fault pause, journaled cross-room sales, meeting resolved on a copy; `tests/auth-guard.test.mjs` (20 checks) |
+| F1-07 offline/cloud separation | review | `cloudApi` refuses account calls outside cloud mode; mode banner on every screen with sign-in offer; jsdom + Playwright (`modes.spec.mjs`) |
+| F2-01 schema, keys, invariants | review | deterministic UUIDv5 keys, ledger contract + memory adapter, import dry run with G1–G6, `db/schema.sql` draft; `tests/ledger.test.mjs`. See [F2-SCHEMA.md](F2-SCHEMA.md) |
+
+Totals on this branch: `npm test` 276 checks, 0 failures; `npm run test:browser` 13 tests pass (SwiftShader); contracts compile. The suite now also runs on Windows hosts (directory fsync and symlink checks are skipped only where the OS cannot do them; Linux CI still runs both).
+
+No deploy, schema migration, provisioning, paid resource or blockchain call happened. F2-02 still needs provider/region/budget approval.
+
 ## Current publication
 
 Version 0.33 adds deterministic individual appearance (coat, mane, face mark, socks) to the yard, detail card, market and 3D viewer. Identity derives from public horse id+lineage only: no hidden genotype leak, no performance effect, no data migration. See RELEASE-0.33.md.

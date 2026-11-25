@@ -1186,3 +1186,10 @@
       .reveal .card h3 { margin: 0.1rem 0 0.15rem; }
       .reveal .card .lines { margin: 0.5rem 0 0.2rem; }
       .reveal .card .hv-traits { margin-top: 0.6rem; }
+
+      /* F1-07: which world this tab is in, on every screen */
+      .mode-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0.35rem 0 0.2rem; padding: 0.4rem 0.75rem; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--dim); font-size: 0.83rem; line-height: 1.35; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+      .mode-banner b { color: inherit; }
+      .mode-banner.offline { border-color: var(--brass-deep); color: var(--brass-lit); background: color-mix(in srgb, var(--brass) 12%, transparent); }
+      .mode-banner.cloud { padding-block: 0.25rem; font-size: 0.76rem; }
+      .mode-banner button { margin-left: auto; }
