@@ -1,6 +1,6 @@
 # Release 0.37.0 — live race (exhibition)
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-25 as Fly release v21 together with 0.38, revision `af2f81cad1045bdd8f7f491b5523a88cff966087`, after a verified backup and restore test (9 accounts, 277 horses, dry run 0 problems).
 
 ## What it is
 

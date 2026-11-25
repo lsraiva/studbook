@@ -567,6 +567,7 @@ function celebrateFirsts(v) {
 
 function onState(msg) {
   view = msg.view ? { ...msg.view, room: msg.room ?? msg.view.room ?? null, cloud: Boolean(msg.cloud ?? msg.view.cloud), account: msg.account ?? msg.view.account ?? null } : null;
+  appReady();
   el("advance").hidden = Boolean(view?.cloud);
   seats = msg.seats ?? [];
   me = msg.you;
@@ -1115,7 +1116,7 @@ function renderFoaling(v) {
   const rows = v.foaling ?? [];
   if (!rows.length) {
     const empty = document.createElement("p");
-    empty.className = "hint";
+    empty.className = "hint empty-state";
     empty.textContent = "No mares in foal. Pick a covering and breed a mare above.";
     list.append(empty);
     return;
@@ -1150,7 +1151,7 @@ function renderFoals(v) {
   if (count) count.textContent = nf(foals.length);
   if (!foals.length) {
     const empty = document.createElement("p");
-    empty.className = "hint";
+    empty.className = "hint empty-state";
     empty.textContent = "No foals bred yet. Cover a mare on the Breeding screen and the book starts here.";
     list.append(empty);
     return;
@@ -2457,7 +2458,7 @@ function renderGallery(v) {
   }
   if (!herd.length) {
     const empty = document.createElement("p");
-    empty.className = "hint";
+    empty.className = "hint empty-state";
     empty.textContent = "No horses in training. Buy one in the horse market, or cover a mare.";
     box.append(empty);
   }
@@ -2850,7 +2851,7 @@ function draw() {
       .filter(Boolean);
     if (!running.length) {
       const empty = document.createElement("p");
-      empty.className = "hint";
+      empty.className = "hint empty-state";
       empty.textContent = "No runners entered. Pick up to three on the Yard screen — the enter button sits on each row.";
       entries.append(empty);
     }
@@ -2930,7 +2931,7 @@ function draw() {
   }
   if (!v.straws.length) {
     const empty = document.createElement("p");
-    empty.className = "hint";
+    empty.className = "hint empty-state";
     // A yard with no covering cannot grow at all: it can cover no mare and it breeds no
     // foal. So the empty state names the next step, where it is and what it costs.
     const starter =
@@ -3020,7 +3021,7 @@ function draw() {
     listings.innerHTML = "";
     if (!studLots.length) {
       const empty = document.createElement("p");
-      empty.className = "hint";
+      empty.className = "hint empty-state";
       empty.textContent = "The catalogue is empty right now — rivals list coverings each season.";
       listings.append(empty);
     }
@@ -3030,7 +3031,7 @@ function draw() {
     horseCards.innerHTML = "";
     if (!horseMarket.length) {
       const empty = document.createElement("p");
-      empty.className = "hint";
+      empty.className = "hint empty-state";
       empty.textContent =
         "No horses in the ring. Rivals consign each season, and you can consign your own from the Yard.";
       horseCards.append(empty);
@@ -3207,7 +3208,7 @@ function draw() {
       if (track.dataset.stamp !== "none") {
         track.innerHTML = "";
         const empty = document.createElement("p");
-        empty.className = "hint";
+        empty.className = "hint empty-state";
         empty.textContent = "Run the season and the running appears here.";
         track.append(empty);
         track.dataset.stamp = "none";
@@ -3462,7 +3463,17 @@ showScreen(screen);
 /* ------------------------------------------------------------------ accounts */
 
 /** The gate that stands in front of a cloud stable. */
+/** The opening card leaves once there is something to show: a stable, or the account gate. */
+function appReady() {
+  if (document.body.classList.contains("ready")) return;
+  document.body.classList.add("ready");
+  // fade out, then leave the page for good: nothing should ever sit over the game again
+  const splash = document.getElementById("splash");
+  if (splash) setTimeout(() => splash.remove(), REDUCED_MOTION ? 0 : 480);
+}
+
 function accountGate(base, message = "") {
+  appReady();
   document.querySelectorAll(".gate").forEach((node) => node.remove());
   const gate = document.createElement("div");
   gate.className = "gate";
@@ -3742,7 +3753,7 @@ async function openLiveRace() {
     };
     const onKey = (event) => { if (event.key === "Escape") scene.close(); };
     document.addEventListener("keydown", onKey);
-    const scene = new RaceScene(host, race, { reducedMotion: REDUCED_MOTION, onClose: close });
+    const scene = new RaceScene(host, race, { reducedMotion: REDUCED_MOTION, sound: soundOn, onClose: close });
     window.__studbookRace = { race, scene }; // inspection hook for tests and support
     scene.play();
     overlay.querySelector("button")?.focus();

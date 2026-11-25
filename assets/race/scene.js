@@ -89,7 +89,19 @@ export class RaceScene {
     const close = el("button", "tiny", "Fechar");
     close.type = "button";
     close.addEventListener("click", () => this.close());
-    controls.append(this.playBtn, this.fastBtn, skip, close);
+    // sound follows the game's own setting, and can be muted here without changing it
+    this.audio = new RaceAudio();
+    this.audio.setEnabled(Boolean(this.options.sound) && !this.reduced);
+    this.soundBtn = el("button", "tiny", this.audio.enabled ? "Som: ligado" : "Som: desligado");
+    this.soundBtn.type = "button";
+    this.soundBtn.setAttribute("aria-pressed", String(this.audio.enabled));
+    this.soundBtn.addEventListener("click", () => {
+      this.audio.setEnabled(!this.audio.enabled);
+      this.soundBtn.textContent = this.audio.enabled ? "Som: ligado" : "Som: desligado";
+      this.soundBtn.setAttribute("aria-pressed", String(this.audio.enabled));
+      if (this.audio.enabled && this.playing) this.audio.start({ bell: false });
+    });
+    controls.append(this.playBtn, this.fastBtn, this.soundBtn, skip, close);
     this.resultBox = el("div", "rs-result");
     this.resultBox.hidden = true;
     this.stage.append(this.canvas, top, this.board, this.call, controls, this.resultBox);
@@ -160,6 +172,7 @@ export class RaceScene {
     this.cam = null;
     this.playing = true;
     this.playBtn.textContent = "Pausar";
+    this.audio.start({ bell: this.t === 0 });
     let last = performance.now();
     const step = (now) => {
       if (!this.playing) return;
@@ -171,6 +184,8 @@ export class RaceScene {
       const slow = leaderLeft < 60 && leaderLeft > -5 ? 0.45 : 1;
       this.t += elapsed * this.speed * this.boost * slow;
       this.draw();
+      const excitement = Math.max(0, Math.min(1, 1 - (this.leaderLeft ?? this.data.distance) / 450));
+      this.audio.update({ pace: (this.speed * this.boost * slow) / 1.6, excitement, field: this.data.runners.length });
       if (this.t >= this.raceEnd + 1.2) return this.finish();
       this.raf = requestAnimationFrame(step);
     };
@@ -180,6 +195,7 @@ export class RaceScene {
   pause() {
     this.playing = false;
     cancelAnimationFrame(this.raf);
+    this.audio.pause();
     this.playBtn.textContent = "Continuar";
   }
 
@@ -189,12 +205,14 @@ export class RaceScene {
     this.t = this.raceEnd + 1.2;
     this.draw();
     this.showResult();
+    this.audio.cheer();
     this.playBtn.textContent = "Assistir de novo";
   }
 
   close() {
     this.playing = false;
     cancelAnimationFrame(this.raf);
+    this.audio.stop();
     this.observer?.disconnect();
     this.options.onClose?.();
   }
@@ -475,5 +493,133 @@ export class RaceScene {
     box.append(el("p", "rs-note", "Exibição: simulada pelo motor causal, não altera resultados, saldo nem histórico."));
     box.hidden = false;
     this.call.hidden = true;
+  }
+}
+
+/**
+ * The sound of a race, synthesised: no samples, no downloads. A start bell, the field's
+ * hoofbeats at the pace the race is being played, and a crowd that rises through the home
+ * straight and cheers the finish. Every call is guarded: a browser without audio, or one
+ * that refuses to start it, simply gets a silent race.
+ */
+export class RaceAudio {
+  constructor() {
+    this.enabled = false;
+    this.ctx = null;
+  }
+
+  ensure() {
+    if (this.ctx) return true;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return false;
+      const ctx = new Ctx();
+      const master = ctx.createGain();
+      master.gain.value = 0.55;
+      master.connect(ctx.destination);
+      // two seconds of brown noise, reused by the crowd and the hooves
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < data.length; i += 1) {
+        last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+        data[i] = last * 3.5;
+      }
+      const crowd = ctx.createBufferSource();
+      crowd.buffer = buffer;
+      crowd.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = 850;
+      band.Q.value = 0.6;
+      const crowdGain = ctx.createGain();
+      crowdGain.gain.value = 0;
+      crowd.connect(band).connect(crowdGain).connect(master);
+      crowd.start();
+      Object.assign(this, { ctx, master, buffer, crowdGain, nextBeat: 0 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  start({ bell }) {
+    if (!this.enabled || !this.ensure()) return;
+    this.ctx.resume?.().catch(() => {});
+    this.nextBeat = this.ctx.currentTime + 0.05;
+    if (bell) this.bell();
+  }
+
+  bell() {
+    try {
+      const now = this.ctx.currentTime;
+      for (const [freq, level] of [[1318.5, 0.18], [2637, 0.06]]) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(level, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
+        osc.connect(gain).connect(this.master);
+        osc.start(now);
+        osc.stop(now + 1.5);
+      }
+    } catch { /* a silent bell is still a start */ }
+  }
+
+  /** Called every drawn frame. pace: playback rate; excitement: 0 at the start, 1 at the post. */
+  update({ pace, excitement, field }) {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "running") return;
+    const now = this.ctx.currentTime;
+    this.crowdGain.gain.setTargetAtTime(0.025 + 0.22 * excitement * excitement, now, 0.4);
+    // a field gallops at ~2.3 strides a second; at 2x playback it sounds twice as fast
+    const stride = 1 / (2.3 * Math.max(0.3, pace));
+    const loud = Math.min(0.32, 0.1 + field * 0.015);
+    while (this.nextBeat < now + 0.12) {
+      const at = Math.max(this.nextBeat, now);
+      for (const offset of [0, 0.055, 0.11, 0.17]) this.hoof(at + offset + Math.random() * 0.012, loud * (0.7 + Math.random() * 0.3));
+      this.nextBeat = at + stride;
+    }
+  }
+
+  hoof(at, level) {
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.buffer;
+      const low = this.ctx.createBiquadFilter();
+      low.type = "lowpass";
+      low.frequency.value = 260;
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(level, at);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
+      src.connect(low).connect(gain).connect(this.master);
+      src.start(at, Math.random() * 1.5, 0.08);
+    } catch { /* one missed beat */ }
+  }
+
+  cheer() {
+    if (!this.enabled || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const g = this.crowdGain.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      g.linearRampToValueAtTime(0.42, now + 0.25);
+      g.setTargetAtTime(0.03, now + 1.2, 1.1);
+    } catch { /* silence */ }
+  }
+
+  pause() {
+    this.ctx?.suspend?.().catch(() => {});
+  }
+
+  setEnabled(on) {
+    this.enabled = on;
+    if (!on) this.pause();
+  }
+
+  stop() {
+    try { this.ctx?.close(); } catch { /* already closed */ }
+    this.ctx = null;
   }
 }

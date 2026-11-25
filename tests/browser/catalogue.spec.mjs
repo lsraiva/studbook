@@ -36,3 +36,20 @@ test('yard portraits are repainted in each horse\'s own coat', async ({ page }) 
   expect(await img.getAttribute('src')).toMatch(/^data:image\//);
   expect(await img.evaluate((node) => node.style.filter)).toBe('');
 });
+
+test('the opening card steps aside once the stable is ready', async ({ page }) => {
+  await page.goto('/index.html');
+  await expect(page.locator('body')).toHaveClass(/\bready\b/);
+  await expect(page.locator('#splash')).toHaveCount(0);
+  await page.locator('.tab[data-screen="racing"]').click(); // nothing is covering the game
+  await expect(page.locator('body')).toHaveAttribute('data-screen', 'racing');
+});
+
+test('empty states carry the illustrated style', async ({ page }) => {
+  await page.goto('/index.html');
+  await page.locator('.tab[data-screen="racing"]').click();
+  const empty = page.locator('#race-entries .empty-state');
+  await expect(empty).toBeVisible();
+  const mark = await empty.evaluate((node) => getComputedStyle(node, '::before').width);
+  expect(parseFloat(mark)).toBeGreaterThan(20);
+});

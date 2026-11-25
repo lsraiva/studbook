@@ -1,6 +1,6 @@
 # Release 0.38.0 — coat-accurate portraits
 
-State: **in review**, not deployed. Stacked on 0.37 (live race, PR #7).
+State: **deployed** 2026-11-25 as Fly release v21, revision `af2f81cad1045bdd8f7f491b5523a88cff966087` (merged as PR #9 after #8 closed with its stacked base).
 
 ## Change
 
