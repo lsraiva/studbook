@@ -9,21 +9,21 @@
         color-scheme: dark;
 
         /* a warm, inky green — the colour of a catalogue printed on good stock */
-        --ink-0: #090c0a;
-        --ink-1: #0f1411;
-        --ink-2: #151b16;
-        --ink-3: #1c241d;
-        --hairline: #2a332b;
+        --ink-0: #0a110d;
+        --ink-1: #0e1712;
+        --ink-2: #142019;
+        --ink-3: #1a2820;
+        --hairline: #26342b;
 
         --fg: #f4f1e6;
         --dim: #a9aa9c;
         --muted: #c6c6b6;
         --faint: #8d8f80;
 
-        --brass: #d9a94e;
-        --brass-deep: #b0802c;
+        --brass: #d7b77d;
+        --brass-deep: #c7a364;
         --brass-ink: #1a1204;
-        --cream: #f7ecd2;
+        --cream: #f1eee4;
         /* the support hue: a faded sage, because brass and violet never agreed */
         --violet: #8fb6a9;
         --green: #93d69c;
@@ -57,9 +57,10 @@
         --ring: 2px solid var(--brass);
 
         /* display type: a book face, not a dashboard sans */
-        --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, ui-serif, serif;
+        --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, ui-serif, serif;
         --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-        --font-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        /* numbers in the reading face, aligned by tabular figures: a catalogue, not a terminal */
+        --font-num: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
         --select: #26302a;
         --hover: #212a23;
@@ -76,6 +77,10 @@
         --brass-lit: #e7bd63; --brass-hi: #f0c972; --brass-mid: #dfb256;
         --brass-lo: #b98a30; --brass-edge: #8a6118; --brass-glow: #a2741f;
         --mine-line: #4a3d1d; --card-line: #3b4438;
+        /* catalogue pass: the landing page's gold, veils and quiet lines */
+        --gold-a: #e2c58e; --gold-b: #c7a364; --gold-ink: #201c13;
+        --line-strong: #3a4a3e; --veil: #0e1712d9; --veil-soft: #0e171280;
+        --row: #ffffff06; --row-mine: #d7b77d14;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
@@ -92,7 +97,7 @@
           calc(2rem + env(safe-area-inset-bottom))
           calc(clamp(0.7rem, 2vw, 1.6rem) + env(safe-area-inset-left));
       }
-      b, .num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+      b, .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
       button {
         font: inherit;
         cursor: pointer;
@@ -1193,3 +1198,134 @@
       .mode-banner.offline { border-color: var(--brass-deep); color: var(--brass-lit); background: color-mix(in srgb, var(--brass) 12%, transparent); }
       .mode-banner.cloud { padding-block: 0.25rem; font-size: 0.76rem; }
       .mode-banner button { margin-left: auto; }
+
+      /* ================================================================
+         Catalogue pass (2026-11). The game now speaks the landing page's
+         language: Georgia for titles, the reading face for numbers, gold on
+         ink-green, hairlines instead of boxes, one primary action per panel.
+         Markup is unchanged except the paddock, which became a runner table.
+         ================================================================ */
+      body { line-height: 1.6; }
+      b, .num { font-weight: 600; letter-spacing: 0; }
+
+      /* header: a quiet masthead, not a row of chips */
+      header.bar { padding-bottom: 0.65rem; margin-bottom: 0.4rem; border-bottom: 1px solid var(--hairline); }
+      .brand { font: 600 1.25rem/1 var(--font-display); letter-spacing: 0.2em; }
+      .brand span { color: var(--brass); font-weight: 600; }
+      .pill { background: transparent; border-color: transparent; font-size: 0.78rem; padding: 0.25rem 0.5rem; letter-spacing: 0.02em; }
+      .pill b { color: var(--cream); }
+      .pill.bank { border-color: var(--line-strong); background: var(--veil-soft); padding: 0.3rem 0.75rem; }
+      .pill.bank b { color: var(--brass); font-size: 0.92rem; }
+      button.pill { border-color: var(--hairline); }
+
+      /* tabs: an underlined contents line */
+      .tabs { gap: 0 1.3rem; border-bottom: 1px solid var(--hairline); margin-bottom: 0.9rem; }
+      .tab { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 0.65rem 0.05rem; min-height: 44px; font-size: 0.85rem; letter-spacing: 0.02em; color: var(--dim); }
+      .tab[aria-current="true"] { background: transparent; color: var(--cream); border-bottom-color: var(--brass); box-shadow: none; }
+      @media (hover: hover) { .tab:hover:not(:disabled) { background: transparent; color: var(--cream); border-color: transparent; border-bottom-color: var(--line-strong); } }
+      .tab .badge { margin-left: 0.3rem; font: 600 0.66rem/1 var(--font-num); color: var(--brass); background: transparent; border: 1px solid var(--line-strong); border-radius: 999px; padding: 0.15rem 0.38rem; }
+      #status { font-size: 0.74rem; letter-spacing: 0.04em; color: var(--faint); margin: 0 0 0.5rem; }
+      .spine { gap: 0.4rem 1.2rem; }
+      .spine .step { background: transparent; border: 0; padding: 0; font-size: 0.78rem; color: var(--dim); }
+      .spine .step b { color: var(--brass); font-family: var(--font-display); font-size: 0.95rem; margin-right: 0.2rem; }
+
+      /* panels: a page of the catalogue */
+      .panel { background: linear-gradient(180deg, var(--ink-2), var(--ink-1)); border-color: var(--hairline); border-radius: 8px; padding: 1.15rem 1.25rem 1.2rem; }
+      .panel h2 { font: 400 1.32rem/1.25 var(--font-display); letter-spacing: -0.005em; text-transform: none; color: var(--cream); margin-bottom: 0.75rem; }
+      .panel h2::after { width: 2.6rem; margin-top: 0.55rem; }
+      .panel h2 b, .panel h2 span { font-family: inherit; color: var(--brass); font-weight: 400; }
+      .hint { color: var(--faint); line-height: 1.6; }
+      .kv { padding: 0.32rem 0; border-bottom: 1px solid var(--row); }
+      .kv:last-child { border-bottom: 0; }
+
+      /* buttons: the landing page's two buttons */
+      button { border-radius: 4px; border-color: var(--line-strong); background: var(--veil-soft); letter-spacing: 0.01em; }
+      @media (hover: hover) { button:hover:not(:disabled) { background: var(--ink-3); border-color: var(--brass-deep); } }
+      button.brass, button.good, #nextstep-go, .gate button[name="login"] {
+        background: linear-gradient(120deg, var(--gold-a), var(--gold-b));
+        border: 1px solid var(--gold-a);
+        color: var(--gold-ink);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        box-shadow: 0 6px 18px -10px var(--gold-b);
+      }
+      @media (hover: hover) {
+        button.brass:hover:not(:disabled), button.good:hover:not(:disabled), #nextstep-go:hover:not(:disabled), .gate button[name="login"]:hover:not(:disabled) {
+          background: linear-gradient(120deg, var(--gold-a), var(--gold-a));
+          border-color: var(--gold-a);
+          transform: translateY(-1px);
+        }
+      }
+      button.tiny { border-radius: 4px; }
+
+      /* the next step: one instruction, one gold button */
+      .nextstep { border-color: var(--line-strong); background: linear-gradient(120deg, var(--ink-3), var(--ink-1) 70%); }
+
+      /* the account gate: the landing page, in a card */
+      .gate { background: linear-gradient(90deg, var(--veil), var(--veil-soft)), url('art/hero-wide.webp') 70% center / cover; backdrop-filter: none; }
+      .gate-card { width: min(440px, 100%); gap: 0.85rem; padding: 2.1rem 2rem 1.7rem; border-radius: 8px; border-color: var(--line-strong); background: linear-gradient(180deg, var(--veil), var(--ink-1)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+      .gate-mark { font: 600 1rem/1 var(--font-display); letter-spacing: 0.24em; color: var(--cream); }
+      .gate-card h2 { font: 400 2rem/1.1 var(--font-display); letter-spacing: -0.02em; color: var(--cream); margin: 0.3rem 0 0.1rem; }
+      .gate-card .hint { font-size: 0.82rem; }
+      .gate-card label { font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brass); font-weight: 600; }
+      .gate-card input { border-radius: 4px; border-color: var(--line-strong); background: var(--veil-soft); min-height: 48px; font-size: 0.95rem; letter-spacing: normal; text-transform: none; }
+      .gate .row { margin-top: 0.35rem; }
+      .gate .row button { min-height: 48px; }
+      .gate button[name="offline"] { flex: 1 1 100%; background: transparent; border-color: transparent; color: var(--dim); min-height: 36px; text-decoration: underline; text-underline-offset: 3px; }
+      .gate-card a { color: var(--brass); text-underline-offset: 3px; }
+
+      /* the paddock: a runner table, rows you can read at a glance */
+      .field-card { margin: 0 0 0.9rem; }
+      .field-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.8rem; margin-bottom: 0.45rem; }
+      .field-head h3 { margin: 0; font: 400 1.1rem/1.2 var(--font-display); color: var(--cream); }
+      .field-head .count { font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brass); font-weight: 600; }
+      .field-head p { flex: 1 1 100%; margin: 0; font-size: 0.78rem; color: var(--faint); }
+      .field-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--hairline); }
+      .runner { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(5.5rem, 0.9fr) auto; align-items: center; gap: 0.25rem 0.9rem; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--hairline); }
+      .runner:nth-child(even) { background: var(--row); }
+      .runner.mine { background: var(--row-mine); box-shadow: inset 2px 0 0 var(--brass); }
+      .runner-name { font: 400 1rem/1.25 var(--font-display); color: var(--cream); min-width: 0; overflow-wrap: anywhere; }
+      .runner-name small { margin-left: 0.3rem; font: 600 0.64rem/1 var(--font-num); letter-spacing: 0.08em; color: var(--faint); }
+      .runner-name em { display: block; font: 600 0.6rem/1.4 var(--font-body); font-style: normal; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass); }
+      .runner-stable { font-size: 0.78rem; color: var(--dim); min-width: 0; overflow-wrap: anywhere; }
+      .runner-stable span { display: block; font-size: 0.7rem; color: var(--faint); }
+      .runner-form { display: grid; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); }
+      .runner-form i { display: block; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+      .runner-form i::before { content: ""; display: block; height: 100%; width: var(--form, 50%); background: linear-gradient(90deg, var(--gold-b), var(--gold-a)); }
+      .runner-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.3rem; }
+      .tag { font-size: 0.66rem; letter-spacing: 0.06em; padding: 0.18rem 0.5rem; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }
+      .tag.elite { border-color: var(--brass-deep); color: var(--brass); }
+      @media (max-width: 620px) {
+        .runner { grid-template-columns: minmax(0, 1fr) auto; }
+        .runner-stable { grid-column: 1; }
+        .runner-form { grid-column: 1 / -1; }
+        .runner-tags { grid-row: 1; grid-column: 2; }
+        .panel { padding: 0.95rem 0.9rem 1rem; }
+        .panel h2 { font-size: 1.15rem; }
+        .tabs { gap: 0 1rem; }
+      }
+      /* the wordmark is the page's signature on every screen, as on the landing page */
+      .bar .brand { display: block; margin-right: auto; }
+      .hero h1 { font-weight: 400; letter-spacing: -0.03em; }
+      .hero-stats dd { font: 400 1.05rem/1.3 var(--font-display); color: var(--cream); }
+      #nextstep { font-size: 1rem; }
+      #nextstep-go { min-height: 44px; padding-inline: 1.3rem; }
+      .hero-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 860px; }
+      @media (max-width: 620px) {
+        .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .hero-stats div:nth-child(n + 4) { display: block; }
+        .hero-stats div:nth-child(4) { border-left: 0; padding-left: 0; }
+        .hero-stats div:nth-child(n + 4) { margin-top: 0.6rem; }
+      }
+      @media (max-width: 620px) {
+        .mode-banner { display: block; }
+        .mode-banner button { display: block; margin: 0.5rem 0 0; }
+      }
+      /* tags read as labels, never as headings, wherever they sit */
+      .tag { font-family: var(--font-body); font-weight: 600; text-transform: uppercase; vertical-align: 2px; }
+      .tag.brass, .tag.stakes { color: var(--brass); border-color: var(--brass-deep); }
+      /* the frame's lower ornament must not sit on the verdict */
+      .gcard { padding-bottom: 1.7rem; }
+      /* the weight meters share the class name "bar" with the masthead: keep the masthead's
+         flex and padding off them, or the fill collapses to zero height */
+      .going .w .bar { display: block; padding: 0; margin: 0; border: 0; }

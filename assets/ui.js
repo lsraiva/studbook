@@ -529,9 +529,10 @@ function renderHero() {
   const rows = [
     ["guineas", `₲ ${nf(view.stable.guineas)}`],
     ["in training", nf(view.horses.length)],
-    ["season", `${nf(view.season)} · m${nf(view.round)}`],
+    ["season", nf(view.season)],
+    ["meeting", `${nf(view.round)} of ${nf(view.meetingsPerSeason ?? 4)}`],
     ["going", view.conditionLabel ?? view.condition],
-    ["the field", `${nf(view.field.mean, 2)} avg`],
+    ["field average", nf(view.field.mean, 2)],
   ];
   stats.innerHTML = rows
     .map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`)
@@ -1745,21 +1746,33 @@ function renderPaddock(v) {
   const mean = v.field && v.field.mean ? v.field.mean : 0;
   const wrap = document.createElement("div");
   wrap.id = "paddock";
+  wrap.className = "field-card";
+  // A runner table: name and line, stable and record, form against this field as a bar, and
+  // the instruction he is likely to run with. The same facts as before, readable at a glance.
+  const tactic = (value) => (["push", "steady", "hold"].includes(value) ? value : "steady");
   wrap.innerHTML =
-    `<div class="kv"><b>THE FIELD · ${nf(rows.length)} DECLARED</b><span>` +
-    `who runs, before the off: study the rival now, not at the finish line</span></div>` +
+    `<div class="field-head"><h3>The field</h3><span class="count">${nf(rows.length)} declared</span>` +
+    `<p>who runs, before the off: study the rival now, not at the finish line</p></div>` +
+    `<ol class="field-list">` +
     rows
       .map((row) => {
-        const against = mean ? `${nf(row.value / mean, 2)}x the field` : `value ${nf(row.value, 2)}`;
+        const ratio = mean ? row.value / mean : 0;
+        const width = Math.max(4, Math.min(100, Math.round((ratio / 1.6) * 100)));
+        const against = mean ? `${nf(ratio, 2)}x the field` : `value ${nf(row.value, 2)}`;
         const record = row.runs ? `${nf(row.runs)} runs, ${nf(row.wins)} won` : "unraced";
+        const line = String(row.name ?? "").match(/^(.*?)\s*\((L\d+)\)$/);
+        const name = line ? line[1] : row.name;
         return (
-          `<div class="kv${row.mine ? " mine" : ""}">` +
-          `<b>${row.mine ? "your " : ""}${esc(row.name)}</b>` +
-          `<span>${esc(row.stable)} · ${against} · ${record} · runs ${row.tactic}` +
-          `${row.stakes ? " · stakes" : ""}</span></div>`
+          `<li class="runner${row.mine ? " mine" : ""}">` +
+          `<span class="runner-name">${row.mine ? "<em>your runner</em>" : ""}${esc(name)}${line ? `<small>${esc(line[2])}</small>` : ""}</span>` +
+          `<span class="runner-stable">${esc(row.stable)}<span>${record}</span></span>` +
+          `<span class="runner-form"><span>${against}</span><i style="--form:${width}%"></i></span>` +
+          `<span class="runner-tags"><span class="tag">${tactic(row.tactic)}</span>` +
+          `${row.stakes ? `<span class="tag elite">stakes class</span>` : ""}</span></li>`
         );
       })
-      .join("");
+      .join("") +
+    `</ol>`;
   box.parentElement.insertBefore(wrap, box);
 }
 
@@ -2293,7 +2306,7 @@ function openHorse(horseId) {
   coat.className = "hv-coat";
   coat.innerHTML = `<i class="coat-swatch" style="background:${appearance.bodyColor}"></i>`;
   const coatName = document.createElement("span");
-  coatName.textContent = appearance.label;
+  coatName.textContent = appearance.labelPt;
   coat.append(coatName);
   card.append(coat);
 
@@ -2393,7 +2406,7 @@ function renderGallery(v) {
     const appearance = appearanceFor(horse);
     const portrait = document.createElement("span");
     portrait.className = "gportrait";
-    portrait.title = appearance.label;
+    portrait.title = appearance.labelPt;
     const photo = document.createElement("img");
     photo.src = portraitOf(horse.lineage, horse.age);
     photo.alt = "";
@@ -2411,7 +2424,7 @@ function renderGallery(v) {
     strip.className = "coat-strip";
     strip.innerHTML = `<i style="background:${appearance.bodyColor}"></i>`;
     const stripText = document.createElement("span");
-    stripText.textContent = appearance.label;
+    stripText.textContent = appearance.labelPt;
     strip.append(stripText);
     card.append(strip);
 

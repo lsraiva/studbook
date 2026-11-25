@@ -328,8 +328,100 @@ const DICT = new Map(Object.entries({
   "○ cover a mare": "○ cobrir uma égua",
   "○ win a meeting": "○ vencer uma reunião",
   "○ sell a horse or a covering": "○ vender um cavalo ou uma cobertura",
-  "○ end the season richer than you opened it": "○ terminar a temporada com mais dinheiro"
+  "○ end the season richer than you opened it": "○ terminar a temporada com mais dinheiro",
+
+  // Race cards: labels, character and advice for every going
+  "a flying start": "largada lançada",
+  "Don't overpay for": "Não pague caro por",
+  "A cool head is worth as much as raw speed. Temperament is this card's second weight.": "Cabeça fria vale tanto quanto velocidade pura. Temperamento é o segundo peso desta ficha.",
+  "A horse with no hole in it beats a specialist. Read all six traits before you buy.": "Um cavalo sem ponto fraco vence o especialista. Leia os seis atributos antes de comprar.",
+  "Buy the bottomless horse: stamina and recovery first, speed last.": "Compre o cavalo incansável: resistência e recuperação primeiro, velocidade por último.",
+  "Soundness first on this ground. A fast, fragile horse wastes the entry fee.": "Solidez primeiro nesta pista. Um cavalo rápido e frágil desperdiça a inscrição.",
+  "The most complete card of the seven. A hole in any trait shows here.": "A ficha mais completa das sete. Qualquer ponto fraco aparece aqui.",
+
+  // Tiers, care, relatedness, margins
+  "ordinary": "comum",
+  "promising": "promissor",
+  "excellent": "excelente",
+  "exceptional": "excepcional",
+  "stakes class": "classe de elite",
+  "plain care": "cuidado básico",
+  "prepared care": "cuidado preparado",
+  "stud care": "cuidado de haras",
+  "plain care · free": "cuidado básico · grátis",
+  "slightly related": "pouco aparentado",
+  "related": "aparentado",
+  "close-bred": "consanguíneo",
+  "race-day variance": "variação do dia",
+  "in foal": "prenha",
+  "mare": "égua",
+  "a nose": "um focinho",
+  "a neck": "um pescoço",
+  "half a length": "meio corpo",
+  "three quarters of a length": "três quartos de corpo",
+  "first covering": "primeira cobertura",
+  "taken": "usada",
+  "sex · age": "sexo · idade",
+  "care": "cuidado",
+
+  // Runner table and account gate
+  "The field": "O campo",
+  "sire × dam": "pai × mãe",
+  "Prioritise": "Priorize",
+  "next up": "próxima",
+  "meeting": "reunião",
+  "field average": "média do campo",
+  "₲ per runner · four places paid": "₲ por corredor · quatro primeiros premiados",
+  "Entry": "Inscrição",
+  "your runner": "seu corredor",
+  "push": "atacar",
+  "steady": "manter",
+  "hold": "poupar",
+  "email": "E-mail",
+  "password": "Senha",
+  "new password": "Nova senha",
+  "code": "Código"
 }));
+
+/* ---------- sentences the engine composes from parts ---------- */
+const STAGE = { yearling: "potro", racehorse: "cavalo de corrida", veteran: "veterano" };
+const TRAIT_PT = { speed: "velocidade", stamina: "resistência", "a turn of foot": "arranque", recovery: "recuperação", "a level head": "cabeça fria", soundness: "solidez" };
+const BAND_PT = { stakes: "elite", "near elite": "perto da elite", "above the field": "acima do campo", "below the field": "abaixo do campo" };
+const SEX_PT = { colt: "macho", filly: "fêmea", mare: "égua" };
+const LUCK_PT = { "stakes class": "classe de elite", catch: "prenhez", foal: "potro", sale: "venda" };
+const years = (n) => `${n} ${Number(n) === 1 ? "ano" : "anos"}`;
+
+function composite(text) {
+  let m = text.match(/^(yearling|racehorse|veteran) with (.+), short of (.+) · (stakes|near elite|above the field|below the field)$/);
+  if (m && TRAIT_PT[m[2]] && TRAIT_PT[m[3]]) return `${STAGE[m[1]]} com ${TRAIT_PT[m[2]]}, falta ${TRAIT_PT[m[3]]} · ${BAND_PT[m[4]]}`;
+  m = text.match(/^(yearling|racehorse|veteran), no hole in it · (stakes|near elite|above the field|below the field)$/);
+  if (m) return `${STAGE[m[1]]} sem ponto fraco · ${BAND_PT[m[2]]}`;
+  m = text.match(/^(colt|filly|mare) · (?:age )?(\d+)( · in foal)?$/);
+  if (m) return `${SEX_PT[m[1]]} · ${years(m[2])}${m[3] ? " · prenha" : ""}`;
+  m = text.match(/^(.+) · next up$/);
+  if (m) return `${translate(m[1])} · próxima`;
+  m = text.match(/^Put entries on a (\d+)s clock$/);
+  if (m) return `Inscrições com relógio de ${m[1]} s`;
+  m = text.match(/^traits are certified — ([\d.,]+) ₲ to read this card$/);
+  if (m) return `atributos certificados — ${m[1]} ₲ para ler esta ficha`;
+  m = text.match(/^(plain|prepared|stud) care · (.+)$/);
+  if (m) return `${translate(`${m[1]} care`)} · ${m[2] === "free" ? "grátis" : m[2]}`;
+  m = text.match(/^(stakes class|catch|foal|sale) · (\d+)% · (hit|miss)(?: — (.+))?$/);
+  if (m) return `${LUCK_PT[m[1]]} · ${m[2]}% · ${m[3] === "hit" ? "acertou" : "errou"}${m[4] ? ` — ${m[4]}` : ""}`;
+  m = text.match(/^(.+?) × (.+?)( · L\d+)?$/);
+  if (m && (m[1] === "founder" || m[2] === "founder")) {
+    return `${m[1] === "founder" ? "fundador" : m[1]} × ${m[2] === "founder" ? "fundadora" : m[2]}${m[3] ?? ""}`;
+  }
+  m = text.match(/^(\d+) declared$/);
+  if (m) return `${m[1]} ${m[1] === "1" ? "declarado" : "declarados"}`;
+  m = text.match(/^(\d+) runs?, (\d+) won$/);
+  if (m) return `${m[1]} ${m[1] === "1" ? "corrida" : "corridas"}, ${m[2]} ${m[2] === "1" ? "vitória" : "vitórias"}`;
+  m = text.match(/^([\d.]+)x the field$/);
+  if (m) return `${m[1]}× o campo`;
+  m = text.match(/^(\d+) lengths?$/);
+  if (m) return `${m[1]} ${m[1] === "1" ? "corpo" : "corpos"}`;
+  return null;
+}
 
 const PATTERNS = [
   [/^\+(\d+)% catch · \+(\d+)% value$/i, "+$1% prenhez · +$2% valor"],
@@ -375,8 +467,10 @@ export function translate(value) {
     return lead + direct + tail;
   }
   const [lead, tail] = whitespace(value);
+  const built = composite(compact);
+  if (built) return lead + built + tail;
   for (const [pattern, replacement] of PATTERNS) {
-    if (pattern.test(compact)) return lead + compact.replace(pattern, replacement) + tail;
+    if (pattern.test(compact)) return lead + compact.replace(pattern, replacement).replace(/\b1 anos\b/g, "1 ano") + tail;
   }
   let output = compact;
   for (const [pattern, replacement] of POST) output = output.replace(pattern, replacement);
@@ -389,7 +483,7 @@ export function translate(value) {
   output = output.replaceAll("upkeep", "manutenção");
   output = output.replace(/^value /, "valor ");
   if (/^Five goings, three meetings a season/.test(output)) {
-    output = "Cinco pistas e três reuniões por temporada: o calendário não repete a mesma ficha em sequência. Os pesos vêm das regras do motor; a ficha marcada como próxima é onde suas inscrições correm.";
+    output = "Cinco pistas e três reuniões por temporada: o calendário não repete a mesma ficha em sequência. Os pesos vêm das regras do motor, e a ficha marcada como";
   }
   if (output !== compact) return lead + output + tail;
   return value;
