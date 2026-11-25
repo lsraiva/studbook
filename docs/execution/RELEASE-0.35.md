@@ -1,5 +1,11 @@
 # Release 0.35.0 — interface em português
 
+## Publicado e verificado
+
+- Produção: https://studbook.fly.dev — versão 0.35.0, revisão `cae595aa6439ef74a744f918b7308903e88cc03f`, 7 contas, manutenção desligada.
+- Site publicado conferido no navegador: abas `Estábulo`, `Corridas`, `Programa`, `Criação`, `Mercado de garanhões`, `Mercado de cavalos`, `Loja`, `Ranking`, `Carteira`; ação principal `Disputar reunião 1 de 4`; zero pageerrors.
+- Backup da 0.34 (7 contas, 6 estábulos, 211 cavalos, 8.344 GNS) permanece como ponto de restauração anterior; esta versão não altera dados.
+
 ## Escopo
 
 - Camada `assets/i18n.js` traduz a chrome inteira do jogo: abas, cabeçalho, tabelas, filtros, botões, estados vazios, avisos e mensagens de erro.
