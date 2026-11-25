@@ -1,8 +1,8 @@
 # Studbook — continuidade em outro modelo
 
-**Publicado:** versão 0.33.0 em produção, revisão `564bd0c4839eef6b77ecc99476d8ee2d580e9050`, com identidade visual, cartão premium e viewer mobile. Ver [RELEASE-0.33](execution/RELEASE-0.33.md). A publicação anterior está em [RELEASE-0.32](execution/RELEASE-0.32.md). PR #2 foi mesclado; não continue tratando-o como pendente.
+**Publicado:** ver `/api/health` (versão e commit exatos) e [RELEASE-0.34](execution/RELEASE-0.34.md). Publicar só com `npm run deploy:fly` a partir de `main` limpa e igual a `origin/main`, depois de backup verificado. Releases anteriores: [0.33](execution/RELEASE-0.33.md), [0.32](execution/RELEASE-0.32.md).
 
-**Em revisão (não publicado):** branch `feat/f1-f2-foundations-20261124` com F1-06, F1-07 e F2-01. Ver `docs/execution/STATUS.md` e `docs/execution/F2-SCHEMA.md`. Novas variáveis opcionais: `AUTH_IP_LIMIT` (60), `LOGIN_FAIL_LIMIT` (5), `AUTH_WINDOW_MS` (15 min), `CODE_ATTEMPTS` (5).
+**Na main (PRs #3 e #4):** F1-06, F1-07, F2-01 (sem efeito em produção) e motor de corrida F4 (não ligado). Ver `docs/execution/STATUS.md`, `F2-SCHEMA.md` e `F4-RACE-ENGINE.md`. Variáveis opcionais: `AUTH_IP_LIMIT` (60), `LOGIN_FAIL_LIMIT` (5), `AUTH_WINDOW_MS` (15 min), `CODE_ATTEMPTS` (5).
 
 ## Pedido do proprietário
 

@@ -75,6 +75,11 @@ const api = async (path, { method = "GET", token, body } = {}) => {
 try {
   const health = await start();
   ok("health reports cloud", health.ok === true && health.cloud === true, `accounts ${health.accounts}`);
+  {
+    const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    ok("health reports the package.json version", health.version === version, health.version);
+    ok("health never reports a fake revision", health.revision === null || /^[0-9a-f]{7,40}$/.test(health.revision), String(health.revision));
+  }
 
   /* ---------- static hosting: one command runs the whole game ---------- */
   const page = await fetch(`${base}/`);
