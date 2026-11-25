@@ -381,7 +381,27 @@ const DICT = new Map(Object.entries({
   "email": "E-mail",
   "password": "Senha",
   "new password": "Nova senha",
-  "code": "Código"
+  "code": "Código",
+
+  // a played game
+  "Run the meeting when your runners are entered — a season is three of them.": "Dispute a reunião quando seus corredores estiverem inscritos.",
+  "run the meeting": "disputar a reunião",
+  "✓ cover a mare": "✓ cobrir uma égua",
+  "✓ win a meeting": "✓ vencer uma reunião",
+  "✓ sell a horse or a covering": "✓ vender um cavalo ou uma cobertura",
+  "✓ end the season richer than you opened it": "✓ terminar a temporada com mais dinheiro",
+  "your yard": "seu estábulo",
+  "best foal you have bred": "melhor potro que você criou",
+  "keep the name": "manter o nome",
+  "back to the yard": "voltar ao estábulo",
+  "in the yard": "no estábulo",
+  "The covering missed": "A cobertura não pegou",
+  "buying blood": "comprando sangue",
+  "short of a stallion": "precisa de um garanhão",
+  "short of mares": "precisa de éguas",
+  "short of coin": "precisa de dinheiro",
+  "short of coverings": "precisa de coberturas",
+  "covering": "cobertura"
 }));
 
 /* ---------- sentences the engine composes from parts ---------- */
@@ -389,7 +409,7 @@ const STAGE = { yearling: "potro", racehorse: "cavalo de corrida", veteran: "vet
 const TRAIT_PT = { speed: "velocidade", stamina: "resistência", "a turn of foot": "arranque", recovery: "recuperação", "a level head": "cabeça fria", soundness: "solidez" };
 const BAND_PT = { stakes: "elite", "near elite": "perto da elite", "above the field": "acima do campo", "below the field": "abaixo do campo" };
 const SEX_PT = { colt: "macho", filly: "fêmea", mare: "égua" };
-const LUCK_PT = { "stakes class": "classe de elite", catch: "prenhez", foal: "potro", sale: "venda" };
+const LUCK_PT = { "stakes class": "classe de elite", catch: "prenhez", foal: "potro", sale: "venda", covering: "cobertura" };
 const years = (n) => `${n} ${Number(n) === 1 ? "ano" : "anos"}`;
 
 function composite(text) {
@@ -407,7 +427,7 @@ function composite(text) {
   if (m) return `atributos certificados — ${m[1]} ₲ para ler esta ficha`;
   m = text.match(/^(plain|prepared|stud) care · (.+)$/);
   if (m) return `${translate(`${m[1]} care`)} · ${m[2] === "free" ? "grátis" : m[2]}`;
-  m = text.match(/^(stakes class|catch|foal|sale) · (\d+)% · (hit|miss)(?: — (.+))?$/);
+  m = text.match(/^(stakes class|catch|foal|sale|covering) · (\d+)% · (hit|miss)(?: — (.+))?$/);
   if (m) return `${LUCK_PT[m[1]]} · ${m[2]}% · ${m[3] === "hit" ? "acertou" : "errou"}${m[4] ? ` — ${m[4]}` : ""}`;
   m = text.match(/^(.+?) × (.+?)( · L\d+)?$/);
   if (m && (m[1] === "founder" || m[2] === "founder")) {
@@ -421,6 +441,103 @@ function composite(text) {
   if (m) return `${m[1]}× o campo`;
   m = text.match(/^(\d+) lengths?$/);
   if (m) return `${m[1]} ${m[1] === "1" ? "corpo" : "corpos"}`;
+  return lateGame(text);
+}
+
+/* ---------- what a played game says: race reports, the diary, the foal, the market ---------- */
+const COND_PT = { sprint: "prova de velocidade", classic: "clássica", staying: "prova de fundo", flying: "largada lançada", heavy: "pista pesada", mile: "milha", yielding: "pista macia" };
+const TACTIC_PT = { push: "atacar", steady: "manter", hold: "poupar" };
+const TIER_PT = { ordinary: "comum", promising: "promissor", excellent: "excelente", exceptional: "excepcional", "stakes class": "classe de elite" };
+const LOST_ON = { speed: "velocidade", stamina: "resistência", accel: "arranque", recovery: "recuperação", temperament: "temperamento", soundness: "solidez", "race-day variance": "variação do dia" };
+const plural = (n, one, many) => `${n} ${String(n) === "1" ? one : many}`;
+const cond = (key) => COND_PT[key] ?? key;
+const margin = (text) => translate(text);
+const careWord = (key) => ({ plain: "cuidado básico", prepared: "cuidado preparado", stud: "cuidado de haras" })[key] ?? key;
+
+function lateGame(text) {
+  let m;
+  // the diary: "S4 · …" lines translate their sentence and keep the season mark
+  m = text.match(/^S(\d+) · (.+)$/);
+  if (m) {
+    const inner = lateGame(m[2]);
+    if (inner) return `T${m[1]} · ${inner}`;
+  }
+  m = text.match(/^(?:(The clock ran out) — )?Meeting (\d+) of (\d+) is run\. Entries for meeting (\d+) are open — up to three runners\.$/);
+  if (m) return `${m[1] ? "O relógio acabou — " : ""}Reunião ${m[2]} de ${m[3]} disputada. Inscrições abertas para a reunião ${m[4]} — até três corredores.`;
+  m = text.match(/^(.+) finished (\d+) of (\d+) in the (\w+), ([\d.]+) behind — lost it on ([a-z -]+?)(?:, and (push|steady|hold) was the wrong instruction for a (\w+))?\.$/);
+  if (m) return `${m[1]} chegou em ${m[2]}º de ${m[3]} na ${cond(m[4])}, ${m[5]} atrás — perdeu em ${LOST_ON[m[6]] ?? m[6]}${m[7] ? `, e ${TACTIC_PT[m[7]]} foi a instrução errada para ${cond(m[8])}` : ""}.`;
+  m = text.match(/^(\w+) meeting: (.+) wins a pot of ([\d,.]+) GNS from (\d+) runners\.$/);
+  if (m) return `Reunião de ${cond(m[1])}: ${m[2]} leva o prêmio de ${m[3]} GNS entre ${m[4]} corredores.`;
+  m = text.match(/^(.+) is in foal to (.+) — due next season\.$/);
+  if (m) return `${m[1]} está prenha de ${m[2]} — o potro nasce na próxima temporada.`;
+  m = text.match(/^(.+) covered by (.+) \(vintage (\d+)\)\.$/);
+  if (m) return `${m[1]} coberta por ${m[2]} (safra ${m[3]}).`;
+  m = text.match(/^Season (\d+) opens\. Condition: (\w+)\.$/);
+  if (m) return `Temporada ${m[1]} aberta. Condição: ${cond(m[2])}.`;
+  m = text.match(/^(.+) was bought in at the house floor for ([\d,.]+) GNS\.$/);
+  if (m) return `${m[1]} foi recomprado pela casa no preço mínimo de ${m[2]} GNS.`;
+  m = text.match(/^(.+)'s barn was full: (\d+) coverings? went to the market at ([\d,.]+) GNS(?: and (\d+) were culled)?\.$/);
+  if (m) return `O depósito de ${m[1]} lotou: ${plural(m[2], "cobertura foi", "coberturas foram")} ao mercado por ${m[3]} GNS${m[4] ? ` e ${m[4]} foram descartadas` : ""}.`;
+
+  // racing screen
+  m = text.match(/^checkpoint (\d+) of (\d+) — (.+) leads$/);
+  if (m) return `parcial ${m[1]} de ${m[2]} — ${m[3]} na frente`;
+  m = text.match(/^finish — (.+) wins$/);
+  if (m) return `chegada — ${m[1]} vence`;
+  m = text.match(/^Run meeting (\d+) of (\d+)\. A season is four, and the purse funds the yard\.$/);
+  if (m) return `Dispute a reunião ${m[1]} de ${m[2]}. A temporada tem quatro, e os prêmios sustentam o estábulo.`;
+  m = text.match(/^Run meeting (\d+) of (\d+)$/);
+  if (m) return `Disputar reunião ${m[1]} de ${m[2]}`;
+  m = text.match(/^took the (\w+) — pot ([\d,.]+) ₲ from (\d+) runners$/);
+  if (m) return `venceu a ${cond(m[1])} — prêmio de ${m[2]} ₲ entre ${m[3]} corredores`;
+  m = text.match(/^won by (.+) clear of the runner-up$/);
+  if (m) return `venceu por ${margin(m[1])} à frente do segundo`;
+  m = text.match(/^(\d+)(?:st|nd|rd|th) · (.+) — beaten ([\d.]+), won ([\d,.]+) ₲ · ran (push|steady|hold)$/);
+  if (m) return `${m[1]}º · ${m[2]} — atrás ${m[3]}, ganhou ${m[4]} ₲ · ${TACTIC_PT[m[5]]}`;
+  m = text.match(/^(\d+) runs? · (\d+) wins? · (\d+) placings? · ₲ ([\d,.]+) earned(?: · best: (\d+) of (\d+), season (\d+))?$/);
+  if (m) return `${plural(m[1], "corrida", "corridas")} · ${plural(m[2], "vitória", "vitórias")} · ${plural(m[3], "colocação", "colocações")} · ₲ ${m[4]} em prêmios${m[5] ? ` · melhor: ${m[5]}º de ${m[6]}, temporada ${m[7]}` : ""}`;
+
+  // the season's close and the stable
+  m = text.match(/^Season (\d+) closed$/);
+  if (m) return `Temporada ${m[1]} encerrada`;
+  m = text.match(/^the yard finished ₲ ([\d,.]+) (down|up) · (\d+) runs?, (\d+) won, (\d+) placed, ₲ ([\d,.]+) in prizes$/);
+  if (m) return `o estábulo fechou com ₲ ${m[1]} a ${m[2] === "down" ? "menos" : "mais"} · ${plural(m[3], "corrida", "corridas")}, ${plural(m[4], "vitória", "vitórias")}, ${plural(m[5], "colocação", "colocações")}, ₲ ${m[6]} em prêmios`;
+  m = text.match(/^(buying blood|short of a stallion|short of mares|short of coin|short of coverings) · (\d+) runs?, (\d+) won, ₲ ([\d,.]+) (down|up) last season$/);
+  if (m) return `${translate(m[1])} · ${plural(m[2], "corrida", "corridas")}, ${plural(m[3], "vitória", "vitórias")}, ₲ ${m[4]} a ${m[5] === "down" ? "menos" : "mais"} na última temporada`;
+  m = text.match(/^· ₲ ([\d,.]+) · (\d+) won$/);
+  if (m) return `· ₲ ${m[1]} · ${plural(m[2], "vitória", "vitórias")}`;
+
+  // the foal
+  m = text.match(/^A (colt|filly) is born$/);
+  if (m) return m[1] === "colt" ? "Nasce um potro" : "Nasce uma potra";
+  m = text.match(/^out of (.+) by (.+)$/);
+  if (m) return `filho de ${m[2]} e ${m[1]}`;
+  m = text.match(/^(.+) out of (.+), with (plain|prepared|stud) care\.$/);
+  if (m) return `${m[1]} × ${m[2]}, com ${careWord(m[3])}.`;
+  m = text.match(/^(.+) was covered by (.+) and did not catch — the chance was (\d+)%\. The straw and the care are spent either way\.$/);
+  if (m) return `${m[1]} foi coberta por ${m[2]} e não pegou — a chance era de ${m[3]}%. A cobertura e o cuidado foram gastos de qualquer forma.`;
+  m = text.match(/^(\d+) of (\d+) living horses$/);
+  if (m) return `${m[1]}º de ${m[2]} cavalos vivos`;
+  m = text.match(/^([\d.]+) short of (ordinary|promising|excellent|exceptional|stakes class)$/);
+  if (m) return `faltam ${m[1]} para ${TIER_PT[m[2]]}`;
+  m = text.match(/^(.+) · value ([\d.]+) · (stakes|near elite|above the field|below the field)$/);
+  if (m) return `${m[1]} · valor ${m[2]} · ${BAND_PT[m[3]]}`;
+  m = text.match(/^(\d+) foals? due when the season turns\.$/);
+  if (m) return `${plural(m[1], "potro previsto", "potros previstos")} para a virada da temporada.`;
+
+  // coverings and the market
+  m = text.match(/^(?:(.+) · )?collected in season (\d+)$/);
+  if (m) return `${m[1] ? `${m[1]} · ` : ""}coletada na temporada ${m[2]}`;
+  m = text.match(/^in foal to (.+?)( — due next season)?$/);
+  if (m) return `prenha de ${m[1]}${m[2] ? " — nasce na próxima temporada" : ""}`;
+  m = text.match(/^due season (\d+)$/);
+  if (m) return `nasce na temporada ${m[1]}`;
+  m = text.match(/^(.+) · (horse lot|season (\d+)) · price cut each season it sits$/);
+  if (m) return `${m[1]} · ${m[3] ? `temporada ${m[3]}` : "lote de cavalo"} · o preço cai a cada temporada`;
+  m = text.match(/^(.+) out of (.+) · S(\d+)$/);
+  if (m) return `${m[1]} × ${m[2]} · T${m[3]}`;
+  m = text.match(/^(.+) · (\w+) (?:card|meeting)$/);
+  if (m && COND_PT[m[2]]) return `${m[1]} · ${cond(m[2])}`;
   return null;
 }
 
