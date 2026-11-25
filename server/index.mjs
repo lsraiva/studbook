@@ -46,6 +46,10 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
+/** One source of truth for the release label: package.json. The commit comes from the image build
+ * (COMMIT_SHA build arg → STUDBOOK_RELEASE_SHA); a build without it reports null, never a fake id. */
+const RELEASE_VERSION = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+const RELEASE_SHA = /^[0-9a-f]{7,40}$/.test(process.env.STUDBOOK_RELEASE_SHA ?? "") ? process.env.STUDBOOK_RELEASE_SHA : null;
 const dataDir = process.env.DATA_DIR ?? join(here, "data");
 const port = Number(process.env.PORT ?? 8787);
 const maintenanceMode = process.env.STUDBOOK_MAINTENANCE === "1";
@@ -651,7 +655,7 @@ const server = createServer(async (req, res) => {
 
   try {
     if (path === "/api/health" && req.method === "GET") {
-      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: "0.33.0", revision: process.env.STUDBOOK_RELEASE_SHA ?? null, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
+      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: RELEASE_VERSION, revision: RELEASE_SHA, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
     }
 
     if ((path === "/api/register" || path === "/api/login") && req.method === "POST") {

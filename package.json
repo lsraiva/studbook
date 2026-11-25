@@ -1,6 +1,6 @@
 {
   "name": "studbook",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "private": true,
   "type": "module",
   "description": "Studbook — a bloodstock breeding game: simulated genotypes, a stallion market, seasonal racing.",
@@ -24,7 +24,8 @@
     "test:browser": "playwright test",
     "build:visual": "node tools/build-visual.mjs",
     "import:dry": "node tools/import-dry-run.mjs",
-    "test:race": "node tests/race.test.mjs"
+    "test:race": "node tests/race.test.mjs",
+    "deploy:fly": "node tools/deploy-fly.mjs"
   },
   "license": "MIT",
   "devDependencies": {
