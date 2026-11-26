@@ -49,6 +49,9 @@ test('the tab bar slides to the current tab, and a press ripples from the pointe
     return b ? Math.abs((b.x + b.width / 2) - (box.x + box.width / 2)) : 999;
   }, { timeout: 5000 }).toBeLessThan(4);
   // the ripple starts where the pointer went down
+  // let the tab's view transition finish: while one runs, presses land on the page root, not the tab
+  await page.waitForFunction(() => !document.querySelector(':root')?.matches(':active-view-transition'), null, { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
   const target = page.locator('.tab[data-screen="ranking"]');
   const t = await target.boundingBox();
   // record the button's state in the same task as the press, before anything redraws it

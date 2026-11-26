@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.47.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.48.0";
 
 import {
   applyAction,
@@ -1072,7 +1072,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.47.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.48.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -1116,13 +1116,7 @@ function renderCovering(v) {
   if (!covering || !care) return;
   covering.innerHTML = "";
   care.innerHTML = "";
-  const straw = v.straws.find((entry) => entry.id === v.selectedStraw) ?? null;
-  const line = document.createElement("div");
-  line.className = "kv";
-  line.innerHTML = straw
-    ? `<span>${esc(straw.sireName)} · collected in season ${straw.vintage}</span><b>sire value ${nf(straw.sireValue, 2)}</b>`
-    : `<span>no covering selected</span><b>pick one above</b>`;
-  covering.append(line);
+  renderSireBoard(v, covering);
 
   const chosen = (v.careChoices ?? []).find((entry) => entry.care === careChoice) ?? (v.careChoices ?? [])[0];
   for (const choice of v.careChoices ?? []) {
@@ -2585,6 +2579,148 @@ function lotCard(lot, v, count) {
 }
 
 /**
+ * The covering, shown: the chosen stallion in his coat beside a short read of what he brings.
+ * Sits above the care choices; with no covering chosen it says where to find one.
+ */
+function renderSireBoard(v, host) {
+  const straw = v.straws.find((entry) => entry.id === v.selectedStraw) ?? null;
+  const board = document.createElement("div");
+  board.className = "sireboard" + (straw ? "" : " empty");
+  const stage = document.createElement("div");
+  stage.className = "sireboard-stage";
+  const photo = document.createElement("img");
+  photo.alt = "";
+  if (straw) {
+    paintCoat(photo, portraitOf(straw.sireLineage, 4), appearanceFor({ id: straw.sire, lineage: straw.sireLineage }));
+  } else {
+    photo.src = "assets/art/plate-stallion.webp";
+  }
+  stage.append(photo);
+  board.append(stage);
+  const copy = document.createElement("div");
+  copy.className = "sireboard-copy";
+  const name = document.createElement("h3");
+  name.textContent = straw ? straw.sireName : "no covering selected";
+  copy.append(name);
+  const sub = document.createElement("p");
+  sub.className = "hint";
+  sub.textContent = straw
+    ? `collected in season ${straw.vintage}${straw.sireRetired ? " · retired" : ""}`
+    : "pick one above";
+  copy.append(sub);
+  if (straw) {
+    const band = bandOf(straw.sireValue, straw.sireStakes, v.field);
+    const meter = document.createElement("div");
+    meter.className = "mlot-meter";
+    const cut = v.field?.eliteCut || Math.max(1, straw.sireValue);
+    const scale = (n) => Math.max(0, Math.min(100, (n / (cut * 1.25)) * 100));
+    meter.innerHTML =
+      `<div class="mlot-bar"><i style="width:${scale(straw.sireValue).toFixed(1)}%"></i>` +
+      `<b class="mean" style="left:${scale(v.field?.mean ?? 0).toFixed(1)}%" title="field average"></b>` +
+      `<b class="cut" style="left:${scale(cut).toFixed(1)}%" title="elite cut"></b></div>`;
+    const label = document.createElement("div");
+    label.className = "kv";
+    label.innerHTML = `<span>sire value</span><b>${nf(straw.sireValue, 2)}</b>`;
+    meter.append(label);
+    copy.append(meter);
+    if (band === "stakes" || band === "near elite") {
+      const tag = document.createElement("span");
+      tag.className = "mlot-tag inline";
+      tag.textContent = band === "stakes" ? "stakes class" : "near elite";
+      copy.append(tag);
+    }
+  }
+  board.append(copy);
+  host.append(board);
+}
+
+/**
+ * The mares as cards: each in her coat, facing the stallion, with what the cross would bring
+ * (vigour from a new lineage, or the warning of the same one, and both parents' inbreeding)
+ * and the button that covers her. The table stays in the page for small screens' sake as a
+ * fallback, hidden while the cards are shown.
+ */
+function renderMareCards(v) {
+  const body = el("mares");
+  const table = body && body.closest("table");
+  if (!table) return;
+  const holder = table.parentElement;
+  document.getElementById("mare-cards")?.remove();
+  const mares = v.horses.filter((row) => row.sex === "F" && !row.retired);
+  holder.hidden = mares.length > 0;
+  if (!mares.length) return;
+  const cards = document.createElement("div");
+  cards.id = "mare-cards";
+  const strawId = v.selectedStraw ?? null;
+  for (const horse of mares) {
+    const card = document.createElement("div");
+    card.className = "mare" + (horse.inFoal ? " in-foal" : "");
+    const stage = document.createElement("div");
+    stage.className = "mare-stage";
+    const photo = document.createElement("img");
+    photo.alt = "";
+    photo.loading = "lazy";
+    paintCoat(photo, portraitOf(horse.lineage, horse.age), appearanceFor(horse));
+    stage.append(photo);
+    card.append(stage);
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = horse.name;
+    card.append(name);
+    const meta = document.createElement("div");
+    meta.className = "mare-meta";
+    // separate pieces, so each is translated on its own
+    for (const [i, text] of [`age ${nf(horse.age)}`, `value ${nf(horse.value, 2)}`, horse.band].entries()) {
+      if (i) meta.append(document.createTextNode(" · "));
+      const part = document.createElement("span");
+      part.textContent = text;
+      meta.append(part);
+    }
+    card.append(meta);
+
+    const chips = document.createElement("div");
+    chips.className = "mare-chips";
+    const chip = (text, cls) => {
+      const node = document.createElement("span");
+      node.className = `chip ${cls}`;
+      node.textContent = text;
+      chips.append(node);
+    };
+    if (horse.inFoal) {
+      chip("in foal", "gold");
+    } else if (horse.pairing) {
+      const p = horse.pairing;
+      if (p.crossLineage) chip(`+${Math.round(p.vigour * 100)}% vigour`, "gold");
+      else chip("same lineage", "warn");
+      const worst = Math.max(p.sireF, p.damF);
+      chip(`inbreeding ${nf(worst, 3)}`, worst > 0.2 ? "warn" : "calm");
+      chip(`${nf(p.foalsLeft)} foals left`, "calm");
+    } else {
+      chip(horse.fLabel ?? `F ${nf(horse.f ?? 0, 3)}`, "calm");
+    }
+    card.append(chips);
+
+    const breed = document.createElement("button");
+    breed.className = "brass";
+    breed.textContent = horse.inFoal ? "in foal" : "breed";
+    breed.disabled = Boolean(horse.inFoal) || !strawId;
+    breed.title = horse.inFoal
+      ? "She is in foal: the foal arrives when the season turns."
+      : !strawId
+        ? v.straws.length
+          ? "Pick a covering first."
+          : "You hold no covering - take the first covering in your account, or buy one in the Stud market."
+        : "Cover her: the covering is spent and the foal arrives when the season turns.";
+    breed.setAttribute("data-horse-act", "breed");
+    breed.setAttribute("data-horse-id", horse.id);
+    card.append(breed);
+    cards.append(card);
+  }
+  holder.parentElement.insertBefore(cards, holder);
+}
+
+/**
  * The living stable (assets/paddock-scene.js): the herd out in the paddock, each in its coat.
  * Loaded on first draw and kept between redraws, so a horse keeps walking where it was.
  */
@@ -2603,7 +2739,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.47.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.48.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3107,6 +3243,7 @@ function draw() {
       mares.append(herdRow(horse));
     }
   }
+  renderMareCards(v);
 
   // the racing screen: who is running, and the instruction each one carries
   const entries = el("race-entries");
