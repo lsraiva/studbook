@@ -1069,7 +1069,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.43.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.44.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2438,11 +2438,49 @@ function openHorse3D(horseId) {
 
 el("open3d")?.addEventListener("click", () => openHorse3D(selectedHorse ?? view?.horses?.[0]?.id));
 
+/**
+ * The living stable (assets/paddock-scene.js): the herd out in the paddock, each in its coat.
+ * Loaded on first draw and kept between redraws, so a horse keeps walking where it was.
+ */
+let pasture = null;
+let pastureLoading = null;
+function renderPasture(herd) {
+  const host = el("pasture");
+  if (!host) return;
+  host.hidden = !herd.length;
+  const list = herd.map((horse) => ({
+    id: horse.id,
+    name: horse.name,
+    age: horse.age,
+    src: portraitOf(horse.lineage, horse.age),
+    appearance: appearanceFor(horse),
+    elite: Boolean(horse.stakes) || horse.band === "near elite",
+  }));
+  if (pasture) return pasture.set(list);
+  pastureLoading ??= import("./paddock-scene.js?v=0.44.0").then(({ Paddock }) => {
+    // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
+    const pinned = new URLSearchParams(location.search).get("pasture");
+    pasture = new Paddock(host, {
+      reducedMotion: REDUCED_MOTION,
+      dusk: pinned === "dusk" ? true : pinned === "day" ? false : undefined,
+      onPick: (id) => {
+        selectedHorse = id;
+        openHorse(id);
+        draw();
+      },
+    });
+    pasture.start();
+    return pasture;
+  });
+  pastureLoading.then((scene) => scene.set(list)).catch(() => { host.hidden = true; });
+}
+
 function renderGallery(v) {
   const box = el("gallery");
   if (!box) return;
   box.innerHTML = "";
   const herd = (v.horses ?? []).filter((horse) => !horse.retired).slice(0, 8);
+  renderPasture(herd);
   for (const horse of herd) {
     const card = document.createElement("button");
     card.type = "button";
@@ -2460,6 +2498,26 @@ function renderGallery(v) {
       openHorse(horse.id);
       draw();
     });
+    if (tier === "stakes" || tier === "exceptional") {
+      // foil: a sheen that sweeps on its own, and a light that follows the pointer with a tilt
+      const shine = document.createElement("span");
+      shine.className = "gshine";
+      shine.setAttribute("aria-hidden", "true");
+      card.append(shine);
+      if (!REDUCED_MOTION) {
+        card.addEventListener("pointermove", (event) => {
+          const r = card.getBoundingClientRect();
+          const x = (event.clientX - r.left) / r.width, y = (event.clientY - r.top) / r.height;
+          card.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
+          card.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
+          card.style.setProperty("--rx", `${((0.5 - y) * 7).toFixed(2)}deg`);
+          card.style.setProperty("--ry", `${((x - 0.5) * 9).toFixed(2)}deg`);
+        });
+        card.addEventListener("pointerleave", () => {
+          for (const k of ["--mx", "--my", "--rx", "--ry"]) card.style.removeProperty(k);
+        });
+      }
+    }
 
     const appearance = appearanceFor(horse);
     const portrait = document.createElement("span");

@@ -1494,3 +1494,87 @@
         .birth-parent.sire { grid-area: sire; }
         .birth-parent figcaption { font-size: 0.85rem; }
       }
+
+      /* ================================================================
+         The living stable (assets/paddock-scene.js) and elite foil
+         ================================================================ */
+      #pasture {
+        position: relative;
+        aspect-ratio: 21 / 9;
+        margin: 0.4rem 0 1rem;
+        border-radius: 1rem;
+        overflow: hidden;
+        border: 1px solid var(--hairline);
+        background: linear-gradient(180deg, var(--ink-2), var(--ink-1));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 18px 40px rgba(0, 0, 0, 0.4);
+        animation: rise var(--dur-3) var(--ease) both;
+      }
+      #pasture[hidden] { display: none; }
+      #pasture canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      /* a soft frame of shade so the painting sits inside the page, not on it */
+      #pasture::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(130% 100% at 50% 40%, transparent 62%, rgba(8, 6, 14, 0.5));
+      }
+      .paddock-label {
+        position: absolute;
+        z-index: 2;
+        transform: translateX(-50%);
+        padding: 0.22rem 0.6rem;
+        border-radius: var(--radius-pill);
+        background: var(--veil);
+        border: 1px solid var(--brass-deep);
+        color: var(--cream);
+        font: 400 0.92rem/1.2 var(--font-display);
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      @media (max-width: 620px) {
+        #pasture { aspect-ratio: auto; height: 220px; margin-inline: -0.2rem; }
+      }
+
+      .gcard.tier-stakes, .gcard.tier-exceptional {
+        transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+        transition: transform 160ms var(--ease), border-color var(--dur-2) var(--ease);
+      }
+      .gcard.tier-stakes:hover, .gcard.tier-exceptional:hover {
+        transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px);
+      }
+      .gshine {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 1;
+        mix-blend-mode: screen;
+      }
+      .gshine::before {
+        content: "";
+        position: absolute;
+        inset: -40% -60%;
+        background: linear-gradient(105deg, transparent 42%, rgba(255, 233, 180, 0.0) 44%, rgba(255, 233, 180, 0.32) 50%, rgba(255, 233, 180, 0.0) 56%, transparent 58%);
+        transform: translateX(-60%);
+        animation: foil-sweep 6.5s var(--ease) infinite;
+      }
+      .tier-exceptional .gshine::before { animation-duration: 9s; opacity: 0.7; }
+      .gshine::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 30%), rgba(255, 220, 150, 0.22), transparent 60%);
+        transition: opacity 200ms var(--ease);
+      }
+      .gcard:hover .gshine::after { opacity: 1; }
+      @keyframes foil-sweep {
+        0%, 62% { transform: translateX(-60%); }
+        100% { transform: translateX(60%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gshine::before { animation: none; opacity: 0; }
+        .gcard.tier-stakes, .gcard.tier-exceptional { transform: none; }
+      }
