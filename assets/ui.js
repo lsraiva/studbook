@@ -1055,7 +1055,40 @@ function openReveal(foal, v, progress) {
 
   mountDialog(card);
   const fateTier = foal.fate === "strong" ? 4 : foal.fate === "twins" ? 3 : 0;
-  chime(Math.max(tierIndex, fateTier), event === "born");
+  const fanfare = () => chime(Math.max(tierIndex, fateTier), event === "born");
+  // a birth is staged once per foal; the card underneath keeps every number
+  if (event === "born" && foal.id && !stagedBirths.has(foal.id)) {
+    stagedBirths.add(foal.id);
+    stageBirth(foal, v, fanfare).catch(fanfare);
+    return;
+  }
+  fanfare();
+}
+
+const stagedBirths = new Set();
+
+/** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
+async function stageBirth(foal, v, fanfare) {
+  const { playBirth } = await import("./birth-scene.js?v=0.43.0");
+  const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
+  const who = (horse, fallbackName, fallbackSrc, age) => ({
+    name: horse?.name ?? fallbackName ?? "",
+    src: horse ? portraitOf(horse.lineage, age ?? horse.age) : fallbackSrc,
+    appearance: horse ? appearanceFor(horse) : null,
+  });
+  const foalHorse = find(foal.id);
+  const look = foalHorse ? appearanceFor(foalHorse) : null;
+  playBirth({
+    dam: who(find(foal.damId), foal.damName, "assets/art/plate-l1.webp"),
+    sire: who(find(foal.sireId), foal.sireName, "assets/art/plate-stallion.webp"),
+    foal: { name: foal.name, src: portraitOf(foalHorse?.lineage, 0), appearance: look },
+    eyebrow: `Temporada ${nf(foal.bornSeason ?? v.season)} · nasce ${foal.sex === "M" ? "um potro" : "uma potra"}`,
+    tier: window.__studbookI18n?.translate?.(foal.tier) ?? foal.tier,
+    coat: look?.labelPt ?? "",
+    reducedMotion: REDUCED_MOTION,
+    onSound: (moment) => { if (moment === "join") settle(); if (moment === "reveal") fanfare(); },
+    onDone: () => el("reveal")?.querySelector(".card")?.focus(),
+  });
 }
 
 /** Show the moment once per foal, not on every redraw. */
