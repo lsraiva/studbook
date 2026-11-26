@@ -210,8 +210,8 @@ const DICT = new Map(Object.entries({
   "One mare, no covering. The covering is what makes her a breeding stable, and her foal is the first horse you may sell.":
     "Uma égua, sem cobertura. A cobertura é o que a torna um estábulo de criação, e o potro dela é o primeiro cavalo que você pode vender.",
   "Unraced: nothing on his card yet.": "Sem corridas: ainda não há nada na ficha.",
-  "Offline: the world market needs the server. Play on studbook.fly.dev to trade across rooms.":
-    "Offline: o mercado global precisa do servidor. Jogue em studbook.fly.dev para negociar entre salas.",
+  "Offline: the world market needs the server. Play online to trade across rooms.":
+    "Offline: o mercado global precisa do servidor. Jogue no modo online para negociar entre salas.",
 
   // Race-day guidance and central advice
   "Bloodstock · season": "Criação · temporada",

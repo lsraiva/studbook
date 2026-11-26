@@ -1685,3 +1685,51 @@
         .tab-indicator { transition: none; }
         button.rippling:not(.gcard)::after, .button.rippling::after, .tab.rippling::after { display: none; }
       }
+
+      /* ================================================================
+         Market catalogue cards (lotCard in ui.js)
+         ================================================================ */
+      .lot.mlot { position: relative; gap: 0.45rem; padding: 0.6rem 0.65rem 0.7rem; border-radius: 0.9rem; background: linear-gradient(180deg, var(--ink-3), var(--ink-1)); }
+      .mlot-stage {
+        position: relative;
+        margin: -0.1rem -0.15rem 0.1rem;
+        height: 118px;
+        border-radius: 0.65rem;
+        display: grid;
+        place-items: end center;
+        overflow: hidden;
+        background:
+          radial-gradient(70% 90% at 50% 100%, rgba(217, 169, 78, 0.16), transparent 70%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.18));
+        border: 1px solid var(--hairline);
+      }
+      .mlot-stage img { width: 92%; height: 108px; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45)); transition: transform var(--dur-2) var(--ease); }
+      .mlot:hover .mlot-stage img { transform: translateY(-2px) scale(1.03); }
+      .mlot-count, .mlot-tag {
+        position: absolute;
+        top: 0.4rem;
+        padding: 0.12rem 0.5rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .mlot-count { left: 0.4rem; background: var(--veil); border: 1px solid var(--line-strong); color: var(--cream); font-variant-numeric: tabular-nums; }
+      .mlot-tag { right: 0.4rem; color: var(--gold-ink); background: linear-gradient(120deg, var(--gold-a), var(--gold-b)); text-transform: uppercase; }
+      .mlot .name { font: 400 1.08rem/1.15 var(--font-display); color: var(--cream); }
+      .mlot-coat { display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+      .mlot-coat i { width: 0.6rem; height: 0.6rem; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); flex: 0 0 auto; }
+      .mlot-who { font-size: 0.78rem; color: var(--muted); margin-top: -0.2rem; }
+      .mlot-meter { display: grid; gap: 0.2rem; }
+      .mlot-bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: visible; }
+      .mlot-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: linear-gradient(90deg, rgba(120, 160, 120, 0.7), var(--brass)); }
+      .mlot-bar b { position: absolute; top: -3px; width: 2px; height: 12px; margin-left: -1px; border-radius: 1px; }
+      .mlot-bar b.mean { background: rgba(255, 255, 255, 0.45); }
+      .mlot-bar b.cut { background: var(--brass); box-shadow: 0 0 6px var(--brass); }
+      .mlot-meter .kv { font-size: 0.78rem; }
+      .mlot-price { display: flex; flex-direction: column; gap: 0.1rem; padding-top: 0.35rem; border-top: 1px solid var(--hairline); }
+      .mlot-price b { font: 600 1.15rem/1.1 var(--font-num, inherit); color: var(--cream); font-variant-numeric: tabular-nums; }
+      .mlot-price span { font-size: 0.74rem; color: var(--muted); }
+      .mlot.band-near-elite { border-color: rgba(217, 169, 78, 0.45); }
+      .mlot.band-stakes, .mlot.select-lot { border-color: var(--brass); box-shadow: inset 0 0 0 1px rgba(217, 169, 78, 0.35), 0 14px 30px rgba(0, 0, 0, 0.35); }
+      .mlot.band-near-elite .mlot-bar i, .mlot.band-stakes .mlot-bar i { background: linear-gradient(90deg, var(--gold-b), var(--gold-a)); }
