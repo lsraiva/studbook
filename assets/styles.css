@@ -1578,3 +1578,110 @@
         .gshine::before { animation: none; opacity: 0; }
         .gcard.tier-stakes, .gcard.tier-exceptional { transform: none; }
       }
+
+      /* ================================================================
+         Micro-interactions (assets/micro.js)
+         ================================================================ */
+      /* the balance: the real number stays in the text; the rolling one is drawn over it */
+      .pill.bank { position: relative; transition: box-shadow 300ms var(--ease), border-color 300ms var(--ease); }
+      .pill.bank #guineas { display: inline-block; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+      .pill.bank.rolling #guineas { position: relative; color: transparent; }
+      .pill.bank.rolling #guineas::after {
+        content: attr(data-roll);
+        position: absolute;
+        right: 0;
+        color: var(--cream);
+      }
+      .pill.bank.gain { border-color: rgba(120, 200, 140, 0.8); box-shadow: 0 0 0 3px rgba(120, 200, 140, 0.18), 0 0 18px rgba(120, 200, 140, 0.35); }
+      .pill.bank.loss { border-color: rgba(220, 110, 100, 0.8); box-shadow: 0 0 0 3px rgba(220, 110, 100, 0.16); }
+      .bank-delta {
+        position: absolute;
+        left: 50%;
+        top: 100%;
+        transform: translate(-50%, 0);
+        padding: 0.12rem 0.5rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 90;
+        animation: bank-delta 1.5s var(--ease) forwards;
+      }
+      .bank-delta.up { color: rgb(170, 235, 185); background: rgba(20, 60, 32, 0.92); border: 1px solid rgba(120, 200, 140, 0.6); }
+      .bank-delta.down { color: rgb(255, 200, 192); background: rgba(70, 22, 20, 0.92); border: 1px solid rgba(220, 110, 100, 0.6); }
+      @keyframes bank-delta {
+        0% { opacity: 0; transform: translate(-50%, -4px) scale(0.9); }
+        15% { opacity: 1; transform: translate(-50%, 6px) scale(1); }
+        75% { opacity: 1; transform: translate(-50%, 14px); }
+        100% { opacity: 0; transform: translate(-50%, 22px); }
+      }
+      .coin-layer { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 95; }
+
+      /* a press answers from where the finger landed */
+      /* not the horse cards: they draw their gold frame outside the box and use ::after themselves */
+      button:not(.gcard), .button, .tab { position: relative; overflow: hidden; }
+      button.rippling:not(.gcard)::after, .button.rippling::after, .tab.rippling::after {
+        content: "";
+        position: absolute;
+        left: var(--rx, 50%);
+        top: var(--ry, 50%);
+        width: 12px;
+        height: 12px;
+        margin: -6px 0 0 -6px;
+        border-radius: 50%;
+        background: rgba(255, 240, 210, 0.35);
+        pointer-events: none;
+        animation: ripple 560ms var(--ease) forwards;
+      }
+      @keyframes ripple { from { transform: scale(0); opacity: 0.9; } to { transform: scale(26); opacity: 0; } }
+      /* the brass buttons catch the light when hovered */
+      button.brass { background-size: 220% 100%; transition: background-position 500ms var(--ease), transform var(--dur-1) var(--ease); }
+      button.brass:hover:not(:disabled) { background-position: 100% 0; }
+      button:active:not(:disabled):not(.gcard) { transform: translateY(1px) scale(0.985); }
+
+      /* the current tab: a brass bar that slides from one to the next */
+      .tab-indicator {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 2px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, transparent, var(--brass), transparent);
+        box-shadow: 0 0 10px var(--brass);
+        pointer-events: none;
+        transition: transform 320ms var(--ease), width 320ms var(--ease), opacity 200ms var(--ease);
+      }
+
+      /* toasts arrive rather than appear; an elite rise is stamped */
+      .toast { animation: toast-in 260ms var(--ease) both; }
+      @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }
+      .toast.stamp-toast {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.45rem 0.95rem 0.45rem 0.5rem;
+        border-color: var(--brass);
+        background: linear-gradient(120deg, rgba(60, 46, 18, 0.96), rgba(28, 22, 10, 0.96));
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(217, 169, 78, 0.25);
+      }
+      .stamp-seal {
+        display: inline-grid;
+        place-items: center;
+        padding: 0.2rem 0.5rem;
+        border: 2px solid var(--brass);
+        border-radius: 0.35rem;
+        color: var(--brass);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        transform: rotate(-8deg);
+        animation: stamp-down 420ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+      }
+      @keyframes stamp-down { from { transform: rotate(-8deg) scale(2.4); opacity: 0; } to { transform: rotate(-8deg) scale(1); opacity: 1; } }
+
+      @media (prefers-reduced-motion: reduce) {
+        .bank-delta, .toast, .stamp-seal { animation: none; }
+        .tab-indicator { transition: none; }
+        button.rippling:not(.gcard)::after, .button.rippling::after, .tab.rippling::after { display: none; }
+      }

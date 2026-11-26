@@ -554,6 +554,8 @@ const PATTERNS = [
   [/^\+(\d+)% catch · \+(\d+)% value$/i, "+$1% prenhez · +$2% valor"],
   [/^Entries are open for meeting (\d+) of (\d+)\..*$/i, "Inscrições abertas para a reunião $1 de $2. Troque corredores antes do prazo; a reunião roda sozinha."],
   [/^age (\d+)$/i, "idade $1"],
+  [/^(.+) is stakes class$/, "$1 agora é classe stakes"],
+  [/^(.+) is near elite$/, "$1 agora está perto da elite"],
   [/^(\d+) in training$/i, "$1 em treinamento"],
   [/^season (\d+)$/i, "temporada $1"],
   [/^buy (?:horse )?([\d.,]+)\s*₲$/i, "comprar $1 ₲"],
