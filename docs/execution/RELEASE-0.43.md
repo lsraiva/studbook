@@ -1,6 +1,6 @@
 # Release 0.43.0 — the birth, staged
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (gru), revision `e2d31ee6c9770e15051bb6c865715a89c316c651`. Pre-deploy backup `20261126T143905Z` (SHA256 `88820d51…3763`, matched on the machine), restore tested: 11 accounts, 354 horses, 0 problems.
 
 ## Change
 
