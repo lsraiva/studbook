@@ -1,6 +1,6 @@
 # Release 0.47.0 — the markets as a catalogue
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (gru), revision `b21dbb8ead0be4660d95a0a41272b133ae029461`. Pre-deploy backup `20261126T182409Z` (SHA256 `7b16e024…05a2`, matched on the machine), restore tested: 11 accounts, 354 horses, 0 problems.
 
 ## Changes
 
