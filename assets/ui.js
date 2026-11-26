@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.46.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.47.0";
 
 import {
   applyAction,
@@ -1072,7 +1072,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.46.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.47.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2062,7 +2062,7 @@ function renderWorldMarket() {
   if (!CLOUD()) {
     const hint = document.createElement("p");
     hint.className = "hint";
-    hint.textContent = "Offline: the world market needs the server. Play on studbook.fly.dev to trade across rooms.";
+    hint.textContent = "Offline: the world market needs the server. Play online to trade across rooms.";
     box.append(hint);
     return;
   }
@@ -2150,7 +2150,7 @@ function renderTokens() {
   if (!CLOUD()) {
     const note = document.createElement("p");
     note.className = "hint";
-    note.textContent = "Tokens need the server. Play on studbook.fly.dev to hold horses on chain.";
+    note.textContent = "Tokens need the server. Play online to hold horses on chain.";
     box.append(note);
     return;
   }
@@ -2441,6 +2441,149 @@ function openHorse3D(horseId) {
 
 el("open3d")?.addEventListener("click", () => openHorse3D(selectedHorse ?? view?.horses?.[0]?.id));
 
+/** Where a value sits against the field: the same bands the engine uses for horses. */
+function bandOf(value, stakes, field) {
+  if (stakes) return "stakes";
+  if (field?.eliteCut && value >= field.eliteCut * 0.85) return "near elite";
+  if (value >= (field?.mean ?? 0)) return "above the field";
+  return "below the field";
+}
+
+/**
+ * A market lot as a catalogue card: the animal in its coat, a value meter against the field
+ * average and the elite cut, the price, and the actions. `count` > 1 groups identical doses.
+ */
+function lotCard(lot, v, count) {
+  const isHorse = lot.kind === "horse";
+  const id = isHorse ? lot.horseId : lot.sireId;
+  const lineage = isHorse ? lot.horseLineage : lot.sireLineage;
+  const value = isHorse ? lot.horseValue : lot.sireValue;
+  const stakes = isHorse ? lot.horseStakes : lot.sireStakes;
+  const band = bandOf(value, stakes, v.field);
+  const card = document.createElement("div");
+  card.className = `lot mlot band-${band.replace(/ /g, "-")}` + (lot.mine ? " mine" : "") + (lot.select ? " select-lot" : "");
+
+  // the animal, repainted in its own coat
+  const stage = document.createElement("div");
+  stage.className = "mlot-stage";
+  const photo = document.createElement("img");
+  photo.alt = "";
+  photo.loading = "lazy";
+  photo.decoding = "async";
+  const appearance = appearanceFor({ id, lineage });
+  paintCoat(photo, portraitOf(lineage, isHorse ? lot.horseAge : 4), appearance);
+  stage.append(photo);
+  if (count > 1) {
+    const doses = document.createElement("span");
+    doses.className = "mlot-count";
+    doses.textContent = `${nf(count)} doses`;
+    stage.append(doses);
+  }
+  if (band === "stakes" || band === "near elite") {
+    const tag = document.createElement("span");
+    tag.className = "mlot-tag";
+    tag.textContent = band === "stakes" ? "stakes class" : "near elite";
+    stage.append(tag);
+  }
+  card.append(stage);
+
+  const head = document.createElement("div");
+  head.className = "name";
+  head.textContent = isHorse ? lot.horseName : lot.sireName;
+  card.append(head);
+  const coat = document.createElement("div");
+  coat.className = "mlot-coat";
+  coat.innerHTML = `<i style="background:${appearance.bodyColor}"></i>`;
+  const coatText = document.createElement("span");
+  coatText.textContent = appearance.labelPt;
+  coat.append(coatText);
+  card.append(coat);
+  if (isHorse) {
+    const who = document.createElement("div");
+    who.className = "mlot-who";
+    who.textContent = `${lot.horseSex === "M" ? "colt" : "filly"} · age ${lot.horseAge}`;
+    card.append(who);
+  }
+
+  // value against the field: the elite cut sits at 80% of the bar
+  const meter = document.createElement("div");
+  meter.className = "mlot-meter";
+  const cut = v.field?.eliteCut || Math.max(1, value);
+  const scale = (n) => Math.max(0, Math.min(100, (n / (cut * 1.25)) * 100));
+  meter.innerHTML =
+    `<div class="mlot-bar"><i style="width:${scale(value).toFixed(1)}%"></i>` +
+    `<b class="mean" style="left:${scale(v.field?.mean ?? 0).toFixed(1)}%" title="field average"></b>` +
+    `<b class="cut" style="left:${scale(cut).toFixed(1)}%" title="elite cut"></b></div>`;
+  const label = document.createElement("div");
+  label.className = "kv";
+  label.innerHTML = `<span>${isHorse ? "value" : "sire value"}</span><b>${nf(value, 2)}</b>`;
+  meter.append(label);
+  card.append(meter);
+
+  const price = document.createElement("div");
+  price.className = "mlot-price";
+  price.innerHTML = `<b>${nf(lot.price)} ₲</b><span>${esc(lot.sellerName)} · ${isHorse ? "horse lot" : "season " + lot.vintage}${lot.age >= 1 ? " · price cut each season it sits" : ""}</span>`;
+  card.append(price);
+
+  if (lot.select) {
+    const badge = document.createElement("div");
+    badge.className = "select";
+    badge.textContent = `select sale: the house's best stallion, this season only · ${nf(lot.price)} ₲`;
+    card.append(badge);
+  }
+  const shownTraits = isHorse ? lot.horseTraits : lot.sireTraits;
+  if (shownTraits) {
+    card.append(traitBars(shownTraits));
+  } else {
+    const locked = document.createElement("div");
+    locked.className = "hint";
+    locked.textContent = `traits are certified — ${nf(v.certifyCost)} ₲ to read this card`;
+    card.append(locked);
+  }
+  if (!isHorse && lot.sireGenotype) {
+    const geno = document.createElement("div");
+    geno.className = "hint";
+    geno.textContent = Object.entries(lot.sireGenotype)
+      .map(([locus, pair]) => `${locus}:${pair.join("")}`)
+      .join(" ");
+    card.append(geno);
+  }
+  const row = document.createElement("div");
+  row.className = "row";
+  if (lot.mine) {
+    const withdraw = document.createElement("button");
+    withdraw.className = "tiny";
+    withdraw.textContent = "withdraw";
+    withdraw.addEventListener("click", () => act({ type: "unlistStraw", listingId: lot.id }));
+    row.append(withdraw);
+  } else {
+    const buy = document.createElement("button");
+    buy.className = "tiny brass";
+    buy.textContent = isHorse ? `buy horse ${nf(lot.price)}₲` : `buy ${nf(lot.price)}₲`;
+    buy.disabled = v.stable.guineas < lot.price;
+    buy.title =
+      v.stable.guineas < lot.price
+        ? `Costs ₲ ${nf(lot.price)} and you hold ₲ ${nf(v.stable.guineas)}.`
+        : "Buy this lot.";
+    buy.addEventListener("click", () => act({ type: isHorse ? "buyHorse" : "buyStraw", listingId: lot.id }));
+    row.append(buy);
+    if (!isHorse && !lot.sireGenotype) {
+      const certify = document.createElement("button");
+      certify.className = "tiny";
+      certify.textContent = "certify";
+      certify.disabled = v.stable.guineas < v.certifyCost;
+      certify.title =
+        v.stable.guineas < v.certifyCost
+          ? `Revealing a genotype costs ₲ ${nf(v.certifyCost)}.`
+          : "Reveal this stallion's genotype and his hidden carriers.";
+      certify.addEventListener("click", () => act({ type: "certify", horseId: lot.sireId }));
+      row.append(certify);
+    }
+  }
+  card.append(row);
+  return card;
+}
+
 /**
  * The living stable (assets/paddock-scene.js): the herd out in the paddock, each in its coat.
  * Loaded on first draw and kept between redraws, so a horse keeps walking where it was.
@@ -2460,7 +2603,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.46.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.47.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3160,84 +3303,17 @@ function draw() {
       horseCards.append(empty);
     }
   }
-  for (const lot of [...studLots.slice(0, 30), ...horseMarket.slice(0, 30)]) {
-    const card = document.createElement("div");
-    card.className = "lot" + (lot.mine ? " mine" : "");
-    const isHorse = lot.kind === "horse";
-    const head = document.createElement("div");
-    head.className = "name";
-    head.textContent = isHorse ? lot.horseName : lot.sireName;
-    card.append(head);
-    const meta = document.createElement("div");
-    meta.className = "kv";
-    meta.innerHTML = isHorse
-      ? `<span>${lot.horseSex === "M" ? "colt" : "filly"} · age ${lot.horseAge}</span><b>${nf(lot.horseValue, 2)}</b>`
-      : `<span>sire value</span><b>${nf(lot.sireValue, 2)}</b>`;
-    card.append(meta);
-    const meta2 = document.createElement("div");
-    meta2.className = "kv";
-    meta2.innerHTML = `<span>${esc(lot.sellerName)} · ${isHorse ? "horse lot" : "season " + lot.vintage}${lot.age >= 1 ? " · price cut each season it sits" : ""}</span><b>${nf(lot.price)} ₲</b>`;
-    card.append(meta2);
-    if (lot.select) {
-      const badge = document.createElement("div");
-      badge.className = "select";
-      badge.textContent = `select sale: the house's best stallion, this season only · ${nf(lot.price)} ₲`;
-      card.append(badge);
-    }
-    const shownTraits = isHorse ? lot.horseTraits : lot.sireTraits;
-    if (shownTraits) {
-      card.append(traitBars(shownTraits));
-    } else {
-      const locked = document.createElement("div");
-      locked.className = "hint";
-      locked.textContent = `traits are certified — ${nf(v.certifyCost)} ₲ to read this card`;
-      card.append(locked);
-    }
-    if (!isHorse && lot.sireGenotype) {
-      const geno = document.createElement("div");
-      geno.className = "hint";
-      geno.textContent = Object.entries(lot.sireGenotype)
-        .map(([locus, pair]) => `${locus}:${pair.join("")}`)
-        .join(" ");
-      card.append(geno);
-    }
-    const row = document.createElement("div");
-    row.className = "row";
-    if (lot.mine) {
-      const withdraw = document.createElement("button");
-      withdraw.className = "tiny";
-      withdraw.textContent = "withdraw";
-      withdraw.addEventListener("click", () => act({ type: "unlistStraw", listingId: lot.id }));
-      row.append(withdraw);
-    } else {
-      const buy = document.createElement("button");
-      buy.className = "tiny brass";
-      buy.textContent = lot.kind === "horse" ? `buy horse ${nf(lot.price)}₲` : `buy ${nf(lot.price)}₲`;
-      buy.disabled = v.stable.guineas < lot.price;
-      buy.title =
-        v.stable.guineas < lot.price
-          ? `Costs ₲ ${nf(lot.price)} and you hold ₲ ${nf(v.stable.guineas)}.`
-          : "Buy this lot.";
-      buy.addEventListener("click", () =>
-        act({ type: lot.kind === "horse" ? "buyHorse" : "buyStraw", listingId: lot.id }),
-      );
-      row.append(buy);
-      if (lot.kind !== "horse" && !lot.sireGenotype) {
-        const certify = document.createElement("button");
-        certify.className = "tiny";
-        certify.textContent = "certify";
-        certify.disabled = v.stable.guineas < v.certifyCost;
-        certify.title =
-          v.stable.guineas < v.certifyCost
-            ? `Revealing a genotype costs ₲ ${nf(v.certifyCost)}.`
-            : "Reveal this stallion's genotype and his hidden carriers.";
-        certify.addEventListener("click", () => act({ type: "certify", horseId: lot.sireId }));
-        row.append(certify);
-      }
-    }
-    card.append(row);
-    (lot.kind === "horse" ? horseCards : listings)?.append(card);
+  // Identical coverings (same stallion, seller and price) are one card with a dose count: five
+  // copies of the same lot said nothing a number cannot.
+  const groups = new Map();
+  for (const lot of studLots) {
+    const key = [lot.sireId, lot.seller, lot.price, lot.select, lot.mine, lot.vintage].join("|");
+    const group = groups.get(key);
+    if (group) group.count += 1;
+    else groups.set(key, { lot, count: 1 });
   }
+  for (const { lot, count } of [...groups.values()].slice(0, 30)) listings?.append(lotCard(lot, v, count));
+  for (const lot of horseMarket.slice(0, 30)) horseCards?.append(lotCard(lot, v, 1));
 
   // Requests: the demand side of the market, where you name the genetics you want.
   const wantCount = el("want-count");

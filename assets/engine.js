@@ -2843,6 +2843,7 @@ function viewFor(state, playerId) {
           horseSex: consigned ? consigned.sex : null,
           horseAge: consigned ? consigned.age : null,
           horseStakes: consigned ? consigned.stakes : false,
+          horseLineage: consigned ? consigned.lineage : null,
           horseTraits: consigned && certified.has(consigned.id) ? traitsOf(consigned.genome) : null,
         };
       }
