@@ -1,6 +1,6 @@
 # Release 0.46.0 — micro-interactions
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (gru), revision `0bcb483e350f0f8acc0f0507e47ca75898bfb3ff`. Pre-deploy backup `20261126T175028Z` (SHA256 `5a0a8a3f…fb70`, matched on the machine), restore tested: 11 accounts, 348 horses, 0 problems.
 
 ## Changes (`assets/micro.js`)
 
