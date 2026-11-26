@@ -1,6 +1,6 @@
 # Release 0.41.0 — new horse art, painted markings, screen transitions
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to the new Fly app `studbook-luann` (region gru), revision `c49156f9952b98a747a3fc64db5f2e6c5deba23b`. See RELEASE-0.41 migration note below.
 
 ## Changes
 
@@ -34,3 +34,21 @@ State: **in review**, not deployed.
 - New browser checks: the next race card opens the live race; tabs still switch with view transitions; rapid tab clicks surface no error.
 - `tests/coat-portrait.test.mjs`: new cases for anchors (nose, ground, four legs) and an empty mask.
 - `npm test`: 327 checks, 0 failures. Browser: catalogue, identity and live-race specs, 16 passed.
+
+## Migration to the owner's Fly account (2026-11-26)
+
+- **Why:** the original Fly account's trial ended and its machines stopped, so `https://studbook.fly.dev` went down.
+- **New home:** `https://studbook-luann.fly.dev`, app `studbook-luann` on the owner's own Fly account (personal org), region `gru`, one shared-cpu machine with 256 MB and an encrypted 1 GB volume `studbook_data`.
+- **Procedure:**
+  1. Created the app and volume, and staged `STUDBOOK_MAINTENANCE=1`.
+  2. Deployed 0.41 in maintenance mode.
+  3. Uploaded the last verified backup (2026-11-25 19:19 UTC, `SHA256 626a2826…223a`, matched locally and on the machine), extracted it into `/data` and restarted.
+  4. Pulled the restored `/data` back: it was byte-identical to the backup; dry run 10 accounts, 9 human stables, 295 horses, 9,805 GNS, 0 problems.
+  5. Unset maintenance.
+- **Verified:**
+  - health `0.41.0` / `c49156f` / 10 accounts / maintenance false;
+  - `/`, `/play`, `/horse-3d`, the new plates and the race modules return 200;
+  - exhibition without login 401; login with an unknown account 401;
+  - offline demo shows a painted plate with markings.
+- **Data gap:** play between 2026-11-25 19:19 UTC and the old account's shutdown exists only on the old account's volume. It can be fetched and reconciled if that account is ever reactivated.
+- **Old URL:** `https://studbook.fly.dev` no longer serves the game. Players need the new address, or a custom domain later.

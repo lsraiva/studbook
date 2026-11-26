@@ -1,6 +1,6 @@
 # Studbook — continuidade em outro modelo
 
-**Publicado:** ver `/api/health` (versão e commit exatos) e [RELEASE-0.34](execution/RELEASE-0.34.md). Publicar só com `npm run deploy:fly` a partir de `main` limpa e igual a `origin/main`, depois de backup verificado. Releases anteriores: [0.33](execution/RELEASE-0.33.md), [0.32](execution/RELEASE-0.32.md).
+**Publicado:** https://studbook-luann.fly.dev (app `studbook-luann`, conta Fly do proprietário, região gru). Ver `/api/health` e [RELEASE-0.41](execution/RELEASE-0.41.md) (inclui a migração de 2026-11-26). O app antigo `studbook` parou quando o trial da conta original acabou. Publicar só com `npm run deploy:fly` (lê o app do `fly.toml`) a partir de `main` limpa, depois de backup verificado.
 
 **Na main (PRs #3 e #4):** F1-06, F1-07, F2-01 (sem efeito em produção) e motor de corrida F4 (não ligado). Ver `docs/execution/STATUS.md`, `F2-SCHEMA.md` e `F4-RACE-ENGINE.md`. Variáveis opcionais: `AUTH_IP_LIMIT` (60), `LOGIN_FAIL_LIMIT` (5), `AUTH_WINDOW_MS` (15 min), `CODE_ATTEMPTS` (5).
 
