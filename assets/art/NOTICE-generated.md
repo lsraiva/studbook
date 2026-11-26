@@ -8,3 +8,13 @@
 - **Processing here:** downscaled to 1024 × 680 and encoded as WebP (quality 0.82) with alpha; no other edits. In the game they are repainted per coat by `assets/coat-portrait.js`.
 - **Terms:** use is subject to Higgsfield's and the model provider's terms for the owner's plan. Confirm commercial use before any sale of the images themselves. The images are not NFT media.
 - **Other art:** older plates (`l1`–`l8`, `foal`, `stallion`, hero images) are unchanged and still used by the landing page and some scenes. The 3D model has its own licence (`assets/models/NOTICE.txt`).
+
+## Race art (2026-11-26)
+
+| Files | Source | Model |
+|---|---|---|
+| `race-gallop.webp` | Higgsfield, owner's account | GPT Image 2.6, high, 2K, transparent; 8-frame gallop cycle in a 4 × 2 grid, using `plate-l1` as the style reference. Jockey in plain white silks so the game can tint them per stable. |
+| `race-grandstand.webp` | Higgsfield, owner's account | GPT Image 2.6, high, 2K; wide grandstand panorama at golden hour. |
+
+- Cost: 4 credits. Downscaled to WebP (1600 px and 2048 px wide); no other edits.
+- Same terms note as above.

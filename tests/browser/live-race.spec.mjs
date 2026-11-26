@@ -97,3 +97,29 @@ test('rapid tab clicks never surface an error', async ({ page }) => {
   await expect(page.locator('#status')).not.toHaveClass(/\bbad\b/);
   expect(errors).toEqual([]);
 });
+
+test('the broadcast view paints the course and every runner in its own coat and silks', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await openRace(page);
+  await page.waitForFunction(() => window.__studbookRace?.scene?.ready, null, { timeout: 30000 });
+  const info = await page.evaluate(() => {
+    const { scene, race } = window.__studbookRace;
+    scene.pause(); scene.t = 12; scene.draw();
+    const keys = new Set(race.runners.map((r) => r.spriteKey));
+    const frames = [...scene.sprites.values()].every((f) => f.length === 8 && f[0].width > 100);
+    // the canvas is a painting, not a flat fill: sample colours across it
+    const ctx = scene.canvas.getContext('2d');
+    const seen = new Set();
+    for (let i = 0; i < 40; i += 1) { const d = ctx.getImageData(Math.floor(scene.canvas.width * (i % 8) / 8) + 5, Math.floor(scene.canvas.height * Math.floor(i / 8) / 5) + 5, 1, 1).data; seen.add(`${d[0] >> 4},${d[1] >> 4},${d[2] >> 4}`); }
+    return { side: scene.stage.classList.contains('side-view'), keys: keys.size, sprites: scene.sprites.size, frames, colours: seen.size, runners: race.runners.length };
+  });
+  expect(info.side).toBe(true);
+  expect(info.sprites).toBe(info.keys);
+  expect(info.frames).toBe(true);
+  expect(info.colours).toBeGreaterThan(12);
+  await page.locator('.rs-controls button', { hasText: 'Ir para a chegada' }).click();
+  const winner = await page.evaluate(() => { const { race } = window.__studbookRace; return race.runners.find((r) => r.key === race.placings[0].key).name; });
+  await expect(page.locator('.rs-result h3')).toContainText(winner);
+  expect(errors).toEqual([]);
+});

@@ -8,12 +8,12 @@
  */
 import { pointAt, COURSE } from "./track.js";
 
-const SILKS = ["#c8453b", "#2f6fb5", "#e0b13a", "#3f8f5a", "#7d4fb0", "#d9773a", "#1f8c95", "#b8406e", "#6b7d2f", "#4a5bd1", "#a05a2c", "#3c3c3c"];
+export const SILKS = ["#c8453b", "#2f6fb5", "#e0b13a", "#3f8f5a", "#7d4fb0", "#d9773a", "#1f8c95", "#b8406e", "#6b7d2f", "#4a5bd1", "#a05a2c", "#3c3c3c"];
 const LENGTH_M = 2.4; // one length, in metres, for gaps
 const DRAW = 1.35; // horses are drawn a little larger than life so a field reads on a phone
-const shortName = (name) => String(name ?? "").replace(/\s*\(L\d+\)$/, "");
+export const shortName = (name) => String(name ?? "").replace(/\s*\(L\d+\)$/, "");
 
-function hashString(text) {
+export function hashString(text) {
   let h = 2166136261;
   for (let i = 0; i < text.length; i += 1) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return h >>> 0;
