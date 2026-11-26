@@ -18,3 +18,12 @@
 
 - Cost: 4 credits. Downscaled to WebP (1600 px and 2048 px wide); no other edits.
 - Same terms note as above.
+
+## Stable art (2026-11-26)
+
+| Files | Source | Model |
+|---|---|---|
+| `paddock-day.webp`, `paddock-dusk.webp` | Higgsfield, owner's account | GPT Image 2.6, high, 2K, 21:9; empty stud-farm paddock (barn, white rail fence, open pasture), morning and dusk. No animals, so the game places the player's own horses on it. |
+
+- Cost: 4 credits. Downscaled to 1920 px wide WebP (quality 0.8); no other edits.
+- Same terms note as above.
