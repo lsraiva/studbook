@@ -5,6 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.46.0";
 
 import {
   applyAction,
@@ -441,7 +442,9 @@ function showScreen(name) {
   for (const button of document.querySelectorAll(".tab")) {
     button.setAttribute("aria-current", String(button.dataset.screen === screen));
   }
+  tabIndicator(el("tabs"));
 }
+window.addEventListener("resize", () => tabIndicator(el("tabs")));
 
 window.addEventListener("hashchange", () => showScreen(screenFromHash()));
 
@@ -1069,7 +1072,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.45.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.46.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2457,7 +2460,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.45.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.46.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -2720,7 +2723,12 @@ function draw() {
   // The server owns the selection. Mirroring it here stops the card saying "selected" while the
   // breed button believes nothing is selected — the drift that made breeding do nothing.
   selectedStraw = v.selectedStraw ?? null;
-  el("guineas").textContent = nf(v.stable.guineas);
+  // the balance rolls to its new value, with coins on a real gain (assets/micro.js)
+  bank(el("guineas"), v.stable.guineas, { format: (n) => nf(n), soundOn });
+  eliteStamp(v.horses, (node) => {
+    el("toasts").append(node);
+    setTimeout(() => node.remove(), 4200);
+  });
   el("season").textContent = nf(v.season);
   el("condition").textContent = v.conditionLabel ?? v.condition;
   el("condition2").textContent = v.conditionLabel ?? v.condition;
