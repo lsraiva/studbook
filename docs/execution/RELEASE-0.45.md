@@ -1,6 +1,6 @@
 # Release 0.45.0 — the landing hero, alive
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (gru), revision `38083f72506f849752910ecf19a23d6c62396de3`. Pre-deploy backup `20261126T170750Z` (SHA256 `871e64f5…4f64`, matched on the machine), restore tested: 11 accounts, 348 horses, 0 problems. Verified in production: both loop files answer a range request with 206 and the right video type.
 
 ## Changes
 
