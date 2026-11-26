@@ -1,6 +1,6 @@
 # Release 0.44.0 — the living stable
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (gru), revision `03b78cef18c39b34d0219832c082ea12bb58d3e7`. Pre-deploy backup `20261126T163252Z` (SHA256 `2d806a30…f989`, matched on the machine), restore tested: 11 accounts, 355 horses, 0 problems.
 
 ## Changes
 
