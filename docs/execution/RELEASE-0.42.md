@@ -1,6 +1,6 @@
 # Release 0.42.0 — the race as a broadcast (side view)
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (release v3), revision `70e746c7e19de91e136e60db6e579eb6617583cd`, after a verified backup and restore test (10 accounts, 315 horses, dry run 0 problems).
 
 ## Change
 
