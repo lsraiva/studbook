@@ -26,7 +26,7 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { publicAsset } from "./public-files.mjs";
+import { publicAsset, sendAsset } from "./public-files.mjs";
 import { planRoomTransfer } from "./room-transfer.mjs";
 import { writeJsonDurable, roomSnapshots, commitRoomTransfer, recoverRoomTransfers } from "./transfer-store.mjs";
 import { createWindowLimiter, clientAddress, sameCode } from "./auth-guard.mjs";
@@ -622,12 +622,7 @@ async function serveStatic(req, res) {
     return res.writeHead(405, { allow: "GET, HEAD" }).end();
   }
   const asset = await publicAsset(root, (req.url ?? "/").split("?")[0]);
-  res.writeHead(asset.status, {
-    "content-type": asset.contentType,
-    "cache-control": "no-cache",
-    "x-content-type-options": "nosniff",
-  });
-  res.end(req.method === "HEAD" ? undefined : asset.body);
+  sendAsset(req, res, asset);
 }
 
 const bearer = (req) => {

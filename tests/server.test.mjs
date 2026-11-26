@@ -113,6 +113,15 @@ try {
   ok("invalid URI encoding is a client error", (await publicAsset(fixtureRoot, "/assets/%ZZ")).status === 400);
   const head = await fetch(`${base}/assets/ui.js`, { method: "HEAD" });
   ok("HEAD serves public headers without a body", head.status === 200 && (await head.text()) === "");
+  const ranged = await fetch(`${base}/assets/ui.js`, { headers: { range: "bytes=0-99" } });
+  ok("byte ranges are served (Safari needs them for video)", ranged.status === 206 && ranged.headers.get("content-range")?.startsWith("bytes 0-99/") && (await ranged.arrayBuffer()).byteLength === 100);
+  const tail = await fetch(`${base}/assets/ui.js`, { headers: { range: "bytes=-10" } });
+  ok("a suffix range returns the last bytes", tail.status === 206 && (await tail.arrayBuffer()).byteLength === 10);
+  const beyond = await fetch(`${base}/assets/ui.js`, { headers: { range: "bytes=999999999-" } });
+  ok("a range past the end is refused", beyond.status === 416);
+  const whole = await fetch(`${base}/assets/ui.js`);
+  ok("whole files advertise byte ranges", whole.status === 200 && whole.headers.get("accept-ranges") === "bytes");
+  { const loop = await publicAsset(root, "/assets/art/hero-loop.mp4"); ok("the hero loop is public, as video/mp4", loop.status === 200 && loop.contentType === "video/mp4"); }
   const postedStatic = await fetch(`${base}/assets/ui.js`, { method: "POST" });
   ok("static assets reject writes", postedStatic.status === 405);
 
