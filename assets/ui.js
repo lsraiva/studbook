@@ -3757,7 +3757,8 @@ async function openLiveRace() {
   const button = el("live-race");
   if (button) button.disabled = true;
   try {
-    const [race, { RaceScene }] = await Promise.all([loadExhibition(), import("./race/scene.js")]);
+    // the broadcast camera (side view) is the default; the aerial view remains as its base class
+    const [race, { SideRaceScene }] = await Promise.all([loadExhibition(), import("./race/side-scene.js")]);
     document.querySelectorAll(".race-stage").forEach((node) => node.remove());
     const overlay = document.createElement("div");
     overlay.className = "race-stage";
@@ -3777,9 +3778,10 @@ async function openLiveRace() {
     };
     const onKey = (event) => { if (event.key === "Escape") scene.close(); };
     document.addEventListener("keydown", onKey);
-    const scene = new RaceScene(host, race, { reducedMotion: REDUCED_MOTION, sound: soundOn, onClose: close });
+    const scene = new SideRaceScene(host, race, { reducedMotion: REDUCED_MOTION, sound: soundOn, onClose: close });
     window.__studbookRace = { race, scene }; // inspection hook for tests and support
-    scene.play();
+    // start once the painted course and runners are ready; a failed load still runs the race
+    scene.loaded.catch(() => {}).finally(() => { if (overlay.isConnected) scene.play(); });
     overlay.querySelector("button")?.focus();
   } catch (error) {
     toast(translateMessage(error.message ?? String(error)), true);
