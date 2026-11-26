@@ -3,8 +3,8 @@
 # See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
-app = 'studbook'
-primary_region = 'ams'
+app = 'studbook-luann'
+primary_region = 'gru'
 
 [build]
   dockerfile = 'Dockerfile'

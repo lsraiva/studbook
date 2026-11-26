@@ -11,7 +11,7 @@
  * Take and verify a /data backup first (see docs/HANDOFF.md).
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -28,7 +28,10 @@ if (head !== remote) fail(`HEAD ${head.slice(0, 7)} differs from origin/main ${r
 
 const local = join(homedir(), ".fly", "bin", process.platform === "win32" ? "flyctl.exe" : "flyctl");
 const fly = existsSync(local) ? local : "flyctl";
-console.log(`deploying ${head} to Fly app studbook`);
+// the app name lives in fly.toml only, so moving accounts or renaming is one line there
+const app = (readFileSync("fly.toml", "utf8").match(/^app\s*=\s*['"]([^'"]+)['"]/m) ?? [])[1];
+if (!app) fail("fly.toml has no app name");
+console.log(`deploying ${head} to Fly app ${app}`);
 if (process.argv.includes("--check")) process.exit(0);
-const run = spawnSync(fly, ["deploy", "-a", "studbook", "--build-arg", `COMMIT_SHA=${head}`], { stdio: "inherit" });
+const run = spawnSync(fly, ["deploy", "-a", app, "--build-arg", `COMMIT_SHA=${head}`], { stdio: "inherit" });
 process.exit(run.status ?? 1);
