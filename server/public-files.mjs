@@ -19,6 +19,7 @@ const MIME = {
   css: 'text/css; charset=utf-8', webp: 'image/webp', png: 'image/png',
   jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', gif: 'image/gif',
   glb: 'model/gltf-binary', txt: 'text/plain; charset=utf-8',
+  mp4: 'video/mp4', webm: 'video/webm',
 };
 const failure = (status) => ({ status, body: status === 400 ? 'bad request' : 'not found', contentType: 'text/plain; charset=utf-8' });
 
@@ -30,7 +31,7 @@ export async function publicAsset(root, encodedPath) {
   if (path === '/') path = '/welcome.html';
   if (path === '/play') path = '/index.html';
   if (path === '/horse-3d') path = '/horse-3d.html';
-  const artwork = /^\/assets\/art\/[A-Za-z0-9][A-Za-z0-9_-]*\.(webp|png|jpe?g|svg|gif)$/.test(path);
+  const artwork = /^\/assets\/art\/[A-Za-z0-9][A-Za-z0-9_-]*\.(webp|png|jpe?g|svg|gif|mp4|webm)$/.test(path);
   if (!['/index.html','/welcome.html','/horse-3d.html'].includes(path) && !MODULES.has(path) && !artwork) return failure(404);
   try {
     const canonicalRoot = await realpath(root);
@@ -39,4 +40,32 @@ export async function publicAsset(root, encodedPath) {
     if (await realpath(file) !== file) return failure(404);
     return { status: 200, body: await readFile(file), contentType: MIME[path.split('.').pop()] };
   } catch { return failure(404); }
+}
+
+/**
+ * Write an asset, honouring a single `Range: bytes=a-b` request. Safari will not play a video
+ * served without byte ranges, so every 200 asset advertises them.
+ */
+export function sendAsset(req, res, asset) {
+  const headers = { 'content-type': asset.contentType, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' };
+  const head = req.method === 'HEAD';
+  if (asset.status !== 200) {
+    res.writeHead(asset.status, headers);
+    return res.end(head ? undefined : asset.body);
+  }
+  const size = asset.body.length;
+  headers['accept-ranges'] = 'bytes';
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers?.range ?? '').trim());
+  if (match && (match[1] || match[2])) {
+    let start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+    let end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+    if (start >= size || start > end) {
+      res.writeHead(416, { ...headers, 'content-range': `bytes */${size}` });
+      return res.end();
+    }
+    res.writeHead(206, { ...headers, 'content-range': `bytes ${start}-${end}/${size}`, 'content-length': String(end - start + 1) });
+    return res.end(head ? undefined : asset.body.subarray(start, end + 1));
+  }
+  res.writeHead(200, { ...headers, 'content-length': String(size) });
+  return res.end(head ? undefined : asset.body);
 }

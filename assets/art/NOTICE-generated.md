@@ -27,3 +27,13 @@
 
 - Cost: 4 credits. Downscaled to 1920 px wide WebP (quality 0.8); no other edits.
 - Same terms note as above.
+
+## Landing hero loop (2026-11-26)
+
+| Files | Source | Model |
+|---|---|---|
+| `hero-loop.mp4`, `hero-loop.webm` | Higgsfield, owner's account | MAGI-2 (Sand AI), 1080p, 21:9, 8 s, no audio, with `hero-wide.webp` as first and last frame; a still-camera cinemagraph (mane, mist, light). |
+
+- Cost: 64 credits. Two MAGI-2 takes (40) and one Seedance 2.5 480p draft (24) for comparison; the first MAGI-2 take was used and the Seedance draft was not finalised.
+- **Processing here:** the last second is blended frame by frame into the first, so the loop has no seam (wrap SSIM 0.983 against 0.990 between ordinary frames). Scaled to 1920 px wide and encoded as H.264 (CRF 23, 1.9 MB) and VP9 (CRF 36, 0.6 MB). No audio.
+- Same terms note as above.
