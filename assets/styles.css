@@ -1431,3 +1431,16 @@
         mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='black' d='M32 6C18 6 9 18 9 33c0 9 3 17 7 25h9c-4-8-7-16-7-25 0-10 6-18 14-18s14 8 14 18c0 9-3 17-7 25h9c4-8 7-16 7-25C55 18 46 6 32 6z'/%3E%3Ccircle cx='17' cy='30' r='2.2' fill='black'/%3E%3Ccircle cx='47' cy='30' r='2.2' fill='black'/%3E%3Ccircle cx='19' cy='42' r='2.2' fill='black'/%3E%3Ccircle cx='45' cy='42' r='2.2' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
       }
       .track:has(> .empty-state) { background: linear-gradient(180deg, var(--ink-1), var(--ink-0)); }
+
+      /* screen changes: a short cross-fade of the content; masthead, banner and tabs do not move */
+      header.bar { view-transition-name: masthead; }
+      .tabs { view-transition-name: tabs; }
+      ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; animation-timing-function: var(--ease); }
+      ::view-transition-group(masthead), ::view-transition-group(tabs) { animation: none; }
+      .going.next { position: relative; }
+      .going-watch { position: absolute; top: 0.75rem; right: 0.8rem; }
+      @media (max-width: 620px) { .going-watch { position: static; margin: 0.2rem 0 0.4rem; } }
+
+      /* the 2026-11 plates are full-body side profiles: show the whole horse, never crop it */
+      .gportrait img { object-fit: contain; object-position: center 70%; padding: 0.2rem 0.3rem 0; }
+      .hv-portrait.coat-portrait img, img.hv-portrait { object-fit: contain; }

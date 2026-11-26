@@ -68,9 +68,95 @@ function load(src) {
   });
 }
 
+/**
+ * Where to paint markings on a full-body side-profile plate facing left (the 2026-11 set),
+ * read from its alpha mask alone: the front edge of the face from forehead to nose, the
+ * ground line, and the four legs just above the hooves. Pure, exported for tests.
+ */
+export function findAnchors(alpha, w, h) {
+  const solid = (x, y) => alpha[y * w + x] > 128;
+  const front = new Int32Array(h).fill(-1);
+  let top = -1, ground = -1;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) if (solid(x, y)) { front[y] = x; break; }
+    if (front[y] >= 0) { if (top < 0) top = y; ground = y; }
+  }
+  if (top < 0) return null;
+  // the nose is the front-most point of the upper half
+  let nose = top, noseX = w;
+  for (let y = top; y < top + (ground - top) * 0.5; y += 1) if (front[y] >= 0 && front[y] < noseX) { noseX = front[y]; nose = y; }
+  // legs: solid runs on a line a little above the hooves, left to right
+  const scan = Math.round(ground - (ground - top) * 0.06);
+  const legs = [];
+  let run = -1;
+  for (let x = 0; x <= w; x += 1) {
+    const on = x < w && solid(x, scan);
+    if (on && run < 0) run = x;
+    if (!on && run >= 0) { if (x - run > w * 0.006) legs.push({ x0: run, x1: x - 1, cx: (run + x - 1) / 2 }); run = -1; }
+  }
+  return { top, nose, noseX, ground, front, legs: legs.slice(0, 4) };
+}
+
+/** White face markings and socks, painted only over the horse (never the background). */
+function paintMarkings(ctx, w, h, appearance) {
+  const blaze = appearance.blaze ?? "plain";
+  const socks = appearance.sockLegs ?? [];
+  if (blaze === "plain" && !socks.length) return;
+  const a = ctx.getImageData(0, 0, w, h).data;
+  const alpha = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < alpha.length; i += 1) alpha[i] = a[i * 4 + 3];
+  const anchor = findAnchors(alpha, w, h);
+  if (!anchor) return;
+  const { top, nose, front, ground, legs } = anchor;
+  const head = nose - top;
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.filter = `blur(${Math.max(0.6, w / 900)}px)`;
+  ctx.fillStyle = "rgba(246, 243, 236, 0.94)";
+  if (blaze !== "plain" && head > 10) {
+    const band = { star: null, stripe: [0.34, 0.86, 0.008], blaze: [0.26, 0.99, 0.018] }[blaze];
+    if (blaze === "star" || band === null) {
+      const y = Math.round(top + head * 0.5); // the forehead, below the ears and poll
+      ctx.beginPath();
+      ctx.ellipse(front[y] + w * 0.009, y, w * 0.009, h * 0.016, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (band) {
+      const [from, to, width] = band;
+      ctx.beginPath();
+      const rows = [];
+      for (let y = Math.round(top + head * from); y <= Math.round(top + head * to); y += 1) if (front[y] >= 0) rows.push(y);
+      rows.forEach((y, i) => (i ? ctx.lineTo(front[y] - 1, y) : ctx.moveTo(front[y] - 1, y)));
+      for (let i = rows.length - 1; i >= 0; i -= 1) {
+        const y = rows[i];
+        // the band narrows toward the forehead and widens over the nose
+        const t = rows.length > 1 ? i / (rows.length - 1) : 1;
+        ctx.lineTo(front[y] + w * width * (0.55 + 0.6 * t), y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  // socks: white from just above the hoof up the cannon, per leg (1..4 → left to right)
+  const height = (ground - top);
+  for (const leg of socks) {
+    const L = legs[leg - 1];
+    if (!L) continue;
+    const y0 = Math.round(ground - height * 0.035), y1 = Math.round(ground - height * 0.13);
+    // white with a feathered top edge, as a real sock fades into the coat
+    const fade = ctx.createLinearGradient(0, y1, 0, y1 + (y0 - y1) * 0.35);
+    fade.addColorStop(0, "rgba(246, 243, 236, 0)");
+    fade.addColorStop(1, "rgba(246, 243, 236, 0.94)");
+    ctx.fillStyle = fade;
+    ctx.fillRect(L.x0 - w * 0.004, y1, (L.x1 - L.x0) + w * 0.008, y0 - y1);
+  }
+  ctx.restore();
+}
+
 /** Resolves to a data URL of the plate in this coat; rejects only if the plate cannot load. */
-export function coatPortrait(src, appearance, maxWidth = 360) {
-  const key = `${src}|${appearance.bodyColor}|${appearance.maneColor}`;
+export function coatPortrait(src, appearance, maxWidth = 640) {
+  // markings are drawn only on the 2026-11 plates; older plates have their own painted in
+  const marks = /plate-/.test(src);
+  const key = `${src}|${appearance.bodyColor}|${appearance.maneColor}|${marks ? `${appearance.blaze}|${(appearance.sockLegs ?? []).join("")}` : ""}`;
   if (!cache.has(key)) {
     cache.set(key, load(src).then((img) => {
       const scale = Math.min(1, maxWidth / img.naturalWidth);
@@ -84,6 +170,7 @@ export function coatPortrait(src, appearance, maxWidth = 360) {
       const frame = ctx.getImageData(0, 0, w, h);
       frame.data.set(remapPixels(frame.data, appearance.bodyColor, appearance.maneColor));
       ctx.putImageData(frame, 0, 0);
+      if (marks) paintMarkings(ctx, w, h, appearance);
       return canvas.toDataURL("image/webp", 0.9);
     }).catch((error) => {
       cache.delete(key);

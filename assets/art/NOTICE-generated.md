@@ -1,0 +1,10 @@
+# Generated artwork
+
+| Files | Source | Date | Model |
+|---|---|---|---|
+| `plate-l1.webp` … `plate-l8.webp`, `plate-foal.webp`, `plate-stallion.webp` | Higgsfield (owner's account), generated for this game | 2026-11-25 | GPT Image 2.6 via Higgsfield, quality high, 2K, transparent background |
+
+- **Brief and prompts:** `docs/art/BRIEF-HORSE-ART.md`. `plate-l1` was generated from the base prompt with a sprinter conformation line. The other nine used `plate-l1` as a style reference, with the lineage conformation lines from the brief.
+- **Processing here:** downscaled to 1024 × 680 and encoded as WebP (quality 0.82) with alpha; no other edits. In the game they are repainted per coat by `assets/coat-portrait.js`.
+- **Terms:** use is subject to Higgsfield's and the model provider's terms for the owner's plan. Confirm commercial use before any sale of the images themselves. The images are not NFT media.
+- **Other art:** older plates (`l1`–`l8`, `foal`, `stallion`, hero images) are unchanged and still used by the landing page and some scenes. The 3D model has its own licence (`assets/models/NOTICE.txt`).

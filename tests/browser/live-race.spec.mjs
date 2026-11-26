@@ -67,3 +67,33 @@ test('race sound has its own switch and never breaks the race', async ({ page })
   await expect(page.locator('.rs-result')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('the next race card opens the live race', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.goto('/index.html');
+  await page.locator('.tab[data-screen="goings"]').click();
+  const watch = page.locator('.going.next [data-live-race]');
+  await expect(watch).toHaveCount(1);
+  await watch.click();
+  await expect(page.locator('.race-stage canvas')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.race-stage')).toHaveCount(0);
+});
+
+test('screens still switch with view transitions available', async ({ page }) => {
+  await page.goto('/index.html');
+  for (const screen of ['racing', 'goings', 'yard']) {
+    await page.locator(`.tab[data-screen="${screen}"]`).click();
+    await expect(page.locator('body')).toHaveAttribute('data-screen', screen);
+    await expect(page.locator(`.tab[data-screen="${screen}"]`)).toHaveAttribute('aria-current', 'true');
+  }
+});
+
+test('rapid tab clicks never surface an error', async ({ page }) => {
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/index.html');
+  for (const screen of ['racing', 'goings', 'breeding', 'yard', 'racing', 'studs']) await page.locator(`.tab[data-screen="${screen}"]`).click({ delay: 0 });
+  await expect(page.locator('body')).toHaveAttribute('data-screen', 'studs');
+  await expect(page.locator('#status')).not.toHaveClass(/\bbad\b/);
+  expect(errors).toEqual([]);
+});

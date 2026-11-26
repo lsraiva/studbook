@@ -422,8 +422,21 @@ function screenFromHash() {
 let screen = screenFromHash();
 
 function showScreen(name) {
-  screen = SCREENS.includes(name) ? name : "yard";
-  document.body.dataset.screen = screen;
+  const next = SCREENS.includes(name) ? name : "yard";
+  const changing = document.body.dataset.screen && document.body.dataset.screen !== next;
+  screen = next;
+  // a short cross-fade between screens where the browser can do it; the masthead and tabs stay put
+  if (changing && !REDUCED_MOTION && typeof document.startViewTransition === "function") {
+    try {
+      const transition = document.startViewTransition(() => { document.body.dataset.screen = next; });
+      // a quick second click skips the first transition: that rejection is expected, not an error
+      for (const step of [transition.ready, transition.finished, transition.updateCallbackDone]) step?.catch?.(() => {});
+    } catch {
+      document.body.dataset.screen = next;
+    }
+  } else {
+    document.body.dataset.screen = next;
+  }
   if (location.hash.replace("#", "") !== screen) history.replaceState(null, "", `#${screen}`);
   for (const button of document.querySelectorAll(".tab")) {
     button.setAttribute("aria-current", String(button.dataset.screen === screen));
@@ -471,9 +484,11 @@ const COATS = {
 /** A code-drawn horse, coloured by lineage. Placeholder art pending credits. */
 function portraitOf(lineage, age) {
   // One plate per lineage: an animal you can recognise across the yard.
-  if (age !== null && age !== undefined && age <= 1) return "assets/art/foal.webp";
+  // The 2026-11 plates: full-body thoroughbreds, bay with black points and no white markings,
+  // on transparent ground, so the coat repaint is exact (docs/art/BRIEF-HORSE-ART.md).
+  if (age !== null && age !== undefined && age <= 1) return "assets/art/plate-foal.webp";
   const file = String(lineage ?? "").toLowerCase();
-  return /^l[1-8]$/.test(file) ? `assets/art/${file}.webp` : "assets/art/stallion.webp";
+  return /^l[1-8]$/.test(file) ? `assets/art/plate-${file}.webp` : "assets/art/plate-stallion.webp";
 }
 
 function horseArt(lineage, age = null) {
@@ -1215,6 +1230,15 @@ function renderGoings(v) {
     const head = document.createElement("h3");
     head.textContent = going.next ? `${going.label} · next up` : going.label;
     card.append(head);
+    if (going.next) {
+      // the next card is the one the live race runs on: watch it from here
+      const watch = document.createElement("button");
+      watch.type = "button";
+      watch.className = "tiny going-watch";
+      watch.dataset.liveRace = "";
+      watch.textContent = "Assistir à corrida ao vivo";
+      card.append(watch);
+    }
     // the immediate read: two chips that matter, one that does not, before any bar
     const chips = document.createElement("div");
     chips.className = "chips";
@@ -3770,3 +3794,7 @@ function translateMessage(message) {
 }
 
 el("live-race")?.addEventListener("click", openLiveRace);
+// the race card's own button is rebuilt on every draw, so it is reached by delegation
+document.addEventListener("click", (event) => {
+  if (event.target.closest?.("[data-live-race]")) openLiveRace();
+});
