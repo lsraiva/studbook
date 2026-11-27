@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.56.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.57.0";
 
 import {
   applyAction,
@@ -149,6 +149,9 @@ let resetSent = false;
  * still works even when nothing can be persisted.
  */
 const MEMORY_STORE = {};
+
+/** Whether this browser's player has opened a rideable race yet (the first-ride invitation). */
+const RODE_KEY = "studbook:rode";
 
 function readStore(key) {
   try {
@@ -1156,7 +1159,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.56.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.57.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -1174,6 +1177,8 @@ async function stageBirth(foal, v, fanfare) {
     coat: look?.labelPt ?? "",
     reducedMotion: REDUCED_MOTION,
     onSound: (moment) => { if (moment === "join") settle(); if (moment === "reveal") fanfare(); },
+    // naming at the height of the scene: the same action the result card's field sends
+    onName: foalHorse ? (chosen) => act({ type: "nameHorse", horseId: foal.id, name: chosen }) : null,
     onDone: () => el("reveal")?.querySelector(".card")?.focus(),
   });
 }
@@ -2913,7 +2918,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.56.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.57.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3081,6 +3086,24 @@ function renderNextStep(v) {
   text.className = "nextstep-text";
   text.textContent = step.text;
   box.append(text);
+  // The first ride. With a runner of their own in the field and no ride taken yet, the best
+  // next thing is the live race: it is free, changes nothing, and teaches what the orders do.
+  const rode = readStore(RODE_KEY) === "1";
+  const inField = (v.paddock ?? []).some((row) => row.mine);
+  if (!rode && inField && (v.season ?? 1) <= 2) {
+    const ride = document.createElement("div");
+    ride.className = "first-ride";
+    const copy = document.createElement("p");
+    copy.textContent = "Your horse is in the field. Ride the live race now: it is an exhibition, so nothing is at stake, and you learn what the orders do before the meeting that counts.";
+    const go = document.createElement("button");
+    go.type = "button";
+    go.className = "brass";
+    go.id = "first-ride-go";
+    go.textContent = "Ride the live race";
+    go.setAttribute("data-live-race", "");
+    ride.append(copy, go);
+    box.append(ride);
+  }
   // In a room the clock runs the meeting: the player gets a countdown, not a button.
   const clockRunsIt = Boolean(v.room) && step.action?.type === "advance";
   if (step.action && !clockRunsIt) {
@@ -4312,6 +4335,7 @@ async function openLiveRace() {
       onRideError: (error) => toast(translateMessage(error?.message ?? String(error)), true),
     });
     window.__studbookRace = { race, scene }; // inspection hook for tests and support
+    if (ride) { writeStore(RODE_KEY, "1"); draw(); } // the invitation has been taken up
     // start once the painted course and runners are ready; a failed load still runs the race
     scene.loaded.catch(() => {}).finally(() => { if (overlay.isConnected) scene.play(); });
     overlay.querySelector("button")?.focus();

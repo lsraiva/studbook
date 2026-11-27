@@ -615,10 +615,20 @@ function nextStepFor(state, stable, field) {
   const inFoal = new Set((state.foaling ?? []).map((row) => row.mareId));
   const mares = herd.filter((horse) => horse.sex === "F" && horse.foals < MARE_CAREER_FOALS && !inFoal.has(horse.id));
 
+  // The first thing a new yard does is the fun one: put its horse in the field. Entering costs
+  // nothing in season one, shows the odds, and lets the owner ride the exhibition at once.
+  const firstRunners = herd.filter((horse) => horse.age >= RACE_AGE).slice(0, 3);
+  if ((state.season ?? 1) === 1 && (state.meeting ?? 1) === 1 && !stable.entries.length && firstRunners.length) {
+    return {
+      key: "enter",
+      text: "Start here: enter your horse in the first meeting. It costs nothing this season, and once it is in the field you can ride the live race yourself.",
+      action: { type: "enter", horseIds: firstRunners.map((horse) => horse.id) },
+    };
+  }
   if (!straws.length && !stable.starterOfferTaken) {
     return {
       key: "covering",
-      text: "Start here: take the first covering. Twenty guineas, once per stable, and the cheapest you will ever buy.",
+      text: "Now the breeding: take the first covering. Twenty guineas, once per stable, and the cheapest you will ever buy.",
       action: { type: "takeStarterOffer" },
     };
   }
