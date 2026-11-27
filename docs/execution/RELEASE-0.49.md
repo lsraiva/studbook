@@ -1,6 +1,6 @@
 # Release 0.49.0 — Ranking podium, a straight field, the tack room drawn
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `523b7afe8f2e89493d1ff03be9dc9cd9c11c4625`. Pre-deploy backup `20261127T004812Z` (SHA256 `b6011036…af34`, matched on the machine), restore tested: 12 accounts, 404 horses, 0 problems.
 
 ## Changes
 
