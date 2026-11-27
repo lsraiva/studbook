@@ -4,7 +4,7 @@
  *
  *   node tests/p0.test.mjs
  */
-import { setup, viewFor, horseById, validateAction } from "../assets/engine.js";
+import { setup, viewFor, horseById, validateAction, runRound } from "../assets/engine.js";
 
 let bad = 0;
 const ok = (label, cond, extra = "") => {
@@ -29,6 +29,17 @@ ok("with no money the step still explains instead of going silent", step.key ===
 
 const offer = viewFor(setup(["p"], "p0:offer"), "p").horses[0];
 ok("every horse in the view carries the house's offer for the sell button", Number.isFinite(offer.houseOffer) && offer.houseOffer > 0, String(offer.houseOffer));
+
+// a room saved before stables had a tally (found on a real room, frozen since 2026-11-18)
+{
+  let old = setup(["p"], "p0:oldroom");
+  for (const stable of old.stables) delete stable.tally;
+  let threw = null;
+  try { old = runRound(old, ""); } catch (error) { threw = error; } // one meeting: tallies reset when the season turns
+  ok("a room whose stables have no tally still runs its meetings", threw === null && old.lastRace?.table?.length > 1, threw?.message ?? "");
+  const winner = old.stables.find((st) => st.id === old.lastRace.table[0].stableId);
+  ok("...and the winner's tally is created with the win", winner?.tally?.wins >= 1);
+}
 
 console.log(bad ? `\n${bad} p0 case(s) failed.` : "\np0 cases passed.");
 process.exit(bad ? 1 : 0);

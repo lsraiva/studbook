@@ -39,6 +39,7 @@ import {
   horseById,
   meta,
   runRound,
+  setRaceEngine,
   setup,
   stableOf,
   validateAction,
@@ -54,6 +55,9 @@ const RELEASE_SHA = /^[0-9a-f]{7,40}$/.test(process.env.STUDBOOK_RELEASE_SHA ?? 
 const dataDir = process.env.DATA_DIR ?? join(here, "data");
 const port = Number(process.env.PORT ?? 8787);
 const maintenanceMode = process.env.STUDBOOK_MAINTENANCE === "1";
+// F0-02: how official results are decided. Unset leaves every room as it is (legacy unless a room
+// was switched before); "causal" or "legacy" applies to every room from its next meeting on.
+const RACE_ENGINE = ["causal", "legacy"].includes(process.env.STUDBOOK_RACE_ENGINE) ? process.env.STUDBOOK_RACE_ENGINE : null;
 const origins = (process.env.ALLOWED_ORIGINS ?? "*").split(",").map((o) => o.trim());
 const ACTION_LIMIT = Number(process.env.ACTION_LIMIT ?? 40);
 const ACTION_WINDOW_MS = Number(process.env.ACTION_WINDOW_MS ?? 10_000);
@@ -1040,7 +1044,9 @@ async function tick() {
     let next;
     try {
       // runRound mutates what it is given: resolve a copy so a failed save leaves the room untouched.
-      next = { ...room, state: runRound(structuredClone(room.state), "The clock ran out —"), version: room.version + 1 };
+      const draft = structuredClone(room.state);
+      if (RACE_ENGINE) setRaceEngine(draft, RACE_ENGINE);
+      next = { ...room, state: runRound(draft, "The clock ran out —"), version: room.version + 1 };
       rearm(next);
     } catch (error) {
       console.error("turn failed for", room.id, error.message);

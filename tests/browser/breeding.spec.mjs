@@ -43,7 +43,16 @@ test('pick a covering, read the cross on the mare, cover her', async ({ page }) 
 
   await expect(mare.locator('button.brass')).toBeEnabled();
   await mare.locator('button.brass').click();
-  await expect(mare).toHaveClass(/in-foal/, { timeout: 10000 });
-  await expect(mare.locator('.mare-chips')).toContainText(/prenha|in foal/);
+  // the covering is spent either way; whether she catches is the game's own chance
+  const mine = async () => { const st = await saved(page); const me = st.stables.find((x) => x.player); return { straws: me.straws.length, inFoal: (st.foaling ?? []).some((row) => me.horses.includes(row.mareId)) }; };
+  await expect.poll(async () => (await mine()).straws, { timeout: 10000 }).toBe(0);
+  if ((await mine()).inFoal) {
+    await expect(mare).toHaveClass(/in-foal/, { timeout: 10000 });
+    await expect(mare.locator('.mare-chips')).toContainText(/prenha|in foal/);
+  } else {
+    // she did not catch: the card stays a mare to cover, with the button waiting for a covering
+    await expect(mare).not.toHaveClass(/in-foal/);
+    await expect(mare.locator('button.brass')).toBeDisabled();
+  }
   expect(errors).toEqual([]);
 });
