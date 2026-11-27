@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.60.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.61.0";
 
 import {
   applyAction,
@@ -1172,7 +1172,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.60.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.61.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -1911,7 +1911,9 @@ function renderPaddock(v) {
   wrap.innerHTML =
     `<div class="field-head"><h3>The field</h3><span class="count">${nf(rows.length)} declared</span>` +
     `<p>who runs, before the off: study the rival now, not at the finish line</p>` +
-    `<p class="field-odds-note">odds come from running this meeting many times with the rule that decides it; change an instruction and they move</p></div>` +
+    `<p class="field-odds-note">odds come from running this meeting many times with the rule that decides it; change an instruction and they move</p>` +
+    (v.oddsPending ? `<p class="field-odds-note pending" id="odds-pending">first odds: still being worked out, they sharpen in a few seconds</p>` : "") +
+    `</div>` +
     `<ol class="field-list">` +
     rows
       .map((row) => {
@@ -2557,7 +2559,7 @@ async function shareHorse(horse, { tier = null, born = false, button = null } = 
   const online = /^https?:$/.test(location.protocol) && !/^(localhost|127\.|\[::1\])/.test(location.host);
   if (button) button.disabled = true;
   try {
-    const { shareCard } = await import("./share-card.js?v=0.60.0");
+    const { shareCard } = await import("./share-card.js?v=0.61.0");
     const outcome = await shareCard({
       name: horse.name,
       src: portraitOf(horse.lineage, horse.age),
@@ -2593,7 +2595,7 @@ let recapSavedAt = 0;
 function recapTick(v) {
   if (!v || !v.stable) return;
   const key = `studbook:seen:${v.room?.id ?? "offline"}:${v.stable.id}`;
-  recapModule ??= import("./recap.js?v=0.60.0");
+  recapModule ??= import("./recap.js?v=0.61.0");
   recapModule.then(({ snapshotOf, computeRecap, showRecap }) => {
     const now = snapshotOf(v);
     if (!recapChecked) {
@@ -2748,6 +2750,21 @@ function renderFeats(v) {
   }
   const total = el("feats-count");
   if (total) total.textContent = `${nf(done)} / ${nf(feats.length)}`;
+}
+
+/**
+ * Causal odds arrive in instalments (see fieldOdds): while a view says its odds are pending, ask
+ * for the view again a moment later, and they sharpen. One timer at a time, and it stops by
+ * itself once they are whole or the page is hidden.
+ */
+let oddsTimer = 0;
+function refineOdds(v) {
+  if (!v?.oddsPending || oddsTimer || document.hidden) return;
+  oddsTimer = setTimeout(() => {
+    oddsTimer = 0;
+    // the same join the page opened with: it carries the player's id, which the offline room needs
+    try { send({ type: "join", playerId: playerId() }); } catch { /* the next draw will ask again */ }
+  }, 900);
 }
 
 function openHorse(horseId) {
@@ -3157,7 +3174,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.60.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.61.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3489,6 +3506,7 @@ function draw() {
   renderAlbum(v);
   renderFeats(v);
   recapTick(v);
+  refineOdds(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");

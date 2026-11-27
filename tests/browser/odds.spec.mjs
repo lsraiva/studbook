@@ -34,6 +34,12 @@ test('with the causal engine the same screen shows the causal race’s odds', as
   const engine = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith('studbook:standalone')); return JSON.parse(localStorage.getItem(k)).state.raceEngine; });
   expect(engine).toBe('causal');
   expect(await odds.count()).toBe(await page.locator('#paddock .runner').count());
+  // causal odds arrive in instalments: the note says so, the page asks again by itself, and
+  // within a few seconds they are whole and the note is gone
+  await expect(page.locator('#odds-pending')).toHaveCount(0, { timeout: 30000 });
+  const whole = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith('studbook:standalone')); return Boolean(k); });
+  expect(whole).toBe(true);
+  expect(await odds.count()).toBe(await page.locator('#paddock .runner').count());
   if (shots) await page.locator('#paddock').screenshot({ path: `${shots}/odds-causal.png` });
 });
 
