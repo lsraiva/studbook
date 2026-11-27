@@ -100,7 +100,14 @@ ok("the next-step card is on screen", Boolean(guide) && !guide.hidden, guide?.te
 ok("...and the season's four goals with it", /win a meeting/.test(guide?.textContent ?? "") && /cover a mare/.test(guide?.textContent ?? ""));
 const go = document.getElementById("nextstep-go");
 ok("...with a button that executes it", Boolean(go), go?.textContent);
+// the first step of a new yard is the fun one: its horse goes into the field (free in season one)
+ok("...the first step enters the horse in the first meeting", /enter your horse/i.test(guide?.textContent ?? ""), guide?.textContent?.slice(0, 60));
 go?.click();
+await wait(160);
+ok("...and the button entered it, at no cost", savedState().stables[0].entries.length === 1 && savedState().stables[0].guineas === 2000, JSON.stringify(savedState().stables[0].entries));
+ok("...with the horse in the field, the first ride is offered", Boolean(document.getElementById("first-ride-go")));
+// then the breeding: the same button now takes the first covering
+document.getElementById("nextstep-go")?.click();
 await wait(160);
 ok("...and the button bought the covering", savedState().stables[0].guineas === 1980, `${savedState().stables[0].guineas} GNS`);
 ok("...the card moved on to the next step", /cover|pick|select|enter/i.test(document.getElementById("nextstep")?.textContent ?? ""),

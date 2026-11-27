@@ -23,8 +23,13 @@ test('pick a covering, read the cross on the mare, cover her', async ({ page }) 
   await expect(page.locator('#mares').locator('xpath=ancestor::div[1]')).toBeHidden();
 
   // the account's first covering, then choose it
-  await page.getByRole('button', { name: /^(pegar|take)$/ }).first().click();
-  await expect.poll(async () => (await saved(page)).stables.find((s) => s.player).straws.length, { timeout: 10000 }).toBeGreaterThan(0);
+  // the guide's button: first it enters the horse (the new first step), then it takes the covering
+  const straws = async () => (await saved(page)).stables.find((s) => s.player).straws.length;
+  for (let i = 0; i < 3 && !(await straws()); i += 1) {
+    await page.locator('#nextstep-go').click();
+    await page.waitForTimeout(400);
+  }
+  expect(await straws()).toBeGreaterThan(0);
   await page.locator('#straws button', { hasText: /^(select|selecionar|escolher)/i }).first().click();
 
   const board = page.locator('.sireboard');

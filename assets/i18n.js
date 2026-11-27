@@ -299,6 +299,10 @@ const DICT = new Map(Object.entries({
   "above the field": "acima do campo",
   "near elite": "perto da elite",
   "nothing extra": "nada extra",
+  "Start here: enter your horse in the first meeting. It costs nothing this season, and once it is in the field you can ride the live race yourself.": "Comece aqui: inscreva seu cavalo na primeira reunião. Nesta temporada não custa nada, e com ele no campo você pode montar a corrida ao vivo.",
+  "Now the breeding: take the first covering. Twenty guineas, once per stable, and the cheapest you will ever buy.": "Agora a criação: pegue a primeira cobertura. Vinte guinéus, uma vez por estábulo, o menor preço que você verá.",
+  "Your horse is in the field. Ride the live race now: it is an exhibition, so nothing is at stake, and you learn what the orders do before the meeting that counts.": "Seu cavalo está no campo. Monte a corrida ao vivo agora: é uma exibição, não vale nada, e você aprende o que cada ordem faz antes da reunião que conta.",
+  "Ride the live race": "Montar a corrida ao vivo",
   "near certain": "quase certo",
   "under 1% to win": "menos de 1% de chance",
   "over 99% to win": "mais de 99% de chance",
@@ -474,6 +478,15 @@ const DICT = new Map(Object.entries({
 /* ---------- sentences the engine composes from parts ---------- */
 const STAGE = { yearling: "potro", racehorse: "cavalo de corrida", veteran: "veterano" };
 const TRAIT_PT = { speed: "velocidade", stamina: "resistência", "a turn of foot": "arranque", recovery: "recuperação", "a level head": "cabeça fria", soundness: "solidez" };
+const CAUSAL_CAUSE = {
+  "was outrun on the day": "foi superado no dia",
+  "did not finish": "não completou",
+  "stumbled once": "tropeçou uma vez",
+  "ran out of breath, and push spent it too early": "ficou sem fôlego, e atacar gastou cedo demais",
+  "ran out of breath before the line": "ficou sem fôlego antes da chegada",
+  "finished with breath to spare, and hold kept too much back": "chegou com fôlego sobrando, e poupar segurou demais",
+  "finished with breath to spare": "chegou com fôlego sobrando",
+};
 const BAND_PT = { stakes: "elite", "near elite": "perto da elite", "above the field": "acima do campo", "below the field": "abaixo do campo" };
 const SEX_PT = { colt: "macho", filly: "fêmea", mare: "égua" };
 const LUCK_PT = { "stakes class": "classe de elite", catch: "prenhez", foal: "potro", sale: "venda", covering: "cobertura" };
@@ -531,6 +544,20 @@ function lateGame(text) {
   }
   m = text.match(/^(?:(The clock ran out) — )?Meeting (\d+) of (\d+) is run\. Entries for meeting (\d+) are open — up to three runners\.$/);
   if (m) return `${m[1] ? "O relógio acabou — " : ""}Reunião ${m[2]} de ${m[3]} disputada. Inscrições abertas para a reunião ${m[4]} — até três corredores.`;
+  m = text.match(/^(.+) finished (\d+) of (\d+) in the (\w+), (?:([\d.]+) s behind|did not finish) — (.+)\.$/);
+  if (m) {
+    const c = m[6];
+    let why = CAUSAL_CAUSE[c] ?? c;
+    let k = c.match(/^stumbled (\d+) times$/);
+    if (k) why = `tropeçou ${k[1]} vezes`;
+    k = c.match(/^was boxed in for ([\d.]+) s$/);
+    if (k) why = `ficou encaixotado por ${k[1]} s`;
+    return `${m[1]} chegou em ${m[2]}º de ${m[3]} na ${cond(m[4])}, ${m[5] ? `${m[5]} s atrás` : "sem completar"} — ${why}.`;
+  }
+  m = text.match(/^From meeting (\d+) of season (\d+), official results are decided by the race itself\.$/);
+  if (m) return `A partir da reunião ${m[1]} da temporada ${m[2]}, os resultados oficiais são decididos pela própria corrida: ritmo, fôlego, tráfego e a forma do dia.`;
+  m = text.match(/^From meeting (\d+) of season (\d+), official results are decided by the form score again\.$/);
+  if (m) return `A partir da reunião ${m[1]} da temporada ${m[2]}, os resultados oficiais voltam a ser decididos pela nota de forma.`;
   m = text.match(/^(.+) finished (\d+) of (\d+) in the (\w+), ([\d.]+) behind — lost it on ([a-z -]+?)(?:, and (push|steady|hold) was the wrong instruction for a (\w+))?\.$/);
   if (m) return `${m[1]} chegou em ${m[2]}º de ${m[3]} na ${cond(m[4])}, ${m[5]} atrás — perdeu em ${LOST_ON[m[6]] ?? m[6]}${m[7] ? `, e ${TACTIC_PT[m[7]]} foi a instrução errada para ${cond(m[8])}` : ""}.`;
   m = text.match(/^(\w+) meeting: (.+) wins a pot of ([\d,.]+) GNS from (\d+) runners\.$/);

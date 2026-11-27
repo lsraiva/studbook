@@ -1978,3 +1978,19 @@
       @media (max-width: 620px) {
         .runner-odds { grid-column: 2; grid-row: 2; align-self: start; }
       }
+
+      /* ================================================================
+         First session: the first ride, and naming the foal in the birth scene
+         ================================================================ */
+      .first-ride { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; margin-top: 0.6rem; padding: 0.7rem 0.85rem; border: 1px solid var(--brass); border-radius: 0.8rem; background: linear-gradient(120deg, rgba(217, 169, 78, 0.16), rgba(217, 169, 78, 0.04)); }
+      .first-ride p { margin: 0; flex: 1 1 16rem; font-size: 0.9rem; color: var(--cream); }
+      .first-ride button { min-height: 44px; padding-inline: 1.2rem; }
+      body:not([data-screen="yard"]) #nextstep .first-ride { display: flex; flex: 1 1 100%; margin-top: 0; padding: 0.4rem 0.7rem; }
+      body:not([data-screen="yard"]) #nextstep .first-ride p { display: none; }
+      .birth-naming { display: flex; flex-wrap: wrap; align-items: end; justify-content: center; gap: 0.4rem 0.5rem; margin-top: 0.7rem; opacity: 0; transition: opacity 500ms var(--ease) 900ms; }
+      .birth-stage.revealed .birth-naming { opacity: 1; }
+      .birth-naming label { display: grid; gap: 0.2rem; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass); text-align: left; }
+      .birth-naming input { width: min(15rem, 62vw); min-height: 40px; padding: 0.3rem 0.6rem; border-radius: 0.5rem; border: 1px solid var(--brass-deep); background: var(--veil); color: var(--cream); font: 400 1.05rem/1.2 var(--font-display); text-transform: none; letter-spacing: 0; }
+      .birth-naming button { min-height: 40px; }
+      .birth-named { flex: 1 1 100%; min-height: 1.1em; font-size: 0.78rem; color: var(--brass); }
+      .birth-naming.done label, .birth-naming.done button { display: none; }

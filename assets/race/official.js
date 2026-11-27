@@ -73,9 +73,20 @@ export function officialRace({ runners, condition, seed, params = RACE_PARAMS })
   const times = {};
   for (const runner of sorted) times[runner.id] = null;
   for (const placing of result.placings) times[idOf.get(placing.key)] = placing.time;
+  // what happened to each runner, as the race itself counted it: the facts a loss is explained by
+  const stats = {};
+  for (const placing of result.placings) {
+    stats[idOf.get(placing.key)] = {
+      energyLeft: placing.energyLeft,
+      boxedSeconds: placing.boxedSeconds,
+      stumbles: placing.stumbles,
+      kicks: placing.kicks,
+    };
+  }
   return {
     order: result.placings.map((placing) => idOf.get(placing.key)),
     times,
+    stats,
     dnf: result.dnf.map((key) => idOf.get(key)),
     record: {
       engine: ENGINE_VERSION,

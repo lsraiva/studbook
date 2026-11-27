@@ -12,6 +12,9 @@ primary_region = 'gru'
 [env]
   DATA_DIR = '/data'
   PORT = '8080'
+  # F0-02: official results are decided by the causal race. To go back, set 'legacy' and deploy:
+  # removing the line does NOT switch rooms back, because each room remembers its engine.
+  STUDBOOK_RACE_ENGINE = 'causal'
 
 [[mounts]]
   source = 'studbook_data'

@@ -54,6 +54,37 @@ export function playBirth(o) {
   const meta = el("p", "birth-meta", o.coat);
   const stamp = el("span", "birth-stamp", o.tier);
   foalFig.append(foalPic.img, stamp, name, meta);
+  // The naming, at the height of the moment. The foal arrives with a studbook name; the owner
+  // may keep it or give their own (2 to 24 characters, the game's own rule).
+  let naming = null;
+  if (typeof o.onName === "function") {
+    naming = el("form", "birth-naming");
+    const label = el("label", "", "Batize o potro");
+    const input = el("input");
+    input.type = "text";
+    input.maxLength = 24;
+    input.value = o.foal.name;
+    input.setAttribute("aria-label", "Nome do potro");
+    input.autocomplete = "off";
+    label.append(input);
+    const keep = el("button", "tiny", "Batizar");
+    keep.type = "submit";
+    const said = el("span", "birth-named");
+    said.setAttribute("role", "status");
+    naming.append(label, keep, said);
+    naming.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const chosen = input.value.trim().replace(/\s+/g, " ");
+      if (chosen.length < 2 || chosen.length > 24) { said.textContent = "O nome tem de 2 a 24 caracteres."; return; }
+      if (chosen !== name.textContent) o.onName(chosen);
+      name.textContent = chosen;
+      stage.setAttribute("aria-label", `Nasce ${chosen}`);
+      said.textContent = "Batizado!";
+      naming.classList.add("done");
+      go.focus();
+    });
+    foalFig.append(naming);
+  }
   row.append(dam.fig, foalFig, sire.fig);
   const actions = el("div", "birth-actions");
   const go = el("button", "brass", "Conhecer o potro");
