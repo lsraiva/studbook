@@ -1,6 +1,6 @@
 # Release 0.51.0 — the attractiveness report's P0 fixes
 
-State: **in review**, not deployed. Source: the P2E/Web3 attractiveness framework (Studbook re-evaluated at 0.49.0, 43/100), "Próximos passos priorizados", P0.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `8ba13b16e72961b1608315e54b0fa71d348f1d21`. Pre-deploy backup `20261127T014802Z` (SHA256 `511b3293…f65b`, matched on the machine), restore tested: 13 accounts, 432 horses, 0 problems. Verified: public health shows only ok/version/maintenance; on the machine it still reports accounts and revision; `/termos` answers the styled 404. Source: the P2E/Web3 attractiveness framework (Studbook re-evaluated at 0.49.0, 43/100), "Próximos passos priorizados", P0.
 
 ## Fixed
 
