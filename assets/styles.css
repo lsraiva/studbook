@@ -1829,3 +1829,58 @@
       /* the tokens section opens on what it is: a simulation */
       .sim-banner { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.7rem; padding: 0.5rem 0.75rem; border: 1px dashed var(--brass-deep); border-radius: 0.6rem; background: var(--veil); font-size: 0.82rem; color: var(--muted); }
       .sim-banner b { flex: 0 0 auto; padding: 0.15rem 0.5rem; border: 2px solid var(--brass); border-radius: 0.3rem; color: var(--brass); font-size: 0.7rem; letter-spacing: 0.16em; transform: rotate(-4deg); }
+
+      /* ================================================================
+         One guidance block, on the Yard only (report P1: it repeated on every tab)
+         ================================================================ */
+      /* the road map, the advice line and the loading status belong to the yard */
+      body:not([data-screen="yard"]) .spine,
+      body:not([data-screen="yard"]) #advice,
+      body:not([data-screen="yard"]) #status:not(.bad) { display: none; }
+      /* elsewhere the next step is one compact line: what to do, and the button that does it */
+      body:not([data-screen="yard"]) #nextstep {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem 0.8rem;
+        padding: 0.45rem 0.8rem;
+        margin-bottom: 0.6rem;
+      }
+      body:not([data-screen="yard"]) #nextstep[hidden] { display: none; }
+      body:not([data-screen="yard"]) #nextstep .nextstep-text { margin: 0; font-size: 0.86rem; flex: 1 1 18rem; }
+      body:not([data-screen="yard"]) #nextstep #nextstep-go { min-height: 34px; padding: 0.3rem 0.9rem; font-size: 0.82rem; }
+      body:not([data-screen="yard"]) #nextstep .goals,
+      body:not([data-screen="yard"]) #nextstep .row,
+      body:not([data-screen="yard"]) #nextstep .hint { display: none; }
+
+      /* the meeting clock, readable at a glance */
+      .roomline .countdown {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        margin-left: 0.2rem;
+        padding: 0.1rem 0.55rem 0.1rem 0.45rem;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-pill);
+        background: var(--veil);
+        color: var(--cream);
+        font: 600 0.82rem/1.3 var(--font-num, inherit);
+        font-variant-numeric: tabular-nums;
+      }
+      .roomline .countdown::before {
+        content: "";
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+        border: 1.5px solid currentColor;
+        background: linear-gradient(currentColor, currentColor) 50% 25% / 1.5px 35% no-repeat;
+      }
+      .roomline .countdown.soon { border-color: var(--brass); color: var(--brass); box-shadow: 0 0 10px rgba(217, 169, 78, 0.35); }
+      .roomline .countdown.urgent { border-color: var(--bad-line); color: var(--bad-fg); background: var(--bad-bg); animation: clock-pulse 1s ease-in-out infinite; }
+      @keyframes clock-pulse { 50% { box-shadow: 0 0 0 4px rgba(220, 110, 100, 0.25); } }
+      @media (prefers-reduced-motion: reduce) { .roomline .countdown.urgent { animation: none; } }
+      /* the result card can always be closed from the top */
+      #reveal .card { position: relative; }
+      .reveal-close { all: unset; position: absolute; top: 0.5rem; right: 0.6rem; z-index: 3; width: 2.2rem; height: 2.2rem; display: grid; place-items: center; border-radius: 50%; cursor: pointer; font-size: 1.4rem; line-height: 1; color: var(--cream); background: var(--veil); border: 1px solid var(--line-strong); }
+      .reveal-close:hover, .reveal-close:focus-visible { border-color: var(--brass); color: var(--brass); }
+      #reveal .scene img { object-fit: contain; }

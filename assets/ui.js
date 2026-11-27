@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.51.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.52.0";
 
 import {
   applyAction,
@@ -894,15 +894,26 @@ function openReveal(foal, v, progress) {
   const tierIndex = event === "born" ? Math.max(0, TIERS.indexOf(foal.tier)) : -1;
   const card = document.createElement("div");
   card.className = "card";
+  // a way out at the top: on a phone the card is long, and its own button sits at the bottom
+  const shut = document.createElement("button");
+  shut.type = "button";
+  shut.className = "reveal-close";
+  shut.setAttribute("aria-label", "close");
+  shut.textContent = "×";
+  shut.addEventListener("click", () => closeReveal());
+  card.append(shut);
 
   // A birth is the one moment the game can afford to be theatrical about.
   if (event === "born") {
     const scene = document.createElement("div");
     scene.className = "scene";
     const portrait = document.createElement("img");
-    portrait.src = "assets/art/foal.webp";
     portrait.alt = "";
     portrait.decoding = "async";
+    // the foal itself, in its own coat and markings, as the birth scene just showed it
+    const born = (v?.horses ?? []).find((horse) => horse.id === foal.id);
+    if (born) paintCoat(portrait, portraitOf(born.lineage, born.age ?? 0), appearanceFor(born));
+    else portrait.src = "assets/art/plate-foal.webp";
     const tag = document.createElement("span");
     tag.className = "scene-tag";
     tag.textContent = "first look";
@@ -1141,7 +1152,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.51.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.52.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2166,12 +2177,27 @@ function renderWorldMarket() {
     box.append(hint);
     return;
   }
-  for (const lot of worldLots.slice(0, 24)) {
+  // the same lot many times over (a room listing five doses of one stallion at one price) is one
+  // card with a count, as in the local catalogue
+  const grouped = new Map();
+  for (const lot of worldLots) {
+    const key = [lot.kind, lot.horseName, lot.roomId, lot.sellerName, lot.price].join("|");
+    const entry = grouped.get(key);
+    if (entry) entry.count += 1;
+    else grouped.set(key, { lot, count: 1 });
+  }
+  for (const { lot, count } of [...grouped.values()].slice(0, 24)) {
     const card = document.createElement("div");
     card.className = "lot";
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = lot.horseName;
+    if (count > 1) {
+      const badge = document.createElement("span");
+      badge.className = "tag";
+      badge.textContent = `${nf(count)} doses`;
+      name.append(" ", badge);
+    }
     const meta = document.createElement("div");
     meta.className = "kv";
     meta.innerHTML = `<span>${esc(lot.kind)} · room ${esc(lot.roomCode)} · ${esc(lot.sellerName)}</span><b>₲ ${nf(lot.price)}</b>`;
@@ -2865,7 +2891,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.51.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.52.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3008,11 +3034,16 @@ function remaining(closesAt) {
   return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-setInterval(() => {
+/** The meeting clock: brass in the last minute, a red pulse in the last fifteen seconds. */
+function tickCountdowns() {
   for (const node of document.querySelectorAll(".countdown")) {
+    const left = Number(node.dataset.closes) - Date.now();
     node.textContent = remaining(node.dataset.closes);
+    node.classList.toggle("soon", left <= 60_000 && left > 15_000);
+    node.classList.toggle("urgent", left <= 15_000);
   }
-}, 1000);
+}
+setInterval(tickCountdowns, 1000);
 
 function renderNextStep(v) {
   const box = el("nextstep");
@@ -3044,7 +3075,7 @@ function renderNextStep(v) {
     line.className = "roomline";
     line.innerHTML =
       `<b>room ${esc(v.room.code)}</b> · ${nf(v.room.seats)} seat${v.room.seats === 1 ? "" : "s"} · ` +
-      `meeting ${nf(v.room.meeting)} closes in <span class="countdown" data-closes="${v.room.closesAt}">${remaining(v.room.closesAt)}</span>`;
+      `meeting ${nf(v.room.meeting)} closes in <span class="countdown" data-closes="${v.room.closesAt}" role="timer">${remaining(v.room.closesAt)}</span>`;
     box.append(line);
     if (v.room.seats === 1) {
       const row = document.createElement("div");
@@ -3965,6 +3996,7 @@ function accountGate(base, message = "") {
     `A demonstração offline fica somente neste navegador.</p>` +
     `<label>email<input name="email" type="email" autocomplete="email" required /></label>` +
     `<label>password<input name="password" type="password" minlength="8" autocomplete="current-password" required /></label>` +
+    `<label class="gate-stable">stable name <small>(to create a stable · optional)</small><input name="stable" type="text" maxlength="24" autocomplete="organization" /></label>` +
     `<p class="gate-error" role="alert">${esc(message)}</p>` +
     `<div class="row"><button class="good" name="login" type="submit">Entrar</button>` +
     `<button name="register" type="button">Criar estábulo</button>` +
@@ -3986,8 +4018,18 @@ function accountGate(base, message = "") {
     const buttons = [...card.querySelectorAll("button")];
     buttons.forEach((b) => (b.disabled = true));
     try {
+      const stable = (card.querySelector('[name="stable"]')?.value ?? "").trim().replace(/\s+/g, " ");
+      if (path === "/api/register" && stable && (stable.length < 2 || stable.length > 24)) {
+        say("a stable name is 2 to 24 characters");
+        buttons.forEach((b) => (b.disabled = false));
+        return;
+      }
       const out = await apiCall(base, path, { method: "POST", body: { email, password } });
       tokenStore.set(out.token);
+      // a new stable starts with the name its owner chose, instead of finding the field later
+      if (path === "/api/register" && stable) {
+        await apiCall(base, "/api/action", { method: "POST", token: out.token, body: { action: { type: "nameStable", name: stable } } }).catch(() => {});
+      }
       gate.remove();
       mountWho(out.user);
       connect(() => new CloudSocket(base, out.token));
