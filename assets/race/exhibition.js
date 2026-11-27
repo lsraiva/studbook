@@ -8,7 +8,7 @@
  */
 import { horseById, traitsOf, RACE_AGE, CONDITION_LABELS } from "../engine.js";
 import { appearanceFor } from "../phenotype.js";
-import { runRace, BOTS, ENGINE_VERSION, PARAMS_V1 } from "./causal.js";
+import { runRace, BOTS, ENGINE_VERSION, RACE_PARAMS } from "./causal.js";
 import { bendsFor } from "./track.js";
 import { COURSE_FOR, STYLE_FOR } from "./official.js";
 
@@ -105,17 +105,17 @@ export function runExhibition(prep, { ride = null } = {}) {
     const auto = policies[rider.key];
     policies[rider.key] = (view) => (view.tick >= handover ? null : auto(view));
   }
-  const result = runRace(prep.spec, { policies, inputs });
+  const result = runRace(prep.spec, { policies, inputs, params: RACE_PARAMS });
   const out = {
     kind: "exhibition",
     engine: ENGINE_VERSION,
-    params: PARAMS_V1.version,
+    params: RACE_PARAMS.version,
     condition: prep.condition,
     label: prep.label,
     distance: prep.spec.distance,
     going: prep.spec.going,
-    tickHz: PARAMS_V1.tickHz,
-    snapshotEvery: PARAMS_V1.snapshotEvery,
+    tickHz: RACE_PARAMS.tickHz,
+    snapshotEvery: RACE_PARAMS.snapshotEvery,
     runners: prep.cards,
     // positions only; the ridden horse alone also carries its energy, which its rider would feel
     frames: result.frames.map((frame) => ({
@@ -131,8 +131,8 @@ export function runExhibition(prep, { ride = null } = {}) {
       key: rider.key,
       // what became of each order: taken, or refused and why (cooldown, empty, blocked, rail)
       receipts: result.receipts.filter((row) => row.key === rider.key && !row.bot).map((row) => ({ tick: row.tick, order: row.order, ok: row.ok, reason: row.reason ?? null })),
-      cooldowns: { hold: PARAMS_V1.orders.hold.cooldown, push: PARAMS_V1.orders.push.cooldown, kick: PARAMS_V1.orders.kick.cooldown, lane: PARAMS_V1.laneChangeCooldown },
-      kickMinEnergy: PARAMS_V1.orders.kick.minEnergy,
+      cooldowns: { hold: RACE_PARAMS.orders.hold.cooldown, push: RACE_PARAMS.orders.push.cooldown, kick: RACE_PARAMS.orders.kick.cooldown, lane: RACE_PARAMS.laneChangeCooldown },
+      kickMinEnergy: RACE_PARAMS.orders.kick.minEnergy,
     };
   }
   return out;

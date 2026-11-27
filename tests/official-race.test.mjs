@@ -84,5 +84,17 @@ ok("another room gives another race", play("causal-2").lastRace.official.seed !=
   ok("every going has a course", ["sprint", "flying", "mile", "classic", "yielding", "heavy", "staying"].every((k) => COURSE_FOR[k]));
 }
 
+/* ---------- params/2: form on the day ---------- */
+{
+  const { PARAMS_V1, PARAMS_V2, RACE_PARAMS, runRace } = await import("../assets/race/causal.js");
+  ok("new races run on params/2, and the result says so", RACE_PARAMS === PARAMS_V2 && race.official.params === "params/2");
+  ok("params/2 is params/1 plus form on the day, nothing else", Object.keys(PARAMS_V2).filter((k) => PARAMS_V2[k] !== PARAMS_V1[k]).sort().join() === "formSpread,version");
+  const spec = { distance: 1600, going: "good", seed: "0123456789abcdef0123456789abcdef", runners: Array.from({ length: 6 }, (_, i) => ({ key: `k${i}`, traits: { speed: 6, stamina: 6, accel: 6, recovery: 6, temperament: i * 2, soundness: 6 } })) };
+  const v1 = runRace(spec, { params: PARAMS_V1 });
+  ok("a params/1 race still replays exactly (no form is drawn)", runRace(spec).hash === v1.hash);
+  const v2 = runRace(spec, { params: PARAMS_V2 });
+  ok("form on the day changes a race, and replays exactly from its seed", v2.hash !== v1.hash && runRace(spec, { params: PARAMS_V2 }).hash === v2.hash);
+}
+
 console.log(bad ? `\n${bad} official-race case(s) failed.` : "\nofficial-race cases passed.");
 process.exit(bad ? 1 : 0);

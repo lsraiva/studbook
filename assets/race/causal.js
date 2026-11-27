@@ -74,6 +74,17 @@ export const PARAMS_V1 = Object.freeze({
   snapshotEvery: 5, // ticks between replay frames (4 per second)
 });
 
+/**
+ * params/2 (2026-11-27): params/1 plus form on the day. Calibrated with the odds as the metric
+ * (docs/execution/RELEASE-0.55.md): on fields from simulated games the favourite's chance falls
+ * from 58% to about 45%, no field has a 90% favourite, and the best horse by breeding is still
+ * the favourite in 80% of fields. Nothing else changes, so breeding keeps its full effect.
+ */
+export const PARAMS_V2 = Object.freeze({ ...PARAMS_V1, version: "params/2", formSpread: 0.035 });
+
+/** The params new races run on. A result records its params version, so old ones replay. */
+export const RACE_PARAMS = PARAMS_V2;
+
 const TRAIT_MAX = 12;
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
@@ -154,12 +165,16 @@ export function createRace(spec, params = PARAMS_V1) {
     const t = {};
     for (const name of ["speed", "stamina", "accel", "recovery", "temperament", "soundness"]) t[name] = clamp01(Number(r.traits?.[name] ?? 0) / TRAIT_MAX);
     const delayTicks = Math.floor((rng() * params.startDelayMax * (1 - 0.8 * t.temperament)) / tick);
+    // Form on the day (params/2+): a horse is a little better or worse than its breeding each
+    // time it runs, seeded like everything else. A steadier temperament varies less. With
+    // formSpread 0 (params/1) no number is drawn, so older races replay exactly.
+    const form = params.formSpread ? 1 + (rng() * 2 - 1) * params.formSpread * (1 - 0.5 * t.temperament) : 1;
     return {
-      key: r.key, order: rank(r.key), t,
-      top: params.topSpeedBase + params.topSpeedGain * t.speed,
+      key: r.key, order: rank(r.key), t, form,
+      top: (params.topSpeedBase + params.topSpeedGain * t.speed) * form,
       accel: params.accelBase + params.accelGain * t.accel,
       reserve: params.reserveBase + params.reserveGain * t.speed,
-      aerobic: params.aerobicBase + params.aerobicGain * t.stamina,
+      aerobic: (params.aerobicBase + params.aerobicGain * t.stamina) * form,
       x: 0, v: 0, energy: 1, lane: gates[i], targetLane: gates[i], gate: gates[i],
       startTick: delayTicks, tactic: "push", cooldownUntil: 0, laneCooldownUntil: 0,
       boxedTicks: 0, stumbles: 0, finishTime: null, kicks: 0,

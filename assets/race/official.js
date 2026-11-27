@@ -10,7 +10,7 @@
  *
  * Pure module: no DOM, no game-engine import (the game engine imports this).
  */
-import { runRace, BOTS, ENGINE_VERSION, PARAMS_V1 } from "./causal.js";
+import { runRace, BOTS, ENGINE_VERSION, RACE_PARAMS } from "./causal.js";
 import { bendsFor } from "./track.js";
 
 /** Each going as a racecourse: distance and ground. */
@@ -48,7 +48,7 @@ export function seedFrom(draw) {
  *  - seed: 128-bit hex
  * @returns {{ order: string[], times: Record<string, number|null>, dnf: string[], record: object }}
  */
-export function officialRace({ runners, condition, seed, params = PARAMS_V1 }) {
+export function officialRace({ runners, condition, seed, params = RACE_PARAMS }) {
   if (!Array.isArray(runners) || runners.length < MIN_RUNNERS || runners.length > MAX_RUNNERS) {
     throw new Error(`the causal engine runs ${MIN_RUNNERS}–${MAX_RUNNERS} runners`);
   }

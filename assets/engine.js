@@ -1149,7 +1149,7 @@ function setCondition(state) {
  */
 const ODDS_SIMS = { legacy: 400, causal: 24 };
 const oddsMemo = new Map();
-function fieldOdds(state) {
+function fieldOdds(state, { params = null, sims: simsOverride = null } = {}) {
   const condition = conditionFor(state.season ?? 1, state.meeting ?? 1);
   const entrants = [];
   for (const stable of state.stables ?? []) {
@@ -1166,11 +1166,11 @@ function fieldOdds(state) {
   const signature =
     `${engine}|${condition}|` +
     entrants.map((entry, i) => `${entry.horse.id}:${entry.tactic}:${Object.values(traits[i]).join(",")}`).join("|");
-  const known = oddsMemo.get(signature);
+  const known = params || simsOverride ? null : oddsMemo.get(signature);
   if (known) return known;
 
   const n = entrants.length;
-  const sims = ODDS_SIMS[engine];
+  const sims = simsOverride ?? ODDS_SIMS[engine];
   // finishes[i][place] = how often runner i took that place
   const finishes = entrants.map(() => new Array(n).fill(0));
   let seed = seedFrom(`odds:${signature}`);
@@ -1179,7 +1179,7 @@ function fieldOdds(state) {
     const runners = entrants.map((entry, i) => ({ id: entry.horse.id, traits: traits[i], tactic: entry.tactic }));
     const indexOf = new Map(entrants.map((entry, i) => [entry.horse.id, i]));
     for (let k = 0; k < sims; k += 1) {
-      const result = officialRace({ condition, seed: raceSeedFrom(draw), runners });
+      const result = officialRace({ condition, seed: raceSeedFrom(draw), runners, ...(params ? { params } : {}) });
       result.order.forEach((id, place) => { finishes[indexOf.get(id)][place] += 1; });
       result.dnf.forEach((id, j) => { finishes[indexOf.get(id)][Math.min(n - 1, result.order.length + j)] += 1; });
     }
@@ -1212,6 +1212,7 @@ function fieldOdds(state) {
     };
   });
   const out = { engine, sims, rows };
+  if (params || simsOverride) return out; // an experiment: not the room's odds, never cached
   if (oddsMemo.size > 200) oddsMemo.clear();
   oddsMemo.set(signature, out);
   return out;
