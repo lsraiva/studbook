@@ -2173,7 +2173,9 @@ function runMeeting(state) {
       }
       if (index === 0) {
         horse.wins += 1;
-        if (stable) stable.tally.wins = (stable.tally?.wins ?? 0) + 1;
+        // rooms older than the season goals have stables with no tally: without this a win threw,
+        // and such a room could never run a meeting again
+        if (stable) stable.tally = { wins: 0, bred: 0, sold: 0, ...(stable.tally ?? {}), wins: (stable.tally?.wins ?? 0) + 1 };
         if (horse.stakes) horse.stakesWins += 1;
         if (stable && !stable.firsts.win) {
           stable.firsts.win = { season: state.season, meeting: state.meeting ?? 1, where: condition, horse: horse.name };

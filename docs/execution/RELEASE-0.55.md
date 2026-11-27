@@ -35,6 +35,14 @@ Measured on 40 fields per rule (five simulated games, eight meetings each):
 - **On those later-season fields the favourite averages 45%.** The 52% above includes opening fields, where one stakes-class horse stands far above a new yard's runners.
 - New races (official in causal rooms, the exhibition, the ride and the odds) run on params/2; every result records its params version.
 
+## A frozen room, found by the pre-deploy probe
+
+Before deploying, the new code was run against a restored copy of production: every player's view, then eight more meetings per room on a copy.
+
+- **Bug found (older than this release):** one room saved before the season goals existed has stables with no `tally`. `runMeeting` did `stable.tally.wins = …`, which threw when such a stable won, so that room's meeting failed on every clock tick. It has stood at season 1, meeting 4 since 2026-11-18.
+- **Fix:** the tally is created when missing. No data is rewritten on deploy; the room simply runs its next meeting.
+- **Probe result with the fix:** 12 rooms, 108 views, 108 meetings, no error; the slowest view took 7 ms; every room decides by the legacy rule.
+
 ## Tests
 
 - `tests/odds.test.mjs`, 13 checks:
