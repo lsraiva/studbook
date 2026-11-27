@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.52.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.53.0";
 
 import {
   applyAction,
@@ -1152,7 +1152,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.52.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.53.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2891,7 +2891,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.52.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.53.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -4233,17 +4233,28 @@ function randomSeed() {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * The exhibition and, when one of the player's own runners is in it, the way to ride it:
+ * `send(inputs)` re-runs the same race with the rider's orders. Online that is the server (the
+ * traits never leave it); offline it is this browser, which already owns the save.
+ */
 async function loadExhibition() {
   if (CLOUD()) {
     const out = await cloudApi("/api/race/exhibition", { token: tokenStore.get() });
-    return out.race;
+    const race = out.race;
+    const key = race.runners.find((row) => row.mine)?.key ?? null;
+    const send = (inputs) =>
+      cloudApi("/api/race/ride", { method: "POST", token: tokenStore.get(), body: { session: race.session, key, inputs } }).then((answer) => answer.race);
+    return { race, ride: key ? { key, send } : null };
   }
-  const { exhibitionRace } = await import("./race/exhibition.js");
+  const { prepareExhibition, runExhibition } = await import("./race/exhibition.js");
   const state = socket?.game?.state;
   if (!state) throw new Error("the stable is still loading");
-  const race = exhibitionRace(state, { seed: randomSeed() });
-  if (!race) throw new Error("declare at least two runners first");
-  return race;
+  const prep = prepareExhibition(state, { seed: randomSeed() });
+  if (!prep) throw new Error("declare at least two runners first");
+  const race = runExhibition(prep);
+  const key = race.runners.find((row) => row.mine)?.key ?? null;
+  return { race, ride: key ? { key, send: async (inputs) => runExhibition(prep, { ride: { key, inputs } }) } : null };
 }
 
 async function openLiveRace() {
@@ -4251,7 +4262,7 @@ async function openLiveRace() {
   if (button) button.disabled = true;
   try {
     // the broadcast camera (side view) is the default; the aerial view remains as its base class
-    const [race, { SideRaceScene }] = await Promise.all([loadExhibition(), import("./race/side-scene.js")]);
+    const [{ race, ride }, { SideRaceScene }] = await Promise.all([loadExhibition(), import("./race/side-scene.js")]);
     document.querySelectorAll(".race-stage").forEach((node) => node.remove());
     const overlay = document.createElement("div");
     overlay.className = "race-stage";
@@ -4271,7 +4282,13 @@ async function openLiveRace() {
     };
     const onKey = (event) => { if (event.key === "Escape") scene.close(); };
     document.addEventListener("keydown", onKey);
-    const scene = new SideRaceScene(host, race, { reducedMotion: REDUCED_MOTION, sound: soundOn, onClose: close });
+    const scene = new SideRaceScene(host, race, {
+      reducedMotion: REDUCED_MOTION,
+      sound: soundOn,
+      onClose: close,
+      ride, // your own runner takes your orders: A poupar, S ritmo, D arrancar, ← → raias
+      onRideError: (error) => toast(translateMessage(error?.message ?? String(error)), true),
+    });
     window.__studbookRace = { race, scene }; // inspection hook for tests and support
     // start once the painted course and runners are ready; a failed load still runs the race
     scene.loaded.catch(() => {}).finally(() => { if (overlay.isConnected) scene.play(); });

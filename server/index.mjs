@@ -30,7 +30,7 @@ import { publicAsset, sendAsset } from "./public-files.mjs";
 import { planRoomTransfer } from "./room-transfer.mjs";
 import { writeJsonDurable, roomSnapshots, commitRoomTransfer, recoverRoomTransfers } from "./transfer-store.mjs";
 import { createWindowLimiter, clientAddress, sameCode } from "./auth-guard.mjs";
-import { exhibitionRace } from "../assets/race/exhibition.js";
+import { prepareExhibition, runExhibition, cleanRide } from "../assets/race/exhibition.js";
 
 import {
   LOCI as LOCUS_ORDER,
@@ -429,6 +429,21 @@ function frame(room, userId) {
       meeting: room.state.meeting ?? 1,
     },
   };
+}
+
+/** Exhibitions being ridden: user id -> { session, prep, at }. Memory only, one per player. */
+const rides = new Map();
+const RIDE_TTL_MS = 15 * 60 * 1000;
+const RIDE_LIMIT = 90; // orders per minute: a ride is a few dozen presses at most
+const rideTraffic = new Map();
+function rideLimit(userId) {
+  const now = Date.now();
+  const recent = (rideTraffic.get(userId) ?? []).filter((t) => now - t < 60_000);
+  if (recent.length >= RIDE_LIMIT) throw httpError(429, "too many actions: wait a moment", "rate");
+  recent.push(now);
+  rideTraffic.set(userId, recent);
+  // forget rides nobody came back to
+  for (const [id, held] of rides) if (now - held.at > RIDE_TTL_MS) rides.delete(id);
 }
 
 function rateLimit(userId) {
@@ -924,9 +939,28 @@ const server = createServer(async (req, res) => {
       rateLimit(user.id);
       const room = roomOf(user.id);
       if (!room) throw httpError(404, "no room for this account", "noroom");
-      const race = exhibitionRace(room.state, { seed: randomBytes(16).toString("hex") });
-      if (!race) throw httpError(409, "declare at least two runners first", "field");
-      return send(res, 200, { race });
+      const prep = prepareExhibition(room.state, { seed: randomBytes(16).toString("hex"), mine: stableOf(room.state, user.id)?.id ?? "-" });
+      if (!prep) throw httpError(409, "declare at least two runners first", "field");
+      // The field as it stood is kept in memory for a while, so the player can ride it: each
+      // order re-runs this same race. It holds traits, so it never leaves the server.
+      const session = randomBytes(8).toString("hex");
+      rides.set(user.id, { session, prep, at: Date.now() });
+      return send(res, 200, { race: { ...runExhibition(prep), session } });
+    }
+
+    // Riding the exhibition: the caller's own runner takes these orders and the same race is
+    // run again. Reads memory only and writes nothing: no result, money or record changes.
+    if (path === "/api/race/ride" && req.method === "POST") {
+      const user = requireUser(req);
+      rideLimit(user.id);
+      const body = await readBody(req);
+      const held = rides.get(user.id);
+      if (!held || held.session !== body.session || Date.now() - held.at > RIDE_TTL_MS) {
+        throw httpError(409, "that race is over — open the live race again", "ride");
+      }
+      const ride = cleanRide(held.prep, { key: body.key, inputs: body.inputs });
+      if (!ride) throw httpError(400, "you can only ride your own runner", "ride");
+      return send(res, 200, { race: { ...runExhibition(held.prep, { ride }), session: held.session } });
     }
 
     if (path === "/api/room" && req.method === "GET") {

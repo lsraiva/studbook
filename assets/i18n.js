@@ -299,6 +299,8 @@ const DICT = new Map(Object.entries({
   "above the field": "acima do campo",
   "near elite": "perto da elite",
   "nothing extra": "nada extra",
+  "that race is over — open the live race again": "Essa corrida terminou: abra a corrida ao vivo de novo.",
+  "you can only ride your own runner": "Você só pode montar o seu próprio corredor.",
   "an email and a password of at least 8 characters": "informe um e-mail e uma senha de pelo menos 8 caracteres",
   "stable name": "nome do estábulo",
   "(to create a stable · optional)": "(para criar um estábulo · opcional)",
