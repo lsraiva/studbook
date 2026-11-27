@@ -35,7 +35,7 @@ ok("every horse in the view carries the house's offer for the sell button", Numb
   let old = setup(["p"], "p0:oldroom");
   for (const stable of old.stables) delete stable.tally;
   let threw = null;
-  try { for (let i = 0; i < 4; i += 1) old = runRound(old, ""); } catch (error) { threw = error; }
+  try { old = runRound(old, ""); } catch (error) { threw = error; } // one meeting: tallies reset when the season turns
   ok("a room whose stables have no tally still runs its meetings", threw === null && old.lastRace?.table?.length > 1, threw?.message ?? "");
   const winner = old.stables.find((st) => st.id === old.lastRace.table[0].stableId);
   ok("...and the winner's tally is created with the win", winner?.tally?.wins >= 1);
