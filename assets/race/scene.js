@@ -39,16 +39,32 @@ export class RaceScene {
     this.reduced = Boolean(options.reducedMotion);
     this.dt = data.snapshotEvery / data.tickHz; // seconds between frames
     this.byKey = new Map(data.runners.map((r) => [r.key, r]));
-    this.finishTime = new Map(data.placings.map((p) => [p.key, p.time]));
-    this.raceEnd = Math.max(...data.placings.map((p) => p.time));
-    // a sprint plays near real time, a staying race is brought to under a minute
-    this.speed = Math.max(1.4, Math.min(4, this.raceEnd / 48));
+    this.setData(data);
+    // Riding (options.ride = { key, send(inputs) -> Promise<race> }): the player's own runner
+    // takes orders during the race. Each order re-runs the same deterministic race, so what
+    // has been shown stays true and only what follows the order changes.
+    this.ride = !this.reduced && options.ride && this.byKey.get(options.ride.key)?.mine ? options.ride : null;
+    this.inputs = [];
+    this.rideSeq = 0;
+    this.original = data;
+    this.autoPlace = data.placings.find((p) => p.key === this.ride?.key)?.position ?? null;
+    this.cool = { tactic: 0, lane: 0 };
+    // a sprint plays near real time, a staying race is brought to under a minute;
+    // a ridden race is slower still, so there is time to decide
+    this.speed = this.ride ? Math.max(1.1, Math.min(2.2, this.raceEnd / 70)) : Math.max(1.4, Math.min(4, this.raceEnd / 48));
     this.t = 0;
     this.playing = false;
     this.leaderKey = null;
     this.calls = [];
     this.cam = null;
     this.build();
+  }
+
+  /** Take a (re-)run of the race: same field, new frames and placings. */
+  setData(data) {
+    this.data = data;
+    this.finishTime = new Map(data.placings.map((p) => [p.key, p.time]));
+    this.raceEnd = Math.max(...data.placings.map((p) => p.time));
   }
 
   build() {
@@ -63,7 +79,8 @@ export class RaceScene {
     // the going label arrives in the engine's words; the page's i18n layer owns the Portuguese
     const say = window.__studbookI18n?.translate ?? ((x) => x);
     heading.append(el("span", "", say(this.data.label)), el("span", "", ` · ${this.data.distance} m`));
-    title.append(el("span", "rs-eyebrow", "Exibição · motor causal"), heading);
+    const riding = this.ride ? this.byKey.get(this.ride.key) : null;
+    title.append(el("span", "rs-eyebrow", riding ? `Exibição · você monta ${shortName(riding.name)}` : "Exibição · motor causal"), heading);
     this.clock = el("div", "rs-clock", "0.0 s");
     this.toGo = el("div", "rs-togo", `faltam ${this.data.distance} m`);
     const right = el("div", "rs-right");
@@ -105,6 +122,7 @@ export class RaceScene {
     this.resultBox = el("div", "rs-result");
     this.resultBox.hidden = true;
     this.stage.append(this.canvas, top, this.board, this.call, controls, this.resultBox);
+    if (this.ride) this.buildRide();
     this.host.append(this.stage);
     this.ctx = this.canvas.getContext("2d");
     this.resize = this.resize.bind(this);
@@ -158,6 +176,147 @@ export class RaceScene {
 
   rank(key) {
     return this.data.placings.findIndex((p) => p.key === key);
+  }
+
+
+  /* ---------- riding ---------- */
+
+  buildRide() {
+    const panel = el("div", "rs-ride");
+    panel.setAttribute("role", "group");
+    panel.setAttribute("aria-label", "Ordens do jóquei");
+    this.rideState = el("span", "rs-ride-state", "Piloto automático · dê uma ordem para assumir");
+    const gauge = el("div", "rs-energy");
+    gauge.setAttribute("role", "meter");
+    gauge.setAttribute("aria-label", "Fôlego");
+    gauge.setAttribute("aria-valuemin", "0");
+    gauge.setAttribute("aria-valuemax", "100");
+    this.energyFill = el("i");
+    gauge.append(el("span", "", "Fôlego"), this.energyFill);
+    this.energyGauge = gauge;
+    const row = el("div", "rs-ride-row");
+    this.rideButtons = {};
+    const add = (order, label, key, hint) => {
+      const button = el("button", `rs-order rs-order-${order}`);
+      button.type = "button";
+      button.dataset.order = order;
+      button.title = hint;
+      button.append(el("b", "", label), el("kbd", "", key));
+      button.addEventListener("click", () => this.order(order));
+      this.rideButtons[order] = button;
+      row.append(button);
+    };
+    add("in", "← Por dentro", "←", "Ir para a raia de dentro: caminho mais curto nas curvas, mais risco de ficar preso.");
+    add("hold", "Poupar", "A", "Segurar o ritmo e guardar fôlego.");
+    add("push", "Ritmo", "S", "Ritmo forte de corrida.");
+    add("kick", "Arrancar", "D", "Tudo o que resta: gasta o fôlego depressa. Guarde para o final.");
+    add("out", "Por fora →", "→", "Ir para a raia de fora: caminho livre, mais terreno nas curvas.");
+    panel.append(this.rideState, gauge, row);
+    this.stage.append(panel);
+    this.stage.classList.add("riding");
+    this.onRideKey = (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
+      if (event.target?.closest?.("input, textarea, select")) return;
+      const order = { a: "hold", s: "push", d: "kick", ArrowLeft: "in", ArrowRight: "out" }[event.key.length === 1 ? event.key.toLowerCase() : event.key];
+      if (!order) return;
+      event.preventDefault();
+      this.order(order);
+    };
+    document.addEventListener("keydown", this.onRideKey);
+  }
+
+  /** The ridden runner's energy at time t (0..1), read from its frames. */
+  energyAt(t) {
+    const frames = this.data.frames;
+    const i = Math.max(0, Math.min(frames.length - 1, Math.round(t / this.dt) - 1));
+    const row = frames[i].r.find((r) => r[0] === this.ride.key);
+    return row && row.length > 3 ? row[3] : null;
+  }
+
+  /** One order from the rider, effective a moment ahead of what is on screen. */
+  order(type) {
+    if (!this.ride || !this.playing) return;
+    const done = this.finishTime.get(this.ride.key);
+    if (done !== undefined && this.t >= done) return;
+    const lane = type === "in" || type === "out";
+    if (this.t < (lane ? this.cool.lane : this.cool.tactic)) return this.flash(type, "aguarde");
+    const hz = this.data.tickHz;
+    // about a third of a second of real time ahead: room for the answer to arrive unseen
+    const tick = Math.ceil((this.t + 0.35 * this.speed * this.boost) * hz);
+    const input = { tick, order: type };
+    this.inputs.push(input);
+    // optimistic: the button waits while the order is on its way
+    if (lane) this.cool.lane = this.t + 1; else this.cool.tactic = this.t + 1;
+    this.rideButtons[type]?.classList.add("sent");
+    const seq = (this.rideSeq += 1);
+    Promise.resolve(this.ride.send(this.inputs.map((row) => ({ ...row }))))
+      .then((race) => {
+        if (seq !== this.rideSeq || !race) return; // a later order already answered for this one
+        this.setData(race);
+        const receipt = (race.ride?.receipts ?? []).filter((row) => row.tick === tick && row.order === type).pop();
+        const cd = race.ride?.cooldowns ?? { hold: 1, push: 1, kick: 4, lane: 1 };
+        if (receipt?.ok) {
+          const at = tick / hz;
+          if (lane) this.cool.lane = at + cd.lane;
+          else {
+            this.cool.tactic = at + (cd[type] ?? 1);
+            for (const [name, button] of Object.entries(this.rideButtons)) button.classList.toggle("active", name === type);
+          }
+          this.rideState.textContent = "Você está montando";
+          this.say({ hold: "Você segura o ritmo.", push: "Você pede ritmo.", kick: "Você arranca!", in: "Você vai por dentro.", out: "Você abre por fora." }[type]);
+        } else {
+          this.inputs = this.inputs.filter((row) => row !== input);
+          if (lane) this.cool.lane = this.t; else this.cool.tactic = this.t;
+          this.flash(type, { cooldown: "aguarde", empty: "sem fôlego", blocked: "sem espaço", rail: "na cerca", finished: "já chegou" }[receipt?.reason] ?? "recusada");
+        }
+      })
+      .catch((error) => {
+        this.inputs = this.inputs.filter((row) => row !== input);
+        if (lane) this.cool.lane = this.t; else this.cool.tactic = this.t;
+        this.flash(type, "sem resposta");
+        this.options.onRideError?.(error);
+      })
+      .finally(() => this.rideButtons[type]?.classList.remove("sent"));
+  }
+
+  /** A refused order says why, on its own button, for a moment. */
+  flash(type, text) {
+    const button = this.rideButtons?.[type];
+    if (!button) return;
+    button.dataset.note = text;
+    button.classList.add("refused");
+    clearTimeout(button._note);
+    button._note = setTimeout(() => { button.classList.remove("refused"); delete button.dataset.note; }, 900);
+  }
+
+  updateRide() {
+    if (!this.ride) return;
+    const energy = this.energyAt(Math.min(this.t, this.raceEnd));
+    if (energy !== null) {
+      this.energyFill.style.width = `${Math.round(energy * 100)}%`;
+      this.energyGauge.setAttribute("aria-valuenow", String(Math.round(energy * 100)));
+      this.energyGauge.classList.toggle("low", energy < 0.25);
+    }
+    const done = this.finishTime.get(this.ride.key);
+    const over = !this.playing || (done !== undefined && this.t >= done);
+    const empty = energy !== null && energy < (this.data.ride?.kickMinEnergy ?? 0.12);
+    for (const [name, button] of Object.entries(this.rideButtons)) {
+      const lane = name === "in" || name === "out";
+      const wait = this.t < (lane ? this.cool.lane : this.cool.tactic);
+      button.disabled = over || wait || (name === "kick" && empty);
+    }
+  }
+
+  /** Start the ride again from the gate, on the same field and the same seed. */
+  rideAgain() {
+    this.inputs = [];
+    this.rideSeq += 1;
+    this.cool = { tactic: 0, lane: 0 };
+    this.setData(this.original);
+    for (const button of Object.values(this.rideButtons)) button.classList.remove("active");
+    this.rideState.textContent = "Piloto automático · dê uma ordem para assumir";
+    this.t = 0;
+    this.play();
   }
 
   /* ---------- playback ---------- */
@@ -214,6 +373,7 @@ export class RaceScene {
     cancelAnimationFrame(this.raf);
     this.audio.stop();
     this.observer?.disconnect();
+    if (this.onRideKey) document.removeEventListener("keydown", this.onRideKey);
     this.options.onClose?.();
   }
 
@@ -466,6 +626,7 @@ export class RaceScene {
       }
     }
     this.leaderKey = leader.key;
+    this.updateRide();
   }
 
   say(text) {
@@ -490,6 +651,26 @@ export class RaceScene {
       list.append(li);
     }
     box.append(list);
+    if (this.ride) {
+      const mine = this.data.placings.find((p) => p.key === this.ride.key);
+      const name = shortName(this.byKey.get(this.ride.key)?.name);
+      const rode = this.inputs.length > 0;
+      const line = el("p", "rs-ride-result");
+      if (mine && rode && this.autoPlace) {
+        const better = mine.position < this.autoPlace, same = mine.position === this.autoPlace;
+        line.append(
+          el("b", "", `Você levou ${name} ao ${mine.position}.º lugar`),
+          el("span", "", same ? ` · o piloto automático também chegaria em ${this.autoPlace}.º` : ` · o piloto automático chegaria em ${this.autoPlace}.º${better ? ": você montou melhor" : ""}`),
+        );
+        line.classList.toggle("better", better);
+      } else if (mine) {
+        line.append(el("b", "", `${name} chegou em ${mine.position}.º no piloto automático`), el("span", "", " · monte de novo e dê as suas ordens"));
+      }
+      const again = el("button", "brass", "Montar de novo");
+      again.type = "button";
+      again.addEventListener("click", () => this.rideAgain());
+      box.append(line, again);
+    }
     box.append(el("p", "rs-note", "Exibição: simulada pelo motor causal, não altera resultados, saldo nem histórico."));
     box.hidden = false;
     this.call.hidden = true;

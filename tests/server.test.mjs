@@ -181,6 +181,27 @@ try {
   const roomAfterShow = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8"));
   ok("exhibition writes nothing", roomAfterShow.version === persistedAction.version);
 
+  /* ---------- riding the exhibition: your own runner, memory only ---------- */
+  {
+    const horses = (await api("/api/room", { token })).json.state.view.horses.filter((h) => h.age >= 2 && !h.retired);
+    await api("/api/action", { method: "POST", token, body: { action: { type: "enter", horseIds: [horses[0].id] } } });
+    const versionBefore = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8")).version;
+    const live = (await api("/api/race/exhibition", { token })).json.race;
+    const mine = live.runners.find((r) => r.mine);
+    ok("the exhibition names a ride session and marks the caller's runner", typeof live.session === "string" && Boolean(mine));
+    ok("riding needs an account", (await api("/api/race/ride", { method: "POST", body: { session: live.session, key: mine.key, inputs: [] } })).status === 401);
+    const rode = await api("/api/race/ride", { method: "POST", token, body: { session: live.session, key: mine.key, inputs: [{ tick: 0, order: "hold" }] } });
+    ok("an order re-runs the same field and is receipted", rode.status === 200 && rode.json.race.ride.receipts[0]?.ok === true && rode.json.race.runners.length === live.runners.length && rode.json.race.hash !== live.hash, `${rode.status}`);
+    ok("a ridden race never sends genotypes or traits", !/"(genome|traits|stamina|soundness)"/.test(JSON.stringify(rode.json)));
+    const rival = live.runners.find((r) => !r.mine);
+    const steal = await api("/api/race/ride", { method: "POST", token, body: { session: live.session, key: rival.key, inputs: [] } });
+    ok("another stable's runner cannot be ridden", steal.status === 400 && steal.json.code === "ride");
+    const stale = await api("/api/race/ride", { method: "POST", token, body: { session: "0000000000000000", key: mine.key, inputs: [] } });
+    ok("a ride on a race that is gone is refused", stale.status === 409 && stale.json.code === "ride");
+    const versionAfter = JSON.parse(await readFile(join(dataDir, "rooms", reg.json.state.room.id + ".json"), "utf8")).version;
+    ok("riding writes nothing", versionAfter === versionBefore);
+  }
+
   /* ---------- the same stable from a second device ---------- */
   const again = await api("/api/login", { method: "POST", body: { email: "owner@studbook.test", password: "correct horse battery" } });
   const token2 = again.json.token;
