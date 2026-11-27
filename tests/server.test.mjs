@@ -80,6 +80,12 @@ try {
     ok("health reports the package.json version", health.version === version, health.version);
     ok("health never reports a fake revision", health.revision === null || /^[0-9a-f]{7,40}$/.test(health.revision), String(health.revision));
   }
+  {
+    // through the Fly edge: no account count, commit or uptime for the outside world
+    const outside = await (await fetch(`${base}/api/health`, { headers: { "fly-client-ip": "203.0.113.7" } })).json();
+    ok("public health hides accounts, revision and uptime", outside.ok === true && outside.version && !("accounts" in outside) && !("revision" in outside) && !("uptime" in outside), JSON.stringify(outside));
+    ok("on the machine itself health still reports the operator fields", "accounts" in health && "revision" in health);
+  }
 
   /* ---------- static hosting: one command runs the whole game ---------- */
   const page = await fetch(`${base}/`);
@@ -110,6 +116,12 @@ try {
   }
   if (symlinkMade) ok("allowlisted-looking symlink cannot expose private files", (await publicAsset(fixtureRoot, "/assets/art/alias.webp")).status === 404);
   ok("private JSON remains private even when placed inside static root", (await publicAsset(fixtureRoot, "/users.json")).status === 404);
+  {
+    const page = await publicAsset(root, "/termos");
+    ok("an unknown page gets a styled 404 in Portuguese", page.status === 404 && page.contentType.startsWith("text/html") && String(page.body).includes("Página não encontrada"));
+    const file = await publicAsset(root, "/assets/nope.js");
+    ok("a missing file still gets a short plain 404", file.status === 404 && file.contentType.startsWith("text/plain"));
+  }
   ok("invalid URI encoding is a client error", (await publicAsset(fixtureRoot, "/assets/%ZZ")).status === 400);
   const head = await fetch(`${base}/assets/ui.js`, { method: "HEAD" });
   ok("HEAD serves public headers without a body", head.status === 200 && (await head.text()) === "");
@@ -208,7 +220,9 @@ try {
     { type: "closeWindow" },
   ]) {
     const result = await api("/api/action", { method: "POST", token, body: { action } });
-    ok(`online clock command ${action.type} is refused`, result.status === 400 && result.json.code === "clock");
+    // starting over is refused for its own reason: an online stable is permanent
+    const code = action.type === "startOver" ? "permanent" : "clock";
+    ok(`online clock command ${action.type} is refused`, result.status === 400 && result.json.code === code, result.json.code);
   }
   const clockAfter = (await api("/api/room", { token })).json.state.room;
   ok("refused clock commands preserve meeting and deadline", clockBefore.meeting === clockAfter.meeting && clockBefore.season === clockAfter.season && clockBefore.closesAt === clockAfter.closesAt);

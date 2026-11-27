@@ -444,7 +444,11 @@ async function applyAuthoritative(userId, action) {
   if (!room) throw httpError(404, "no room for this account", "noroom");
   assertRoomsWritable(room.id);
   if (!action || typeof action !== "object" || Array.isArray(action)) throw httpError(400, "an action is an object", "action");
-  if (["advance", "openWindow", "closeWindow", "startOver"].includes(action.type)) {
+  if (action.type === "startOver") {
+    // an online stable is permanent: its horses, balance and pedigrees are never wiped
+    throw httpError(400, "online your stable is permanent — starting over is only in the offline demo", "permanent");
+  }
+  if (["advance", "openWindow", "closeWindow"].includes(action.type)) {
     throw httpError(400, "the meeting closes on the clock — enter your runners and wait", "clock");
   }
   const verdict = validateAction(room.state, userId, action);
@@ -651,7 +655,15 @@ const server = createServer(async (req, res) => {
 
   try {
     if (path === "/api/health" && req.method === "GET") {
-      return send(res, 200, { ok: true, game: meta.game, accounts: users.size, cloud: true, version: RELEASE_VERSION, revision: RELEASE_SHA, maintenance: maintenanceMode, uptime: Math.round(process.uptime()) });
+      // The public answer says the game is up and which version runs. How many accounts exist,
+      // the exact commit and the uptime are for the operator: only a request made on the
+      // machine itself (loopback, not through the Fly edge) gets them — `fly ssh console` then
+      // `wget -qO- localhost:PORT/api/health`.
+      const publicHealth = { ok: true, game: meta.game, cloud: true, version: RELEASE_VERSION, maintenance: maintenanceMode };
+      const onMachine = /^(::1|127\.\d+\.\d+\.\d+|::ffff:127\.\d+\.\d+\.\d+)$/.test(req.socket?.remoteAddress ?? "") && !req.headers["fly-client-ip"];
+      return send(res, 200, onMachine
+        ? { ...publicHealth, accounts: users.size, revision: RELEASE_SHA, uptime: Math.round(process.uptime()) }
+        : publicHealth);
     }
 
     if ((path === "/api/register" || path === "/api/login") && req.method === "POST") {

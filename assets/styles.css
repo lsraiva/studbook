@@ -1818,3 +1818,14 @@
       .shop-item { position: relative; }
       .shop-icon { width: 2.6rem; height: 2.6rem; display: grid; place-items: center; border-radius: 0.7rem; color: var(--brass); background: radial-gradient(circle at 35% 30%, rgba(217, 169, 78, 0.22), rgba(217, 169, 78, 0.05)); border: 1px solid var(--brass-deep); }
       .shop-icon svg { width: 1.7rem; height: 1.7rem; }
+
+      /* toasts: closable, counted, never stacking past three */
+      .toast { display: inline-flex; align-items: center; gap: 0.5rem; }
+      .toast-count { font-size: 0.72rem; font-weight: 600; opacity: 0.8; font-variant-numeric: tabular-nums; }
+      .toast-close { all: unset; cursor: pointer; padding: 0 0.15rem; line-height: 1; font-size: 1rem; opacity: 0.65; }
+      .toast-close:hover, .toast-close:focus-visible { opacity: 1; }
+      /* the sell button, armed: one more press sells */
+      button.armed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad-fg); box-shadow: 0 0 0 2px rgba(220, 110, 100, 0.25); }
+      /* the tokens section opens on what it is: a simulation */
+      .sim-banner { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.7rem; padding: 0.5rem 0.75rem; border: 1px dashed var(--brass-deep); border-radius: 0.6rem; background: var(--veil); font-size: 0.82rem; color: var(--muted); }
+      .sim-banner b { flex: 0 0 auto; padding: 0.15rem 0.5rem; border: 2px solid var(--brass); border-radius: 0.3rem; color: var(--brass); font-size: 0.7rem; letter-spacing: 0.16em; transform: rotate(-4deg); }
