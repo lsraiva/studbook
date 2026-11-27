@@ -1,3 +1,4 @@
+import { officialRace, seedFrom as raceSeedFrom, MIN_RUNNERS, MAX_RUNNERS, SECONDS_PER_LENGTH } from "./race/official.js";
 // Studbook engine — pure rules over a plain state object. No DOM, no transport.
 // Everything here is deterministic: a seed plus a list of actions reproduces a season.
 
@@ -1933,6 +1934,26 @@ function applyAction(state, playerId, action) {
  * Run one meeting and move the round on, or turn the season over. The button and the
  * clock both come through here, so a timed meeting and a manual one cannot diverge.
  */
+/**
+ * Choose how official results are decided: "legacy" (the score) or "causal" (the race engine).
+ * Logged once when it changes, so a room's history says from which meeting the rule applies.
+ */
+function setRaceEngine(state, name) {
+  const next = name === "causal" ? "causal" : "legacy";
+  const current = state.raceEngine === "causal" ? "causal" : "legacy";
+  if (next === current) return state;
+  state.raceEngine = next;
+  state.raceEngineSince = { season: state.season, meeting: state.meeting ?? 1 };
+  log(
+    state,
+    next === "causal"
+      ? `From meeting ${state.meeting ?? 1} of season ${state.season}, official results are decided by the race itself.`
+      : `From meeting ${state.meeting ?? 1} of season ${state.season}, official results are decided by the form score again.`,
+    "race",
+  );
+  return state;
+}
+
 function runRound(state, why) {
   const meeting = state.meeting ?? 1;
   runMeeting(state);
@@ -2003,7 +2024,30 @@ function runMeeting(state) {
       entry.shape = profile.shape;
       entry.score = base + profile.shift + noise;
     }
-    entrants.sort((a, b) => b.score - a.score);
+    // F0-02: a room on the causal engine runs the race itself, from each horse's traits and
+    // its stable's instruction, and the finishing order is the result. The legacy score above
+    // is still computed (it drives the pace shapes and the cause notes) but no longer decides.
+    let official = null;
+    if (state.raceEngine === "causal" && entrants.length >= MIN_RUNNERS && entrants.length <= MAX_RUNNERS) {
+      const seed = raceSeedFrom(() => rollValue(state));
+      official = officialRace({
+        condition,
+        seed,
+        runners: entrants.map((entry) => ({ id: entry.horse.id, traits: traitsOf(entry.horse.genome), tactic: entry.tactic })),
+      });
+      const finishers = official.order;
+      const slowest = Math.max(0, ...Object.values(official.times).filter((t) => t !== null));
+      for (const entry of entrants) {
+        const time = official.times[entry.horse.id];
+        // a runner that did not finish is placed behind every finisher, nearest last
+        entry.time = time;
+        entry.score = -((time ?? slowest + 5) / SECONDS_PER_LENGTH) * LENGTH;
+      }
+      const rankOf = new Map(finishers.map((id, index) => [id, index]));
+      entrants.sort((a, b) => (rankOf.get(a.horse.id) ?? 1e9) - (rankOf.get(b.horse.id) ?? 1e9) || b.score - a.score);
+    } else {
+      entrants.sort((a, b) => b.score - a.score);
+    }
     const pot = Math.round(entrants.length * ENTRY_FEE * PURSE_SUBSIDY);
     entrants.forEach((entry, index) => {
       const share = PURSE_SPLIT[index];
@@ -2093,6 +2137,8 @@ function runMeeting(state) {
         stable: entry.stableId,
       })),
       winnerStakes: Boolean(winner.horse.stakes),
+      // how the result was decided: the causal race's seed and hash make it replayable
+      official: official ? official.record : { engine: "legacy" },
     };
     log(
       state,
@@ -3136,6 +3182,7 @@ export {
   round,
   runMeeting,
   runRound,
+  setRaceEngine,
   runTurnover,
   sampleAllele,
   scorePopulation,

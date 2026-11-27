@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.49.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.50.0";
 
 import {
   applyAction,
@@ -15,6 +15,7 @@ import {
   log,
   meta,
   round,
+  setRaceEngine,
   setup,
   validateAction,
   viewFor,
@@ -76,6 +77,9 @@ class LocalSocket {
       this.playerId = msg.playerId;
       // look the save up under the id the client actually claims
       if (!this.game) this.game = loadSaved(msg.playerId) || this.fresh(msg.playerId);
+      // ?engine=causal (or legacy) switches how this offline game decides official results
+      const engine = new URLSearchParams(location.search).get("engine");
+      if (engine === "causal" || engine === "legacy") setRaceEngine(this.game.state, engine);
       this.save();
       this.broadcast();
       return;
@@ -1072,7 +1076,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.49.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.50.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2791,7 +2795,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.49.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.50.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {

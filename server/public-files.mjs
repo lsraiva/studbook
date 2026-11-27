@@ -7,7 +7,7 @@ import { join } from 'node:path';
 const MODULES = new Set([
   '/assets/ui.js', '/assets/engine.js', '/assets/net.js',
   '/assets/config.js', '/assets/token.js', '/assets/styles.css', '/assets/phenotype.js', '/assets/i18n.js',
-  '/assets/race/causal.js', '/assets/race/track.js', '/assets/race/exhibition.js', '/assets/race/scene.js', '/assets/race/side-scene.js',
+  '/assets/race/causal.js', '/assets/race/track.js', '/assets/race/exhibition.js', '/assets/race/scene.js', '/assets/race/side-scene.js', '/assets/race/official.js',
   '/assets/coat-portrait.js', '/assets/birth-scene.js', '/assets/paddock-scene.js', '/assets/micro.js',
   '/assets/welcome.css', '/assets/welcome.js',
   '/assets/horse-viewer-v033.js', '/assets/horse-viewer-v033.css',

@@ -1,8 +1,8 @@
 /**
  * Exhibition race: the declared field of the next meeting, run through the causal engine.
  *
- * It does NOT decide results, money or records — official meetings are still resolved by
- * assets/engine.js until the league/live format decision (F0-02) wires the causal engine in.
+ * It does NOT decide results, money or records. Official meetings are resolved by assets/engine.js,
+ * which uses the causal engine only in rooms switched to it (F0-02, assets/race/official.js).
  * It reads the state (where the genotypes live) and returns only what a spectator may see:
  * names, stables, coat colours and the simulated positions. Traits never leave this function.
  */
@@ -10,20 +10,9 @@ import { horseById, traitsOf, RACE_AGE, CONDITION_LABELS } from "../engine.js";
 import { appearanceFor } from "../phenotype.js";
 import { runRace, BOTS, ENGINE_VERSION, PARAMS_V1 } from "./causal.js";
 import { bendsFor } from "./track.js";
+import { COURSE_FOR, STYLE_FOR } from "./official.js";
 
-/** Each going as a racecourse: distance and ground. */
-export const COURSE_FOR = Object.freeze({
-  sprint: { distance: 1200, going: "firm" },
-  flying: { distance: 1000, going: "good" },
-  mile: { distance: 1600, going: "good" },
-  classic: { distance: 2000, going: "good" },
-  yielding: { distance: 2200, going: "soft" },
-  heavy: { distance: 2000, going: "heavy" },
-  staying: { distance: 2800, going: "good" },
-});
-
-/** A rival's declared instruction becomes a riding style. */
-const STYLE_FOR = { push: "frontRunner", steady: "stalker", hold: "closer" };
+export { COURSE_FOR } from "./official.js"; // one course table for exhibitions and official results
 
 /** The field exactly as the paddock declares it: up to three entries per stable. */
 export function declaredField(state) {

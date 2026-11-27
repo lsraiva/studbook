@@ -63,7 +63,7 @@ State: **review** on `feat/f4-race-engine-20261124`. Standalone module: **not wi
 
 ## Not done / next
 
-1. **Wiring:** the live meeting still uses `assets/engine.js` scoring. Switching needs a product decision (F0-02: league vs live formats), an engine flag, and a migration of race results — not done.
+1. **Wiring (0.50):** official meetings can be decided by the causal engine behind a per-room flag (`raceEngine`, env `STUDBOOK_RACE_ENGINE`, offline `?engine=`). The flag is off by default; RELEASE-0.50 has the measured difference and the decision it needs. Past results are not migrated; each result records how it was decided.
 2. **F5:** track scene, cameras, HUD, animation driven by `frames` (4 Hz snapshots, interpolated client-side). Needs the approved horse (F3).
 3. **Cross-browser:** run the determinism spec on Firefox and WebKit.
 4. **Balancing:** `params/1` is a first calibration from synthetic fields; play-testing (F7) will produce `params/2`. Results always record their params version.
