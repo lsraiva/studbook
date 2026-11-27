@@ -78,7 +78,13 @@ export function playBirth(o) {
     }, o.reducedMotion ? 0 : 320);
   };
   go.addEventListener("click", finish);
-  const onKey = (event) => { if (event.key === "Escape") { document.removeEventListener("keydown", onKey); finish(); } };
+  // Escape closes this scene only: the result card waiting underneath must not close with it
+  const onKey = (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    document.removeEventListener("keydown", onKey);
+    finish();
+  };
   document.addEventListener("keydown", onKey);
   const showFinal = () => {
     stage.classList.add("revealed", "meet", "joined");
