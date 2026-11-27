@@ -13,6 +13,7 @@ Continuar o Studbook existente, economizando créditos e sem recomeçar o projet
 - Repositório: https://github.com/lsraiva/studbook
 - Produção: https://studbook.fly.dev
 - GitHub Pages de referência: https://lsraiva.github.io/studbook/
+- **Motor de corrida (desde a 0.56):** `STUDBOOK_RACE_ENGINE = 'causal'` no `fly.toml` faz os resultados oficiais saírem do motor causal (`params/2`). Para voltar: trocar para `'legacy'` e publicar. Apagar a linha não desfaz, porque cada sala guarda o motor em uso. Ver [RELEASE-0.56](execution/RELEASE-0.56.md).
 - `GET /api/health` público mostra só `ok`, `version` e `maintenance` (desde a 0.51). A revisão e o número de contas só respondem de dentro da máquina: `fly ssh console -a studbook-luann -C "wget -qO- http://127.0.0.1:8080/api/health"`. Não assuma que HEAD e produção são iguais.
 - Trabalho desta linha começou no PR #2, branch `fix/foundation-gates-20261123`. Verifique estado atual do PR/branches antes de continuar.
 

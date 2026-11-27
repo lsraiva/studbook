@@ -84,6 +84,24 @@ ok("another room gives another race", play("causal-2").lastRace.official.seed !=
   ok("every going has a course", ["sprint", "flying", "mile", "classic", "yielding", "heavy", "staying"].every((k) => COURSE_FOR[k]));
 }
 
+/* ---------- the loss is explained by the race itself ---------- */
+{
+  const { applyAction, viewFor } = await import("../assets/engine.js");
+  let s2 = setup(["p"], "official:notes");
+  setRaceEngine(s2, "causal");
+  const mare = viewFor(s2, "p").horses.find((h) => h.age >= 2);
+  s2 = applyAction(s2, "p", { type: "enter", horseIds: [mare.id] });
+  const notes = [];
+  for (let i = 0; i < 6; i += 1) {
+    s2 = runRound(s2, "");
+    for (const line of s2.log) { const text = line.text ?? line; if (/ finished \d+ of \d+ in the /.test(text)) notes.push(text); }
+  }
+  ok("a causal room explains a loss by what happened in the race", notes.length > 0 && notes.every((t) => /(s behind|did not finish) — (was outrun on the day|did not finish|stumbled|was boxed in|ran out of breath|finished with breath to spare)/.test(t)), notes[0]);
+  ok("...and never by the form score's traits", notes.every((t) => !/lost it on/.test(t)));
+  const { translate } = (await import("../assets/i18n.js")).default ?? (await import("../assets/i18n.js"));
+  if (typeof translate === "function") ok("...in Portuguese on screen", /chegou em \d+º de \d+ na /.test(translate(notes[0])), translate(notes[0]));
+}
+
 /* ---------- params/2: form on the day ---------- */
 {
   const { PARAMS_V1, PARAMS_V2, RACE_PARAMS, runRace } = await import("../assets/race/causal.js");
