@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.58.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.59.0";
 
 import {
   applyAction,
@@ -1172,7 +1172,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.58.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.59.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2557,7 +2557,7 @@ async function shareHorse(horse, { tier = null, born = false, button = null } = 
   const online = /^https?:$/.test(location.protocol) && !/^(localhost|127\.|\[::1\])/.test(location.host);
   if (button) button.disabled = true;
   try {
-    const { shareCard } = await import("./share-card.js?v=0.58.0");
+    const { shareCard } = await import("./share-card.js?v=0.59.0");
     const outcome = await shareCard({
       name: horse.name,
       src: portraitOf(horse.lineage, horse.age),
@@ -2579,6 +2579,57 @@ async function shareHorse(horse, { tier = null, born = false, button = null } = 
     if (button) button.disabled = false;
   }
 }
+
+/**
+ * "Enquanto você esteve fora" (assets/recap.js). A snapshot of what the player last saw is kept
+ * in this browser while the page is visible; coming back after ten minutes or more, with at
+ * least one meeting run in between, opens the recap. Checked once per visit, and again when a
+ * background tab is brought back to the front.
+ */
+const RECAP_AWAY_MS = 10 * 60 * 1000;
+let recapModule = null;
+let recapChecked = false;
+let recapSavedAt = 0;
+function recapTick(v) {
+  if (!v || !v.stable) return;
+  const key = `studbook:seen:${v.room?.id ?? "offline"}:${v.stable.id}`;
+  recapModule ??= import("./recap.js?v=0.59.0");
+  recapModule.then(({ snapshotOf, computeRecap, showRecap }) => {
+    const now = snapshotOf(v);
+    if (!recapChecked) {
+      recapChecked = true;
+      let prev = null;
+      try { prev = JSON.parse(readStore(key) ?? "null"); } catch { prev = null; }
+      const recap = computeRecap(prev, now);
+      if (recap && recap.awayMs >= RECAP_AWAY_MS) {
+        const open = () => {
+          // a birth being staged has the floor; the recap waits its turn
+          if (document.querySelector(".birth-stage, .race-stage")) return setTimeout(open, 600);
+          showRecap(recap, {
+            portrait: (id) => {
+              const horse = (view?.horses ?? []).find((row) => row.id === id);
+              if (!horse) return null;
+              const img = document.createElement("img");
+              img.alt = "";
+              paintCoat(img, portraitOf(horse.lineage, horse.age), appearanceFor(horse));
+              return img;
+            },
+            onShare: (id) => shareHorse((view?.horses ?? []).find((row) => row.id === id)),
+          });
+        };
+        open();
+      }
+    }
+    // remember what was seen, but only while someone can actually see it
+    if (!document.hidden && Date.now() - recapSavedAt > 4000) {
+      recapSavedAt = Date.now();
+      writeStore(key, JSON.stringify(now));
+    }
+  }).catch(() => {});
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) { recapChecked = false; recapSavedAt = 0; if (view) recapTick(view); }
+});
 
 function openHorse(horseId) {
   const horse = (view?.horses ?? []).find((h) => h.id === horseId);
@@ -2987,7 +3038,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.58.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.59.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3316,6 +3367,7 @@ function draw() {
   renderNextStep(v);
   renderWorldMarket();
   renderTokens(); // offline too: the section says what it is, instead of standing empty
+  recapTick(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
