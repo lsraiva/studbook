@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.57.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.58.0";
 
 import {
   applyAction,
@@ -1128,6 +1128,19 @@ function openReveal(foal, v, progress) {
       toast("named");
     });
     nameRow.append(keep);
+    // a newborn is the thing most worth showing someone: the card, one press from the moment
+    const newborn = (v?.horses ?? []).find((horse) => horse.id === foal.id);
+    if (newborn) {
+      const share = document.createElement("button");
+      share.type = "button";
+      share.setAttribute("data-share-card", foal.id);
+      share.textContent = "share card";
+      share.addEventListener("click", () => {
+        const current = (view?.horses ?? []).find((horse) => horse.id === foal.id) ?? newborn;
+        shareHorse(current, { tier: foal.tier, born: true, button: share });
+      });
+      nameRow.append(share);
+    }
     card.append(nameRow);
   }
 
@@ -1159,7 +1172,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.57.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.58.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2521,6 +2534,52 @@ function renderRanking(v) {
 /** The stable as a wall of animals, not a spreadsheet: the Axie lesson, taken seriously. */
 
 /** Clicking a horse should show the horse: a plate, the pedigree, the record, the decision. */
+/**
+ * The shareable card (assets/share-card.js): this horse as a picture, drawn in the browser and
+ * handed to the system share sheet, or saved as a PNG where there is none. The card's own words
+ * are Portuguese, like the birth scene's.
+ */
+const BAND_BADGE = { stakes: "ELITE", "near elite": "PERTO DA ELITE" };
+async function shareHorse(horse, { tier = null, born = false, button = null } = {}) {
+  if (!horse) return;
+  const say = window.__studbookI18n?.translate ?? ((x) => x);
+  const look = appearanceFor(horse);
+  const raced = (horse.starts ?? 0) > 0;
+  const facts = raced
+    ? [["corridas", nf(horse.starts)], ["vitórias", nf(horse.wins ?? 0)], ["colocações", nf(horse.places ?? 0)]]
+    : [["idade", horse.age <= 0 ? "recém-nascido" : `${nf(horse.age)} ${horse.age === 1 ? "ano" : "anos"}`], ["sexo", horse.sex === "M" ? "macho" : "fêmea"], ["linhagem", String(horse.lineage ?? "—")]];
+  const eyebrow = born
+    ? `Nasceu na temporada ${nf(view?.season ?? 1)}`
+    : raced && horse.wins
+      ? `${nf(horse.wins)} ${horse.wins === 1 ? "vitória" : "vitórias"} em ${nf(horse.starts)} ${horse.starts === 1 ? "corrida" : "corridas"}`
+      : "Do meu haras";
+  const badge = tier ? String(say(tier)).toUpperCase() : BAND_BADGE[horse.stakes ? "stakes" : horse.band] ?? null;
+  const online = /^https?:$/.test(location.protocol) && !/^(localhost|127\.|\[::1\])/.test(location.host);
+  if (button) button.disabled = true;
+  try {
+    const { shareCard } = await import("./share-card.js?v=0.58.0");
+    const outcome = await shareCard({
+      name: horse.name,
+      src: portraitOf(horse.lineage, horse.age),
+      appearance: look,
+      coat: look.labelPt,
+      eyebrow,
+      line: horse.sireName || horse.damName ? `${horse.sireName ?? "fundador"} × ${horse.damName ?? "fundadora"}` : `Linha fundadora · ${horse.lineage ?? ""}`.replace(/ · $/, ""),
+      facts,
+      badge,
+      stable: view?.stable?.name ?? "",
+      host: online ? location.host : "",
+      shareText: `${horse.name} · ${view?.stable?.name ?? "Studbook"}`,
+    });
+    if (outcome === "saved") toast("card saved as an image");
+    if (outcome === "shared") toast("card shared");
+  } catch (error) {
+    toast(translateMessage(error?.message ?? String(error)), true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function openHorse(horseId) {
   const horse = (view?.horses ?? []).find((h) => h.id === horseId);
   const box = el("horseview");
@@ -2587,9 +2646,19 @@ function openHorse(horseId) {
     card.append(bars);
   }
 
+  const share = document.createElement("button");
+  share.className = "brass";
+  share.type = "button";
+  share.style.marginTop = "0.8rem";
+  share.setAttribute("data-share-card", horse.id);
+  share.textContent = "share card";
+  share.addEventListener("click", () => shareHorse(horse, { button: share }));
+  card.append(share);
+
   const close = document.createElement("button");
   close.className = "tiny";
   close.style.marginTop = "0.8rem";
+  close.style.marginLeft = "0.5rem";
   close.textContent = "close";
   close.addEventListener("click", () => {
     box.hidden = true;
@@ -2918,7 +2987,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.57.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.58.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
