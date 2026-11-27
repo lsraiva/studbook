@@ -2057,3 +2057,5 @@
         .album-coat { grid-column: 1 / -1; margin-top: 0.3rem; }
         .album-slot img { height: 3.4rem; }
       }
+
+      .field-odds-note.pending { color: var(--brass); }

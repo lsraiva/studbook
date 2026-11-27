@@ -1158,8 +1158,17 @@ function setCondition(state) {
  * chances (0..1) of first place and of a paid place, and prize is the expected prize in GNS.
  */
 const ODDS_SIMS = { legacy: 400, causal: 24 };
+/**
+ * A causal race costs real time (tens of milliseconds each), and a view is computed while a
+ * player waits, with every other player of the server waiting behind it. So a room's causal odds
+ * are worked out in instalments: each request for them runs at most ODDS_CHUNK more races and
+ * answers with the odds so far, marked `pending` until all ODDS_SIMS.causal are in. The seeds
+ * are drawn in the same order whatever the instalments, so the finished odds are exactly the
+ * ones a single run would give. `complete: true` finishes at once (tests, tools, experiments).
+ */
+const ODDS_CHUNK = 2;
 const oddsMemo = new Map();
-function fieldOdds(state, { params = null, sims: simsOverride = null } = {}) {
+function fieldOdds(state, { params = null, sims: simsOverride = null, complete = false, peek = false } = {}) {
   const condition = conditionFor(state.season ?? 1, state.meeting ?? 1);
   const entrants = [];
   for (const stable of state.stables ?? []) {
@@ -1171,39 +1180,53 @@ function fieldOdds(state, { params = null, sims: simsOverride = null } = {}) {
   }
   const causal = state.raceEngine === "causal" && entrants.length >= MIN_RUNNERS && entrants.length <= MAX_RUNNERS;
   const engine = causal ? "causal" : "legacy";
-  if (!entrants.length) return { engine, sims: 0, rows: [] };
+  if (!entrants.length) return { engine, sims: 0, target: 0, pending: false, rows: [] };
   const traits = entrants.map((entry) => traitsOf(entry.horse.genome));
   const signature =
     `${engine}|${condition}|` +
     entrants.map((entry, i) => `${entry.horse.id}:${entry.tactic}:${Object.values(traits[i]).join(",")}`).join("|");
-  const known = params || simsOverride ? null : oddsMemo.get(signature);
-  if (known) return known;
-
+  const experiment = Boolean(params || simsOverride); // not the room's odds: never cached, always whole
   const n = entrants.length;
-  const sims = simsOverride ?? ODDS_SIMS[engine];
-  // finishes[i][place] = how often runner i took that place
-  const finishes = entrants.map(() => new Array(n).fill(0));
-  let seed = seedFrom(`odds:${signature}`);
-  const draw = () => { const step = nextRandom(seed); seed = step.state; return step.value; };
-  if (causal) {
-    const runners = entrants.map((entry, i) => ({ id: entry.horse.id, traits: traits[i], tactic: entry.tactic }));
-    const indexOf = new Map(entrants.map((entry, i) => [entry.horse.id, i]));
-    for (let k = 0; k < sims; k += 1) {
-      const result = officialRace({ condition, seed: raceSeedFrom(draw), runners, ...(params ? { params } : {}) });
-      result.order.forEach((id, place) => { finishes[indexOf.get(id)][place] += 1; });
-      result.dnf.forEach((id, j) => { finishes[indexOf.get(id)][Math.min(n - 1, result.order.length + j)] += 1; });
-    }
-  } else {
-    const bases = entrants.map((entry) => entry.horse.conditions[condition]);
-    const shifts = entrants.map((entry) => paceProfile(entry.horse, condition, entry.tactic).shift);
-    const order = entrants.map((_, i) => i);
-    const scores = new Array(n);
-    for (let k = 0; k < sims; k += 1) {
-      for (let i = 0; i < n; i += 1) scores[i] = bases[i] + shifts[i] + (draw() - 0.5) * NOISE * bases[i];
-      order.sort((a, b) => scores[b] - scores[a]);
-      for (let place = 0; place < n; place += 1) finishes[order[place]][place] += 1;
+  const target = simsOverride ?? ODDS_SIMS[engine];
+
+  // the work so far for this field: how often each runner took each place, and where the seeds are
+  let job = experiment ? null : oddsMemo.get(signature);
+  if (!job) {
+    job = { engine, target, done: 0, finishes: entrants.map(() => new Array(n).fill(0)), seed: seedFrom(`odds:${signature}`), out: null };
+    if (!experiment) {
+      if (oddsMemo.size > 200) oddsMemo.clear();
+      oddsMemo.set(signature, job);
     }
   }
+  // `peek` reads the odds so far without doing any more of the work (a view asks once, then peeks)
+  if (job.done < job.target && !(peek && job.done > 0)) {
+    const draw = () => { const step = nextRandom(job.seed); job.seed = step.state; return step.value; };
+    // the form score is cheap and is always run whole; causal races come ODDS_CHUNK at a time
+    const upTo = !causal || experiment || complete ? job.target : Math.min(job.target, job.done + ODDS_CHUNK);
+    if (causal) {
+      const runners = entrants.map((entry, i) => ({ id: entry.horse.id, traits: traits[i], tactic: entry.tactic }));
+      const indexOf = new Map(entrants.map((entry, i) => [entry.horse.id, i]));
+      for (; job.done < upTo; job.done += 1) {
+        const result = officialRace({ condition, seed: raceSeedFrom(draw), runners, ...(params ? { params } : {}) });
+        result.order.forEach((id, place) => { job.finishes[indexOf.get(id)][place] += 1; });
+        result.dnf.forEach((id, j) => { job.finishes[indexOf.get(id)][Math.min(n - 1, result.order.length + j)] += 1; });
+      }
+    } else {
+      const bases = entrants.map((entry) => entry.horse.conditions[condition]);
+      const shifts = entrants.map((entry) => paceProfile(entry.horse, condition, entry.tactic).shift);
+      const order = entrants.map((_, i) => i);
+      const scores = new Array(n);
+      for (; job.done < upTo; job.done += 1) {
+        for (let i = 0; i < n; i += 1) scores[i] = bases[i] + shifts[i] + (draw() - 0.5) * NOISE * bases[i];
+        order.sort((x, y) => scores[y] - scores[x]);
+        for (let place = 0; place < n; place += 1) job.finishes[order[place]][place] += 1;
+      }
+    }
+    job.out = null;
+  }
+  if (job.out) return job.out;
+
+  const sims = job.done;
   const pot = Math.round(n * ENTRY_FEE * PURSE_SUBSIDY);
   const paidPlaces = Math.min(PURSE_SPLIT.length, n);
   // a little smoothing, so a runner that never won in the sample is long odds, not impossible
@@ -1211,21 +1234,18 @@ function fieldOdds(state, { params = null, sims: simsOverride = null } = {}) {
   const rows = entrants.map((entry, i) => {
     let paid = 0, prize = 0;
     for (let place = 0; place < paidPlaces; place += 1) {
-      paid += finishes[i][place];
-      prize += (finishes[i][place] / sims) * Math.round(pot * PURSE_SPLIT[place]);
+      paid += job.finishes[i][place];
+      prize += (job.finishes[i][place] / sims) * Math.round(pot * PURSE_SPLIT[place]);
     }
     return {
       horseId: entry.horse.id,
-      win: round((finishes[i][0] + smooth) / (sims + 1), 3),
+      win: round((job.finishes[i][0] + smooth) / (sims + 1), 3),
       paid: round(Math.min(1, paid / sims), 3),
       prize: round(prize, 1),
     };
   });
-  const out = { engine, sims, rows };
-  if (params || simsOverride) return out; // an experiment: not the room's odds, never cached
-  if (oddsMemo.size > 200) oddsMemo.clear();
-  oddsMemo.set(signature, out);
-  return out;
+  job.out = { engine, sims, target: job.target, pending: sims < job.target, rows };
+  return job.out;
 }
 
 /**
@@ -3195,6 +3215,8 @@ function viewFor(state, playerId) {
     seasonReport: (stable && stable.seasonReport) || null,
     firsts: (stable && stable.firsts) || null,
     paddock: paddockOf(state),
+    // true while the field's causal odds are still being worked out; ask again and they sharpen
+    oddsPending: fieldOdds(state, { peek: true }).pending,
     starterOffer: {
       available: Boolean(stable && !stable.starterOfferTaken),
       taken: Boolean(stable && stable.starterOfferTaken),

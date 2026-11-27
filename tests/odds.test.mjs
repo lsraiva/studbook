@@ -22,7 +22,7 @@ ok("every declared runner has odds", odds.rows.length === viewFor(s, "p").paddoc
 ok("the chances of winning add up to one", Math.abs(sum(odds.rows, "win") - 1) < 0.03, String(sum(odds.rows, "win")));
 ok("paid places add up to the places paid", Math.abs(sum(odds.rows, "paid") - Math.min(4, odds.rows.length)) < 0.01, String(sum(odds.rows, "paid")));
 ok("the same field gives the same odds", JSON.stringify(fieldOdds(setup(["p"], "odds:test"))) === JSON.stringify(odds));
-ok("the legacy rule is the one simulated", odds.engine === "legacy" && odds.sims === 400);
+ok("the legacy rule is the one simulated, whole and at once", odds.engine === "legacy" && odds.sims === 400 && odds.pending === false);
 
 // the odds predict: over many meetings the favourite wins about as often as its odds say
 {
@@ -62,7 +62,21 @@ ok("the legacy rule is the one simulated", odds.engine === "legacy" && odds.sims
   const c = setup(["p"], "odds:test");
   setRaceEngine(c, "causal");
   const rng = c.rng;
+  // in instalments: the first ask runs two races and says the odds are still pending
+  const first = fieldOdds(c);
+  ok("the first causal odds come from two races and are marked pending", first.engine === "causal" && first.sims === 2 && first.pending === true && first.target === 24);
+  ok("...and already price every runner", first.rows.length === odds.rows.length && Math.abs(sum(first.rows, "win") - 1) < 0.1);
+  ok("peeking does no more work", fieldOdds(c, { peek: true }).sims === 2);
+  ok("a view asks once: the odds advance by one instalment per view", (viewFor(c, "p"), fieldOdds(c, { peek: true }).sims) === 4 && viewFor(c, "p").oddsPending === true);
+  let asks = 0;
+  while (fieldOdds(c).pending && asks < 40) asks += 1;
   const o = fieldOdds(c);
+  ok("asking again finishes them, and then they stop changing", o.sims === 24 && o.pending === false && fieldOdds(c) === o && viewFor(c, "p").oddsPending === false, `${asks} more asks`);
+  const whole = fieldOdds(setRaceEngine(setup(["p"], "odds:test"), "causal"), { sims: 24 });
+  ok("the finished odds are exactly those of a single run", JSON.stringify(whole.rows) === JSON.stringify(o.rows));
+  const atOnce = setup(["p"], "odds:atonce");
+  setRaceEngine(atOnce, "causal");
+  ok("complete: true finishes at once", fieldOdds(atOnce, { complete: true }).pending === false);
   ok("a room on the causal engine gets odds from the causal race", o.engine === "causal" && o.sims === 24);
   ok("...without touching the room's random stream", c.rng === rng);
   ok("...that add up to one", Math.abs(sum(o.rows, "win") - 1) < 0.06, String(sum(o.rows, "win")));

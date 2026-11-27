@@ -299,6 +299,7 @@ const DICT = new Map(Object.entries({
   "above the field": "acima do campo",
   "near elite": "perto da elite",
   "nothing extra": "nada extra",
+  "first odds: still being worked out, they sharpen in a few seconds": "primeiras cotações: ainda em cálculo, ficam mais precisas em alguns segundos",
   "Eight coats by four face markings. A place is filled by the first horse of your yard to wear it: one you bred, at any time, or one you hold now.": "Oito pelagens por quatro marcas de cara. Cada lugar é preenchido pelo primeiro cavalo do seu haras com aquela combinação: um que você criou, em qualquer época, ou um que está com você agora.",
   "What your yard has done so far, and what is still ahead of it.": "O que o seu haras já fez, e o que ainda tem pela frente.",
   "first win": "primeira vitória",
