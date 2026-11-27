@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.50.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.54.0";
 
 import {
   applyAction,
@@ -258,14 +258,9 @@ function connect(makeSocket = () => new LocalSocket()) {
     if (msg.type === "state") onState(msg);
     else if (msg.type === "error") {
       setStatus(msg.error, true);
-      // A refusal that vanishes in 2.8 s reads as "nothing happened". Keep it on screen.
-      const box = el("toasts");
-      if (box) {
-        const node = document.createElement("div");
-        node.className = "toast bad";
-        node.textContent = msg.error;
-        box.append(node);
-      }
+      // A refusal that vanishes in 2.8 s reads as "nothing happened": it stays 8 s, with a close
+      // button, and the same refusal twice is counted rather than stacked.
+      toast(msg.error, true);
     }
   });
   socket.addEventListener("close", () => {
@@ -372,7 +367,7 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (kind === "sell") {
-      act({ type: "sell", horseId: horse.id });
+      confirmSale(horseButton, horse);
       return;
     }
     if (kind === "consign") {
@@ -529,13 +524,87 @@ function net(kind, text) {
   el("net").className = "dot " + (kind === "live" ? "live" : kind === "bad" ? "bad" : "");
   el("nettext").textContent = text;
 }
+/**
+ * The one way a toast reaches the screen. The same message again is not a second toast: the
+ * first one counts it ("×2") and stays a little longer. At most three are shown, oldest first
+ * out. Every toast closes on its own (errors after 8 s, so they can be read) and has a close
+ * button; nothing stacks up over the buttons for minutes any more.
+ */
+const TOAST_LIMIT = 3;
+function showToast(node, ms = 3200) {
+  const box = el("toasts");
+  if (!box || !node) return null;
+  const key = node.dataset.toastKey ?? node.textContent;
+  const same = [...box.children].find((child) => child.dataset.toastKey === key);
+  if (same) {
+    const count = Number(same.dataset.count ?? 1) + 1;
+    same.dataset.count = String(count);
+    let badge = same.querySelector(".toast-count");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "toast-count";
+      badge.setAttribute("data-no-i18n", "");
+      same.insertBefore(badge, same.querySelector(".toast-close"));
+    }
+    badge.textContent = `×${count}`;
+    clearTimeout(Number(same.dataset.timer));
+    same.dataset.timer = String(setTimeout(() => same.remove(), ms));
+    return same;
+  }
+  node.dataset.toastKey = key;
+  node.style.pointerEvents = "auto";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "close");
+  close.textContent = "×";
+  close.addEventListener("click", () => node.remove());
+  node.append(close);
+  box.append(node);
+  while (box.children.length > TOAST_LIMIT) box.firstElementChild.remove();
+  node.dataset.timer = String(setTimeout(() => node.remove(), ms));
+  return node;
+}
 function toast(text, bad = false) {
   const node = document.createElement("div");
   node.className = "toast" + (bad ? " bad" : "");
-  node.textContent = text;
-  el("toasts").append(node);
-  setTimeout(() => node.remove(), bad ? 2800 : 3200);
+  const body = document.createElement("span");
+  body.textContent = text;
+  node.append(body);
+  node.dataset.toastKey = `${bad ? "bad" : "ok"}:${text}`;
+  return showToast(node, bad ? 8000 : 3200);
 }
+/**
+ * Selling to the house cannot be undone, so it takes two presses: the first turns the button
+ * into "confirm sale · ₲ X" for five seconds, the second sells. Survives a redraw in between,
+ * because the pending sale is remembered here rather than on the button.
+ */
+let pendingSale = null;
+function confirmSale(button, horse) {
+  const now = Date.now();
+  if (pendingSale && pendingSale.horseId === horse.id && now - pendingSale.at < 5000) {
+    pendingSale = null;
+    act({ type: "sell", horseId: horse.id });
+    return;
+  }
+  pendingSale = { horseId: horse.id, at: now };
+  const offer = horse.houseOffer ?? Math.round((horse.suggestedPrice ?? 0) * 0.6);
+  if (button) {
+    button.dataset.armed = "1";
+    button.textContent = `confirm sale · ₲ ${nf(offer)}`;
+    button.classList.add("armed");
+  }
+  toast(`Press again to sell ${horse.name} to the house for ₲ ${nf(offer)}.`);
+  setTimeout(() => {
+    if (pendingSale && pendingSale.horseId === horse.id && Date.now() - pendingSale.at >= 5000) pendingSale = null;
+    if (button && button.isConnected && button.dataset.armed === "1") {
+      button.dataset.armed = "";
+      button.textContent = "sell";
+      button.classList.remove("armed");
+    }
+  }, 5000);
+}
+
 function act(action) {
   send({ type: "action", action });
 }
@@ -594,7 +663,7 @@ function onState(msg) {
   seats = msg.seats ?? [];
   me = msg.you;
   // a ?reset=1 link: join is processed by now, so start the run on the chosen bank
-  if (pendingStart && view && view.stable) {
+  if (pendingStart && view && view.stable && !view.cloud && !view.room) {
     pendingStart = false;
     act({ type: "startOver", bank: bankFor(view) });
     const url = new URL(location.href);
@@ -829,15 +898,26 @@ function openReveal(foal, v, progress) {
   const tierIndex = event === "born" ? Math.max(0, TIERS.indexOf(foal.tier)) : -1;
   const card = document.createElement("div");
   card.className = "card";
+  // a way out at the top: on a phone the card is long, and its own button sits at the bottom
+  const shut = document.createElement("button");
+  shut.type = "button";
+  shut.className = "reveal-close";
+  shut.setAttribute("aria-label", "close");
+  shut.textContent = "×";
+  shut.addEventListener("click", () => closeReveal());
+  card.append(shut);
 
   // A birth is the one moment the game can afford to be theatrical about.
   if (event === "born") {
     const scene = document.createElement("div");
     scene.className = "scene";
     const portrait = document.createElement("img");
-    portrait.src = "assets/art/foal.webp";
     portrait.alt = "";
     portrait.decoding = "async";
+    // the foal itself, in its own coat and markings, as the birth scene just showed it
+    const born = (v?.horses ?? []).find((horse) => horse.id === foal.id);
+    if (born) paintCoat(portrait, portraitOf(born.lineage, born.age ?? 0), appearanceFor(born));
+    else portrait.src = "assets/art/plate-foal.webp";
     const tag = document.createElement("span");
     tag.className = "scene-tag";
     tag.textContent = "first look";
@@ -1076,7 +1156,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.50.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.54.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2101,12 +2181,27 @@ function renderWorldMarket() {
     box.append(hint);
     return;
   }
-  for (const lot of worldLots.slice(0, 24)) {
+  // the same lot many times over (a room listing five doses of one stallion at one price) is one
+  // card with a count, as in the local catalogue
+  const grouped = new Map();
+  for (const lot of worldLots) {
+    const key = [lot.kind, lot.horseName, lot.roomId, lot.sellerName, lot.price].join("|");
+    const entry = grouped.get(key);
+    if (entry) entry.count += 1;
+    else grouped.set(key, { lot, count: 1 });
+  }
+  for (const { lot, count } of [...grouped.values()].slice(0, 24)) {
     const card = document.createElement("div");
     card.className = "lot";
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = lot.horseName;
+    if (count > 1) {
+      const badge = document.createElement("span");
+      badge.className = "tag";
+      badge.textContent = `${nf(count)} doses`;
+      name.append(" ", badge);
+    }
     const meta = document.createElement("div");
     meta.className = "kv";
     meta.innerHTML = `<span>${esc(lot.kind)} · room ${esc(lot.roomCode)} · ${esc(lot.sellerName)}</span><b>₲ ${nf(lot.price)}</b>`;
@@ -2159,6 +2254,11 @@ function renderTokens() {
   const box = el("tokens");
   if (!box) return;
   box.innerHTML = "";
+  // the first thing read in this section: nothing here is on a real chain
+  const sim = document.createElement("p");
+  sim.className = "sim-banner";
+  sim.innerHTML = `<b>SIMULATED</b><span>No token here exists on a real blockchain. Tokens, receipts and claims are a demonstration; nothing can be sold for real money.</span>`;
+  box.append(sim);
 
   if (!CLOUD()) {
     const note = document.createElement("p");
@@ -2795,7 +2895,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.50.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.54.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -2926,6 +3026,7 @@ const STEP_LABEL = {
   enter: "enter runners",
   run: "run the meeting",
   buy: "to the market",
+  rebuild: "buy it",
 };
 
 /** A deadline said the way a person reads it. */
@@ -2937,11 +3038,16 @@ function remaining(closesAt) {
   return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-setInterval(() => {
+/** The meeting clock: brass in the last minute, a red pulse in the last fifteen seconds. */
+function tickCountdowns() {
   for (const node of document.querySelectorAll(".countdown")) {
+    const left = Number(node.dataset.closes) - Date.now();
     node.textContent = remaining(node.dataset.closes);
+    node.classList.toggle("soon", left <= 60_000 && left > 15_000);
+    node.classList.toggle("urgent", left <= 15_000);
   }
-}, 1000);
+}
+setInterval(tickCountdowns, 1000);
 
 function renderNextStep(v) {
   const box = el("nextstep");
@@ -2973,7 +3079,7 @@ function renderNextStep(v) {
     line.className = "roomline";
     line.innerHTML =
       `<b>room ${esc(v.room.code)}</b> · ${nf(v.room.seats)} seat${v.room.seats === 1 ? "" : "s"} · ` +
-      `meeting ${nf(v.room.meeting)} closes in <span class="countdown" data-closes="${v.room.closesAt}">${remaining(v.room.closesAt)}</span>`;
+      `meeting ${nf(v.room.meeting)} closes in <span class="countdown" data-closes="${v.room.closesAt}" role="timer">${remaining(v.room.closesAt)}</span>`;
     box.append(line);
     if (v.room.seats === 1) {
       const row = document.createElement("div");
@@ -3060,10 +3166,7 @@ function draw() {
   selectedStraw = v.selectedStraw ?? null;
   // the balance rolls to its new value, with coins on a real gain (assets/micro.js)
   bank(el("guineas"), v.stable.guineas, { format: (n) => nf(n), soundOn });
-  eliteStamp(v.horses, (node) => {
-    el("toasts").append(node);
-    setTimeout(() => node.remove(), 4200);
-  });
+  eliteStamp(v.horses, (node) => showToast(node, 4200));
   el("season").textContent = nf(v.season);
   el("condition").textContent = v.conditionLabel ?? v.condition;
   el("condition2").textContent = v.conditionLabel ?? v.condition;
@@ -3102,6 +3205,7 @@ function draw() {
   renderGallery(v);
   renderNextStep(v);
   renderWorldMarket();
+  renderTokens(); // offline too: the section says what it is, instead of standing empty
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -3252,7 +3356,7 @@ function draw() {
       sell.title = horse.soulbound
         ? "A gift horse: she can never be sold or consigned, but her foals can."
         : "Sell to the house at once.";
-      sell.addEventListener("click", () => act({ type: "sell", horseId: horse.id }));
+      sell.addEventListener("click", () => confirmSale(sell, horse));
       row.append(sell);
 
       const consign = document.createElement("button");
@@ -3672,6 +3776,16 @@ function draw() {
     head.className = "name";
     head.textContent = "Testing tools";
     tools.append(head);
+    if (v.cloud || v.room) {
+      // Online the stable is permanent: horses, balance and pedigree are kept, so there is no
+      // start-over button here (the server refuses it). The demo offline keeps the tool.
+      const note = document.createElement("p");
+      note.className = "hint";
+      note.textContent =
+        "Online your stable is permanent: horses, guineas and pedigrees are kept, so there is no starting over. To replay the opening, use the offline demo. If your yard runs out of horses, the next step above names the cheapest way back in.";
+      tools.append(note);
+      account.append(tools);
+    } else {
     const hint = document.createElement("p");
     hint.className = "hint";
     hint.textContent =
@@ -3716,6 +3830,7 @@ function draw() {
     if (v.testGrant > 0) row.append(grant);
     tools.append(row);
     account.append(tools);
+    }
   }
 
   // standings
@@ -3840,6 +3955,9 @@ for (const tab of document.querySelectorAll(".tab")) {
 // 1..6 switch screens, and a dialog owns the keyboard while it is open.
 window.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  // typing a digit into a field (a stable name, a 6-digit code, a price) is typing, not a shortcut
+  const field = event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+  if (field || event.isComposing) return;
   const index = ["1", "2", "3", "4", "5", "6", "7", "8", "9"].indexOf(event.key);
   if (index < 0 || index >= SCREENS.length) return;
   const box = el("reveal");
@@ -3882,6 +4000,7 @@ function accountGate(base, message = "") {
     `A demonstração offline fica somente neste navegador.</p>` +
     `<label>email<input name="email" type="email" autocomplete="email" required /></label>` +
     `<label>password<input name="password" type="password" minlength="8" autocomplete="current-password" required /></label>` +
+    `<label class="gate-stable">stable name <small>(to create a stable · optional)</small><input name="stable" type="text" maxlength="24" autocomplete="organization" /></label>` +
     `<p class="gate-error" role="alert">${esc(message)}</p>` +
     `<div class="row"><button class="good" name="login" type="submit">Entrar</button>` +
     `<button name="register" type="button">Criar estábulo</button>` +
@@ -3903,8 +4022,18 @@ function accountGate(base, message = "") {
     const buttons = [...card.querySelectorAll("button")];
     buttons.forEach((b) => (b.disabled = true));
     try {
+      const stable = (card.querySelector('[name="stable"]')?.value ?? "").trim().replace(/\s+/g, " ");
+      if (path === "/api/register" && stable && (stable.length < 2 || stable.length > 24)) {
+        say("a stable name is 2 to 24 characters");
+        buttons.forEach((b) => (b.disabled = false));
+        return;
+      }
       const out = await apiCall(base, path, { method: "POST", body: { email, password } });
       tokenStore.set(out.token);
+      // a new stable starts with the name its owner chose, instead of finding the field later
+      if (path === "/api/register" && stable) {
+        await apiCall(base, "/api/action", { method: "POST", token: out.token, body: { action: { type: "nameStable", name: stable } } }).catch(() => {});
+      }
       gate.remove();
       mountWho(out.user);
       connect(() => new CloudSocket(base, out.token));
@@ -4065,13 +4194,13 @@ function surfaceError(where, error) {
     status.textContent = text;
     status.classList.add("bad");
   }
-  const box = el("toasts");
-  if (box) {
-    const node = document.createElement("div");
-    node.className = "toast bad";
-    node.textContent = text;
-    box.append(node); // no timer: a diagnostic must not vanish before it is read
-  }
+  // a diagnostic stays long enough to be read (30 s), can be closed, and does not stack
+  const node = document.createElement("div");
+  node.className = "toast bad";
+  const body = document.createElement("span");
+  body.textContent = text;
+  node.append(body);
+  showToast(node, 30000);
 }
 
 // One listener for the whole document: buttons are rebuilt on every draw, and a handler bound to a
@@ -4108,17 +4237,28 @@ function randomSeed() {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * The exhibition and, when one of the player's own runners is in it, the way to ride it:
+ * `send(inputs)` re-runs the same race with the rider's orders. Online that is the server (the
+ * traits never leave it); offline it is this browser, which already owns the save.
+ */
 async function loadExhibition() {
   if (CLOUD()) {
     const out = await cloudApi("/api/race/exhibition", { token: tokenStore.get() });
-    return out.race;
+    const race = out.race;
+    const key = race.runners.find((row) => row.mine)?.key ?? null;
+    const send = (inputs) =>
+      cloudApi("/api/race/ride", { method: "POST", token: tokenStore.get(), body: { session: race.session, key, inputs } }).then((answer) => answer.race);
+    return { race, ride: key ? { key, send } : null };
   }
-  const { exhibitionRace } = await import("./race/exhibition.js");
+  const { prepareExhibition, runExhibition } = await import("./race/exhibition.js");
   const state = socket?.game?.state;
   if (!state) throw new Error("the stable is still loading");
-  const race = exhibitionRace(state, { seed: randomSeed() });
-  if (!race) throw new Error("declare at least two runners first");
-  return race;
+  const prep = prepareExhibition(state, { seed: randomSeed() });
+  if (!prep) throw new Error("declare at least two runners first");
+  const race = runExhibition(prep);
+  const key = race.runners.find((row) => row.mine)?.key ?? null;
+  return { race, ride: key ? { key, send: async (inputs) => runExhibition(prep, { ride: { key, inputs } }) } : null };
 }
 
 async function openLiveRace() {
@@ -4126,7 +4266,7 @@ async function openLiveRace() {
   if (button) button.disabled = true;
   try {
     // the broadcast camera (side view) is the default; the aerial view remains as its base class
-    const [race, { SideRaceScene }] = await Promise.all([loadExhibition(), import("./race/side-scene.js")]);
+    const [{ race, ride }, { SideRaceScene }] = await Promise.all([loadExhibition(), import("./race/side-scene.js")]);
     document.querySelectorAll(".race-stage").forEach((node) => node.remove());
     const overlay = document.createElement("div");
     overlay.className = "race-stage";
@@ -4146,7 +4286,13 @@ async function openLiveRace() {
     };
     const onKey = (event) => { if (event.key === "Escape") scene.close(); };
     document.addEventListener("keydown", onKey);
-    const scene = new SideRaceScene(host, race, { reducedMotion: REDUCED_MOTION, sound: soundOn, onClose: close });
+    const scene = new SideRaceScene(host, race, {
+      reducedMotion: REDUCED_MOTION,
+      sound: soundOn,
+      onClose: close,
+      ride, // your own runner takes your orders: A poupar, S ritmo, D arrancar, ← → raias
+      onRideError: (error) => toast(translateMessage(error?.message ?? String(error)), true),
+    });
     window.__studbookRace = { race, scene }; // inspection hook for tests and support
     // start once the painted course and runners are ready; a failed load still runs the race
     scene.loaded.catch(() => {}).finally(() => { if (overlay.isConnected) scene.play(); });

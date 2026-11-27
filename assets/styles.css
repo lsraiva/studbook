@@ -1818,3 +1818,147 @@
       .shop-item { position: relative; }
       .shop-icon { width: 2.6rem; height: 2.6rem; display: grid; place-items: center; border-radius: 0.7rem; color: var(--brass); background: radial-gradient(circle at 35% 30%, rgba(217, 169, 78, 0.22), rgba(217, 169, 78, 0.05)); border: 1px solid var(--brass-deep); }
       .shop-icon svg { width: 1.7rem; height: 1.7rem; }
+
+      /* toasts: closable, counted, never stacking past three */
+      .toast { display: inline-flex; align-items: center; gap: 0.5rem; }
+      .toast-count { font-size: 0.72rem; font-weight: 600; opacity: 0.8; font-variant-numeric: tabular-nums; }
+      .toast-close { all: unset; cursor: pointer; padding: 0 0.15rem; line-height: 1; font-size: 1rem; opacity: 0.65; }
+      .toast-close:hover, .toast-close:focus-visible { opacity: 1; }
+      /* the sell button, armed: one more press sells */
+      button.armed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad-fg); box-shadow: 0 0 0 2px rgba(220, 110, 100, 0.25); }
+      /* the tokens section opens on what it is: a simulation */
+      .sim-banner { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.7rem; padding: 0.5rem 0.75rem; border: 1px dashed var(--brass-deep); border-radius: 0.6rem; background: var(--veil); font-size: 0.82rem; color: var(--muted); }
+      .sim-banner b { flex: 0 0 auto; padding: 0.15rem 0.5rem; border: 2px solid var(--brass); border-radius: 0.3rem; color: var(--brass); font-size: 0.7rem; letter-spacing: 0.16em; transform: rotate(-4deg); }
+
+      /* ================================================================
+         One guidance block, on the Yard only (report P1: it repeated on every tab)
+         ================================================================ */
+      /* the road map, the advice line and the loading status belong to the yard */
+      body:not([data-screen="yard"]) .spine,
+      body:not([data-screen="yard"]) #advice,
+      body:not([data-screen="yard"]) #status:not(.bad) { display: none; }
+      /* elsewhere the next step is one compact line: what to do, and the button that does it */
+      body:not([data-screen="yard"]) #nextstep {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem 0.8rem;
+        padding: 0.45rem 0.8rem;
+        margin-bottom: 0.6rem;
+      }
+      body:not([data-screen="yard"]) #nextstep[hidden] { display: none; }
+      body:not([data-screen="yard"]) #nextstep .nextstep-text { margin: 0; font-size: 0.86rem; flex: 1 1 18rem; }
+      body:not([data-screen="yard"]) #nextstep #nextstep-go { min-height: 34px; padding: 0.3rem 0.9rem; font-size: 0.82rem; }
+      body:not([data-screen="yard"]) #nextstep .goals,
+      body:not([data-screen="yard"]) #nextstep .row,
+      body:not([data-screen="yard"]) #nextstep .hint { display: none; }
+
+      /* the meeting clock, readable at a glance */
+      .roomline .countdown {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        margin-left: 0.2rem;
+        padding: 0.1rem 0.55rem 0.1rem 0.45rem;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-pill);
+        background: var(--veil);
+        color: var(--cream);
+        font: 600 0.82rem/1.3 var(--font-num, inherit);
+        font-variant-numeric: tabular-nums;
+      }
+      .roomline .countdown::before {
+        content: "";
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+        border: 1.5px solid currentColor;
+        background: linear-gradient(currentColor, currentColor) 50% 25% / 1.5px 35% no-repeat;
+      }
+      .roomline .countdown.soon { border-color: var(--brass); color: var(--brass); box-shadow: 0 0 10px rgba(217, 169, 78, 0.35); }
+      .roomline .countdown.urgent { border-color: var(--bad-line); color: var(--bad-fg); background: var(--bad-bg); animation: clock-pulse 1s ease-in-out infinite; }
+      @keyframes clock-pulse { 50% { box-shadow: 0 0 0 4px rgba(220, 110, 100, 0.25); } }
+      @media (prefers-reduced-motion: reduce) { .roomline .countdown.urgent { animation: none; } }
+      /* the result card can always be closed from the top */
+      #reveal .card { position: relative; }
+      .reveal-close { all: unset; position: absolute; top: 0.5rem; right: 0.6rem; z-index: 3; width: 2.2rem; height: 2.2rem; display: grid; place-items: center; border-radius: 50%; cursor: pointer; font-size: 1.4rem; line-height: 1; color: var(--cream); background: var(--veil); border: 1px solid var(--line-strong); }
+      .reveal-close:hover, .reveal-close:focus-visible { border-color: var(--brass); color: var(--brass); }
+      #reveal .scene img { object-fit: contain; }
+
+      /* ================================================================
+         Riding the live race (RaceScene.buildRide)
+         ================================================================ */
+      .rs-ride {
+        position: absolute;
+        left: 50%;
+        bottom: calc(0.9rem + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        width: min(38rem, calc(100vw - 1.2rem));
+        display: grid;
+        gap: 0.4rem;
+        padding: 0.55rem 0.65rem 0.65rem;
+        border: 1px solid var(--brass-deep);
+        border-radius: 0.9rem;
+        background: var(--veil);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        z-index: 2;
+      }
+      .rs-ride-state { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brass); text-align: center; }
+      .rs-energy { position: relative; height: 1.15rem; border-radius: var(--radius-pill); background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+      .rs-energy i { position: absolute; inset: 0 auto 0 0; width: 100%; border-radius: inherit; background: linear-gradient(90deg, rgb(120, 190, 130), rgb(215, 190, 110)); transition: width 240ms linear; }
+      .rs-energy.low i { background: linear-gradient(90deg, rgb(200, 90, 80), rgb(230, 150, 90)); }
+      .rs-energy span { position: relative; z-index: 1; display: block; text-align: center; font-size: 0.68rem; line-height: 1.15rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-0); font-weight: 700; }
+      .rs-ride-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1.25fr 1fr; gap: 0.35rem; }
+      .rs-order {
+        position: relative;
+        overflow: visible;
+        min-height: 3rem;
+        display: grid;
+        place-items: center;
+        gap: 0.05rem;
+        padding: 0.3rem 0.2rem;
+        border-radius: 0.6rem;
+        border: 1px solid var(--line-strong);
+        background: var(--ink-2);
+        color: var(--cream);
+        font-size: 0.82rem;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .rs-order b { font-weight: 600; }
+      .rs-order kbd { font: 600 0.62rem/1 var(--font-num, monospace); color: var(--faint); border: 1px solid var(--line-strong); border-radius: 0.25rem; padding: 0.08rem 0.3rem; }
+      .rs-order.active { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
+      .rs-order-kick { background: linear-gradient(120deg, var(--gold-a), var(--gold-b)); color: var(--gold-ink); border-color: transparent; }
+      .rs-order-kick kbd { color: var(--gold-ink); border-color: rgba(0, 0, 0, 0.3); }
+      .rs-order:disabled { opacity: 0.45; cursor: default; }
+      .rs-order.sent { opacity: 0.7; }
+      .rs-order.refused::before {
+        content: attr(data-note);
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 0.3rem);
+        transform: translateX(-50%);
+        padding: 0.12rem 0.5rem;
+        border-radius: var(--radius-pill);
+        background: var(--bad-bg);
+        border: 1px solid var(--bad-line);
+        color: var(--bad-fg);
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+      /* with the reins on screen, the other pieces make room */
+      .rs-stage.riding .rs-call { bottom: calc(9.2rem + env(safe-area-inset-bottom)); }
+      .rs-stage.riding .rs-controls { top: 5.2rem; bottom: auto; right: 1.1rem; flex-direction: column; align-items: stretch; }
+      .rs-ride-result { margin: 0.6rem 0 0.5rem; font-size: 0.92rem; color: var(--muted); }
+      .rs-ride-result b { color: var(--cream); }
+      .rs-ride-result.better b { color: var(--brass); }
+      @media (max-width: 620px) {
+        .rs-order kbd { display: none; }
+        .rs-order { min-height: 3.2rem; font-size: 0.76rem; }
+        .rs-ride-row { grid-template-columns: 0.9fr 1fr 1fr 1.15fr 0.9fr; gap: 0.25rem; }
+        .rs-stage.riding .rs-board { top: 5.2rem; bottom: auto; width: min(11rem, 48vw); }
+        .rs-stage.riding .rs-controls { left: auto; right: 0.6rem; top: 5.2rem; }
+        .rs-stage.riding .rs-controls button { font-size: 0.68rem; padding: 0.25rem 0.5rem; min-height: 0; }
+        .rs-stage.riding .rs-call { bottom: calc(10rem + env(safe-area-inset-bottom)); font-size: 0.85rem; }
+      }

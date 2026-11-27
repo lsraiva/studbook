@@ -48,7 +48,7 @@ export function seedFrom(draw) {
  *  - seed: 128-bit hex
  * @returns {{ order: string[], times: Record<string, number|null>, dnf: string[], record: object }}
  */
-export function officialRace({ runners, condition, seed }) {
+export function officialRace({ runners, condition, seed, params = PARAMS_V1 }) {
   if (!Array.isArray(runners) || runners.length < MIN_RUNNERS || runners.length > MAX_RUNNERS) {
     throw new Error(`the causal engine runs ${MIN_RUNNERS}–${MAX_RUNNERS} runners`);
   }
@@ -68,7 +68,7 @@ export function officialRace({ runners, condition, seed }) {
       seed,
       runners: sorted.map((runner) => ({ key: keyOf.get(runner.id), traits: runner.traits })),
     },
-    { policies },
+    { policies, params },
   );
   const times = {};
   for (const runner of sorted) times[runner.id] = null;
@@ -79,7 +79,7 @@ export function officialRace({ runners, condition, seed }) {
     dnf: result.dnf.map((key) => idOf.get(key)),
     record: {
       engine: ENGINE_VERSION,
-      params: PARAMS_V1.version,
+      params: params.version,
       seed,
       hash: result.hash,
       distance: course.distance,

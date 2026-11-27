@@ -1,4 +1,4 @@
-# Release 0.50.0 — the causal engine can decide official results (F0-02), behind a flag
+# Release 0.54.0 — the causal engine can decide official results (F0-02), behind a flag
 
 State: **in review**, not deployed. **The flag is off**: no room changes how it is decided until it is turned on.
 
@@ -36,6 +36,21 @@ State: **in review**, not deployed. **The flag is off**: no room changes how it 
 - **The causal race is close to real racing,** where favourites win about a third of the time. It is the race the live viewer shows. Riding style, the draw, getting boxed in and stamina now matter.
 - **The cost:** breeding a better horse pays off less directly. That is a balance decision, not a bug. `params/1` was a first calibration from synthetic fields, and playtesting (F7) would produce `params/2`.
 
+## Calibration: what the measurements say (2026-11-27)
+
+The plan was to tune the engine until the favourite wins about 40%. Measuring first changed the plan:
+
+- **The causal race is not too random.** Take a field, run it 14 times with different seeds, and call the most frequent winner the true favourite. On a fresh seed that horse wins **61.5%** of the time (48 fields from simulated games).
+- **The low numbers in the table above measure a mismatch, not luck.** "Value" and "going fit" are the legacy model's numbers. They describe what the legacy score rewards, and the causal race rewards something else (pace against distance, energy, traffic). Widening the trait gains by 1.5× and 2×, and cutting start and stumble luck, left "best horse by value wins" at 23–27% every time.
+- **The instruction is a real decision.** With every runner switched to the same instruction, the true favourite changes in **46%** of fields.
+
+So no physics parameter was changed: `params/1` stays. What has to change before the flag goes on is what the player is shown:
+
+1. **Odds from the race itself.** Run the declared field many times and show each runner's chance. That is the honest "cotação", and it is the next item on the roadmap anyway.
+2. **Value, form bars and the "why it lost" notes** still speak the legacy model's language. Under the causal engine they must be derived from the causal race, or a player will breed for numbers that no longer decide anything.
+
+`officialRace` now takes an optional `params`, so such experiments need no edits to the engine.
+
 ## Not done
 
 - **The live viewer still shows an exhibition of the *next* field with a fresh seed.** It does not yet replay the official race from its recorded seed. That replay is the natural next step. The seed of an unrun meeting must never be shown, or a player could see the result before entering.
@@ -50,4 +65,4 @@ State: **in review**, not deployed. **The flag is off**: no room changes how it 
   - the same seed gives the same hash, and replaying the recorded seed reproduces the race;
   - the table follows the causal order, and the money and wins follow it.
 - `tests/browser/official-race.spec.mjs`: `?engine=causal` decides by the race; without it, legacy.
-- `npm test`: 347 checks. The live-race and determinism specs still pass.
+- `npm test`: 378 checks (after merging main at 0.53). The live-race and determinism specs still pass.

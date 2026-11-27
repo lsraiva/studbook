@@ -652,6 +652,29 @@ function nextStepFor(state, stable, field) {
       action: { type: "advance" },
     };
   }
+  // A yard with nothing left to race or breed is not a dead end: name the cheapest way back in.
+  // A mare first (she can race and breed), then any horse; only lots this stable can pay for.
+  const nothingActive = !herd.some((horse) => horse.age >= RACE_AGE) && !mares.length;
+  if (nothingActive) {
+    const lots = (state.listings ?? [])
+      .filter((lot) => lot.kind === "horse" && lot.seller !== stable.id && lot.price <= stable.guineas)
+      .map((lot) => ({ lot, horse: horseById(state, lot.horseId) }))
+      .filter(({ horse }) => horse && !horse.retired && !horse.sold)
+      .sort((a, b) => (a.horse.sex === "F" ? 0 : 1) - (b.horse.sex === "F" ? 0 : 1) || a.lot.price - b.lot.price);
+    const pick = lots[0];
+    if (pick) {
+      return {
+        key: "rebuild",
+        text: `Your yard has no horse left to race or breed. ${pick.horse.name} is in the ring for ₲ ${pick.lot.price} — buy ${pick.horse.sex === "F" ? "her" : "him"} to start again.`,
+        action: { type: "buyHorse", listingId: pick.lot.id },
+      };
+    }
+    return {
+      key: "rebuild",
+      text: "Your yard has no horse left to race or breed, and no lot in the ring fits your balance yet. Sell a covering, or wait: unsold lots get cheaper each season.",
+      action: null,
+    };
+  }
   return { key: "buy", text: "Buy a horse from the market, or breed one.", action: null };
 }
 
@@ -2760,6 +2783,8 @@ function viewFor(state, playerId) {
       foals: horse.foals,
       upkeep: horse.upkeep,
       suggestedPrice: suggestedHorsePrice(horse),
+      // what the house pays at once, so the sell button can say it before it happens
+      houseOffer: Math.round(suggestedHorsePrice(horse) * HOUSE_HORSE_FLOOR),
       traits: revealed ? traitsOf(horse.genome) : null,
       conditions: revealed ? horse.conditions : null,
       owner: horse.owner,

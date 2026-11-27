@@ -13,7 +13,7 @@ Continuar o Studbook existente, economizando créditos e sem recomeçar o projet
 - Repositório: https://github.com/lsraiva/studbook
 - Produção: https://studbook.fly.dev
 - GitHub Pages de referência: https://lsraiva.github.io/studbook/
-- Consulte `GET /api/health` para versão e revisão efetivamente publicadas. Não assuma que HEAD e produção são iguais.
+- `GET /api/health` público mostra só `ok`, `version` e `maintenance` (desde a 0.51). A revisão e o número de contas só respondem de dentro da máquina: `fly ssh console -a studbook-luann -C "wget -qO- http://127.0.0.1:8080/api/health"`. Não assuma que HEAD e produção são iguais.
 - Trabalho desta linha começou no PR #2, branch `fix/foundation-gates-20261123`. Verifique estado atual do PR/branches antes de continuar.
 
 ## Arquitetura real
