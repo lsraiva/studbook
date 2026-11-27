@@ -1139,6 +1139,85 @@ function setCondition(state) {
 }
 
 /**
+ * The odds, before the off: each declared runner's chance, found by running the next meeting
+ * many times with the very rule that will decide it (the form score, or the causal race in a
+ * room switched to it). Nothing is drawn from the room's own random stream, so asking for the
+ * odds never changes what will happen; the same field always gives the same odds.
+ *
+ * Returns { engine, sims, rows: [{ horseId, win, paid, prize }] } where win and paid are
+ * chances (0..1) of first place and of a paid place, and prize is the expected prize in GNS.
+ */
+const ODDS_SIMS = { legacy: 400, causal: 24 };
+const oddsMemo = new Map();
+function fieldOdds(state) {
+  const condition = conditionFor(state.season ?? 1, state.meeting ?? 1);
+  const entrants = [];
+  for (const stable of state.stables ?? []) {
+    for (const horseId of (stable.entries ?? []).slice(0, 3)) {
+      const horse = horseById(state, horseId);
+      if (!horse || horse.retired || horse.age < RACE_AGE) continue;
+      entrants.push({ horse, tactic: (stable.tactics && stable.tactics[horse.id]) || "steady" });
+    }
+  }
+  const causal = state.raceEngine === "causal" && entrants.length >= MIN_RUNNERS && entrants.length <= MAX_RUNNERS;
+  const engine = causal ? "causal" : "legacy";
+  if (!entrants.length) return { engine, sims: 0, rows: [] };
+  const traits = entrants.map((entry) => traitsOf(entry.horse.genome));
+  const signature =
+    `${engine}|${condition}|` +
+    entrants.map((entry, i) => `${entry.horse.id}:${entry.tactic}:${Object.values(traits[i]).join(",")}`).join("|");
+  const known = oddsMemo.get(signature);
+  if (known) return known;
+
+  const n = entrants.length;
+  const sims = ODDS_SIMS[engine];
+  // finishes[i][place] = how often runner i took that place
+  const finishes = entrants.map(() => new Array(n).fill(0));
+  let seed = seedFrom(`odds:${signature}`);
+  const draw = () => { const step = nextRandom(seed); seed = step.state; return step.value; };
+  if (causal) {
+    const runners = entrants.map((entry, i) => ({ id: entry.horse.id, traits: traits[i], tactic: entry.tactic }));
+    const indexOf = new Map(entrants.map((entry, i) => [entry.horse.id, i]));
+    for (let k = 0; k < sims; k += 1) {
+      const result = officialRace({ condition, seed: raceSeedFrom(draw), runners });
+      result.order.forEach((id, place) => { finishes[indexOf.get(id)][place] += 1; });
+      result.dnf.forEach((id, j) => { finishes[indexOf.get(id)][Math.min(n - 1, result.order.length + j)] += 1; });
+    }
+  } else {
+    const bases = entrants.map((entry) => entry.horse.conditions[condition]);
+    const shifts = entrants.map((entry) => paceProfile(entry.horse, condition, entry.tactic).shift);
+    const order = entrants.map((_, i) => i);
+    const scores = new Array(n);
+    for (let k = 0; k < sims; k += 1) {
+      for (let i = 0; i < n; i += 1) scores[i] = bases[i] + shifts[i] + (draw() - 0.5) * NOISE * bases[i];
+      order.sort((a, b) => scores[b] - scores[a]);
+      for (let place = 0; place < n; place += 1) finishes[order[place]][place] += 1;
+    }
+  }
+  const pot = Math.round(n * ENTRY_FEE * PURSE_SUBSIDY);
+  const paidPlaces = Math.min(PURSE_SPLIT.length, n);
+  // a little smoothing, so a runner that never won in the sample is long odds, not impossible
+  const smooth = 1 / n;
+  const rows = entrants.map((entry, i) => {
+    let paid = 0, prize = 0;
+    for (let place = 0; place < paidPlaces; place += 1) {
+      paid += finishes[i][place];
+      prize += (finishes[i][place] / sims) * Math.round(pot * PURSE_SPLIT[place]);
+    }
+    return {
+      horseId: entry.horse.id,
+      win: round((finishes[i][0] + smooth) / (sims + 1), 3),
+      paid: round(Math.min(1, paid / sims), 3),
+      prize: round(prize, 1),
+    };
+  });
+  const out = { engine, sims, rows };
+  if (oddsMemo.size > 200) oddsMemo.clear();
+  oddsMemo.set(signature, out);
+  return out;
+}
+
+/**
  * The field, before the off. A race day is mostly OTHER horses: you study the runners, size up
  * the rival to beat, and only then does your own matter. The runners used to appear at the finish
  * line - "finished 7 of 10" with nine faces never seen - so this publishes the declared field:
@@ -1165,6 +1244,15 @@ function paddockOf(state) {
         stakes: Boolean(horse.stakes),
       });
     }
+  }
+  // each runner's chance and expected prize, from the rule that will decide this meeting
+  const odds = fieldOdds(state);
+  const byHorse = new Map(odds.rows.map((row) => [row.horseId, row]));
+  for (const row of rows) {
+    const o = byHorse.get(row.horseId);
+    row.win = o ? o.win : null;
+    row.paid = o ? o.paid : null;
+    row.prize = o ? o.prize : null;
   }
   return rows;
 }
@@ -3208,6 +3296,7 @@ export {
   runMeeting,
   runRound,
   setRaceEngine,
+  fieldOdds,
   runTurnover,
   sampleAllele,
   scorePopulation,

@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.54.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.55.0";
 
 import {
   applyAction,
@@ -1156,7 +1156,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.54.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.55.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -1892,7 +1892,8 @@ function renderPaddock(v) {
   const tactic = (value) => (["push", "steady", "hold"].includes(value) ? value : "steady");
   wrap.innerHTML =
     `<div class="field-head"><h3>The field</h3><span class="count">${nf(rows.length)} declared</span>` +
-    `<p>who runs, before the off: study the rival now, not at the finish line</p></div>` +
+    `<p>who runs, before the off: study the rival now, not at the finish line</p>` +
+    `<p class="field-odds-note">odds come from running this meeting many times with the rule that decides it; change an instruction and they move</p></div>` +
     `<ol class="field-list">` +
     rows
       .map((row) => {
@@ -1902,11 +1903,28 @@ function renderPaddock(v) {
         const record = row.runs ? `${nf(row.runs)} runs, ${nf(row.wins)} won` : "unraced";
         const line = String(row.name ?? "").match(/^(.*?)\s*\((L\d+)\)$/);
         const name = line ? line[1] : row.name;
+        // the odds: the chance found by running this very meeting many times, said as a price
+        let odds = "";
+        if (typeof row.win === "number") {
+          const p = Math.max(0.001, Math.min(0.999, row.win));
+          const against = (1 - p) / p;
+          // the extremes are said in words: "1 to 499" and "0%" read as noise
+          const price = against >= 50 ? "50+ to 1" : against >= 1 ? `${nf(Math.round(against))} to 1` : 1 / against > 20 ? "near certain" : `1 to ${nf(Math.round(1 / against))}`;
+          const pct = Math.round(row.win * 100);
+          const chance = pct < 1 ? "under 1% to win" : pct > 99 ? "over 99% to win" : `${nf(pct)}% to win`;
+          const favourite = row.win === Math.max(...rows.map((r) => r.win ?? 0));
+          odds =
+            `<span class="runner-odds${favourite ? " fav" : ""}" title="chance of winning this meeting, from simulated runs of it">` +
+            `<b>${price}</b><small>${chance}</small>` +
+            (row.mine && typeof row.prize === "number" ? `<small class="runner-ev">expected prize ₲ ${nf(Math.round(row.prize))} · entry ₲ ${nf(v.entryFee ?? 0)}</small>` : "") +
+            `</span>`;
+        }
         return (
           `<li class="runner${row.mine ? " mine" : ""}">` +
           `<span class="runner-name">${row.mine ? "<em>your runner</em>" : ""}${esc(name)}${line ? `<small>${esc(line[2])}</small>` : ""}</span>` +
           `<span class="runner-stable">${esc(row.stable)}<span>${record}</span></span>` +
           `<span class="runner-form"><span>${against}</span><i style="--form:${width}%"></i></span>` +
+          odds +
           `<span class="runner-tags"><span class="tag">${tactic(row.tactic)}</span>` +
           `${row.stakes ? `<span class="tag elite">stakes class</span>` : ""}</span></li>`
         );
@@ -2895,7 +2913,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.54.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.55.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {

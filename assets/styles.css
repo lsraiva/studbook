@@ -1962,3 +1962,19 @@
         .rs-stage.riding .rs-controls button { font-size: 0.68rem; padding: 0.25rem 0.5rem; min-height: 0; }
         .rs-stage.riding .rs-call { bottom: calc(10rem + env(safe-area-inset-bottom)); font-size: 0.85rem; }
       }
+
+      /* ================================================================
+         Odds in the field (fieldOdds in engine.js)
+         ================================================================ */
+      .field-odds-note { margin: 0.15rem 0 0; font-size: 0.72rem; color: var(--faint); }
+      .runner-odds { display: grid; justify-items: end; gap: 0.05rem; text-align: right; min-width: 0; }
+      .runner-odds b { font: 600 0.98rem/1.15 var(--font-num, inherit); color: var(--cream); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .runner-odds small { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+      .runner-odds.fav b { color: var(--brass); }
+      .runner-odds .runner-ev { color: var(--brass); white-space: normal; }
+      @media (min-width: 621px) {
+        .runner { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(5.5rem, 0.9fr) 8.5rem 12.5rem; }
+      }
+      @media (max-width: 620px) {
+        .runner-odds { grid-column: 2; grid-row: 2; align-self: start; }
+      }
