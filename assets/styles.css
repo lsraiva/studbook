@@ -1767,3 +1767,54 @@
         .mare-stage { height: 90px; }
         .mare-stage img { height: 84px; }
       }
+
+      /* ================================================================
+         Screens pass 2: the field's rows line up; the ranking podium
+         ================================================================ */
+      /* a fixed tag column, so a runner with two tags cannot push its row out of line */
+      @media (min-width: 621px) {
+        .runner { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(5.5rem, 0.9fr) 12.5rem; }
+      }
+
+      .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 0.7rem; max-width: 720px; margin: 0.4rem auto 1.1rem; }
+      .podium-step { position: relative; display: grid; justify-items: center; gap: 0.18rem; padding: 0.9rem 0.6rem 0; text-align: center; }
+      .podium-medal {
+        width: 2.6rem;
+        height: 2.6rem;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        font: 600 1.15rem/1 var(--font-display);
+        color: var(--gold-ink);
+        background: radial-gradient(circle at 35% 30%, rgb(255, 240, 200), rgb(205, 165, 90) 60%, rgb(140, 100, 40));
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+      }
+      .place-2 .podium-medal { background: radial-gradient(circle at 35% 30%, rgb(250, 250, 250), rgb(180, 186, 192) 60%, rgb(110, 116, 124)); }
+      .place-3 .podium-medal { background: radial-gradient(circle at 35% 30%, rgb(250, 215, 180), rgb(190, 125, 75) 60%, rgb(120, 70, 35)); }
+      .podium-name { font: 400 1.15rem/1.15 var(--font-display); color: var(--cream); overflow-wrap: anywhere; }
+      .podium-who { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+      .podium-step.mine .podium-who { color: var(--brass); }
+      .podium-prize { font: 600 1.05rem/1.2 var(--font-num, inherit); color: var(--cream); font-variant-numeric: tabular-nums; }
+      .podium-line { font-size: 0.74rem; color: var(--muted); }
+      .podium-block {
+        display: block;
+        width: 100%;
+        margin-top: 0.5rem;
+        border-radius: 0.6rem 0.6rem 0 0;
+        border: 1px solid var(--hairline);
+        border-bottom: 0;
+        background: linear-gradient(180deg, var(--ink-3), var(--ink-1));
+      }
+      .place-1 .podium-block { height: 4.2rem; border-color: var(--brass); background: linear-gradient(180deg, rgba(217, 169, 78, 0.22), var(--ink-1)); }
+      .place-2 .podium-block { height: 2.8rem; }
+      .place-3 .podium-block { height: 1.9rem; }
+      .podium-step.mine .podium-block { box-shadow: inset 0 0 0 1px var(--brass); }
+      @media (max-width: 620px) {
+        .podium { gap: 0.35rem; }
+        .podium-name { font-size: 0.95rem; }
+        .podium-medal { width: 2.1rem; height: 2.1rem; font-size: 0.95rem; }
+        .podium-line { font-size: 0.68rem; }
+      }
+      .shop-item { position: relative; }
+      .shop-icon { width: 2.6rem; height: 2.6rem; display: grid; place-items: center; border-radius: 0.7rem; color: var(--brass); background: radial-gradient(circle at 35% 30%, rgba(217, 169, 78, 0.22), rgba(217, 169, 78, 0.05)); border: 1px solid var(--brass-deep); }
+      .shop-icon svg { width: 1.7rem; height: 1.7rem; }

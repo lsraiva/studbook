@@ -1,6 +1,6 @@
 # Release 0.48.0 — Breeding, shown
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-26 to `studbook-luann` (gru), revision `394b772a23bf64abff0e8ab9b11c96938ce0b15d`. Pre-deploy backup `20261126T182842Z` (SHA256 `a52ef060…b013`, matched on the machine), restore tested: 11 accounts, 352 horses, 0 problems.
 
 ## Changes
 

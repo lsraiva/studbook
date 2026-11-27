@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.48.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.49.0";
 
 import {
   applyAction,
@@ -1072,7 +1072,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.48.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.49.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -1955,13 +1955,28 @@ function marketTarget(v) {
   return lot ? { id: lot.horseId, name: lot.horseName, traits: lot.horseTraits } : null;
 }
 
+const SHOP_ICONS = {
+  catalogue:
+    '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 9c4-2 8-2 12 1v22c-4-3-8-3-12-1z"/><path d="M32 9c-4-2-8-2-12 1v22c4-3 8-3 12-1z"/><path d="M11 15h5M11 20h5M24 15h5M24 20h5"/></svg>',
+  feed:
+    '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 12h16l3 20H9z"/><path d="M14 12c0-3 2-5 6-5s6 2 6 5"/><path d="M15 20c3 2 7 2 10 0M16 26c2 1.5 6 1.5 8 0"/></svg>',
+  pass:
+    '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 13h26v5a3 3 0 0 0 0 6v5H7v-5a3 3 0 0 0 0-6z"/><path d="M24 13v16" stroke-dasharray="2 3"/><path d="M12 19h7M12 23h5"/></svg>',
+};
+
 function renderShop(v) {
   const box = el("shop");
   if (box) {
     box.innerHTML = "";
     for (const item of v.items ?? []) {
       const card = document.createElement("div");
-      card.className = "lot";
+      card.className = "lot shop-item";
+      // a drawn mark for each thing on the shelf: the catalogue page, the feed sack, the pass
+      const icon = document.createElement("span");
+      icon.className = "shop-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = SHOP_ICONS[item.key] ?? SHOP_ICONS.catalogue;
+      card.append(icon);
       const name = document.createElement("div");
       name.className = "name";
       name.textContent = item.name;
@@ -2299,6 +2314,43 @@ function renderRanking(v) {
   box.setAttribute("role", "region");
   box.setAttribute("aria-label", "Stable rankings; scroll horizontally on small screens");
   box.innerHTML = "";
+  // the podium: the top three as medals, gold in the middle, before the full table
+  const top = (v.ranking ?? []).slice(0, 3);
+  if (top.length) {
+    const podium = document.createElement("div");
+    podium.className = "podium";
+    const order = top.length === 3 ? [1, 0, 2] : top.map((_, i) => i);
+    for (const index of order) {
+      const row = top[index];
+      const step = document.createElement("div");
+      step.className = `podium-step place-${index + 1}` + (row.id === v.stable?.id ? " mine" : "");
+      const medal = document.createElement("span");
+      medal.className = "podium-medal";
+      medal.textContent = String(index + 1);
+      const name = document.createElement("b");
+      name.className = "podium-name";
+      name.textContent = row.name;
+      const who = document.createElement("span");
+      who.className = "podium-who";
+      who.textContent = row.id === v.stable?.id ? "you" : row.rival ? "house" : "rival";
+      const prize = document.createElement("span");
+      prize.className = "podium-prize";
+      prize.textContent = `₲ ${nf(row.prizes)}`;
+      const line = document.createElement("span");
+      line.className = "podium-line";
+      for (const [i, text] of [`${nf(row.wins)} wins`, `best ${nf(row.best, 2)}`].entries()) {
+        if (i) line.append(document.createTextNode(" · "));
+        const part = document.createElement("span");
+        part.textContent = text;
+        line.append(part);
+      }
+      const block = document.createElement("span");
+      block.className = "podium-block";
+      step.append(medal, name, who, prize, line, block);
+      podium.append(step);
+    }
+    box.append(podium);
+  }
   const table = document.createElement("table");
   table.setAttribute("aria-label", "Stables ranked by prize money");
   table.innerHTML =
@@ -2739,7 +2791,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.48.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.49.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
