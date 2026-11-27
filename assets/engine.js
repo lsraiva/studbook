@@ -1229,6 +1229,44 @@ function fieldOdds(state, { params = null, sims: simsOverride = null } = {}) {
 }
 
 /**
+ * The stable's album: every horse this yard has bred, ever, and every horse it holds now. A
+ * horse that was sold or lost is still in the album, found in the record of the departed. It
+ * carries only what a picture needs (id, lineage, name): the coat is derived from those on
+ * the page. Nothing is stored for this; it is read from what the state already keeps.
+ */
+function albumOf(state, stable) {
+  const bred = new Set(stable.foalsBred ?? []);
+  const here = new Set(stable.horses ?? []);
+  const gone = new Map((state.gone ?? []).map((row) => [row.id, row]));
+  const rows = [];
+  for (const id of new Set([...bred, ...here])) {
+    const horse = horseById(state, id) ?? gone.get(id);
+    if (!horse) continue;
+    rows.push({ id, name: horse.name, lineage: horse.lineage ?? null, bred: bred.has(id), here: here.has(id) });
+  }
+  return rows;
+}
+
+/** How many generations deep this yard's own breeding goes: a foal out of a home-bred parent is 2. */
+function generationsOf(state, stable) {
+  const bred = new Set(stable.foalsBred ?? []);
+  if (!bred.size) return 0;
+  const gone = new Map((state.gone ?? []).map((row) => [row.id, row]));
+  const depth = new Map();
+  const of = (id, guard = 0) => {
+    if (!bred.has(id) || guard > 40) return 0;
+    if (depth.has(id)) return depth.get(id);
+    const horse = horseById(state, id) ?? gone.get(id);
+    const d = 1 + (horse ? Math.max(of(horse.dam ?? "", guard + 1), of(horse.sire ?? "", guard + 1)) : 0);
+    depth.set(id, d);
+    return d;
+  };
+  let best = 0;
+  for (const id of bred) best = Math.max(best, of(id));
+  return best;
+}
+
+/**
  * The field, before the off. A race day is mostly OTHER horses: you study the runners, size up
  * the rival to beat, and only then does your own matter. The runners used to appear at the finish
  * line - "finished 7 of 10" with nine faces never seen - so this publishes the declared field:
@@ -2972,6 +3010,9 @@ function viewFor(state, playerId) {
           entries: stable.entries,
           tactics: stable.tactics ?? {},
           bestFoalValue: stable.bestFoalValue ?? 0,
+          album: albumOf(state, stable),
+          bredCount: (stable.foalsBred ?? []).length,
+          generations: generationsOf(state, stable),
           foals: [...(stable.foalsBred ?? [])]
             .reverse()
             .slice(0, 12)

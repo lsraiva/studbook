@@ -2024,3 +2024,36 @@
         .recap-tiles { grid-template-columns: repeat(2, 1fr); }
         .recap-star { grid-template-columns: 6rem 1fr; }
       }
+
+      /* ================================================================
+         The stable album and the achievements (Ranking screen)
+         ================================================================ */
+      #album { display: grid; gap: 0.5rem; }
+      .album-row { display: grid; grid-template-columns: 6.5rem repeat(4, minmax(0, 1fr)); gap: 0.45rem; align-items: stretch; }
+      .album-coat { align-self: center; font: 400 1rem/1.2 var(--font-display); color: var(--cream); }
+      .album-slot { position: relative; display: grid; justify-items: center; gap: 0.1rem; padding: 0.4rem 0.3rem 0.45rem; border: 1px dashed var(--hairline); border-radius: 0.7rem; background: rgba(255, 255, 255, 0.02); min-width: 0; }
+      .album-slot img { width: 100%; height: 4.6rem; object-fit: contain; filter: brightness(0) opacity(0.22); }
+      .album-slot .album-name { font-size: 0.74rem; color: var(--faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .album-slot small { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+      .album-slot.have { border-style: solid; border-color: var(--line-strong); background: linear-gradient(180deg, var(--ink-3), var(--ink-1)); }
+      .album-slot.have img { filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }
+      .album-slot.have .album-name { color: var(--cream); }
+      .album-slot.bred { border-color: var(--brass-deep); }
+      .album-slot.bred::after { content: ""; position: absolute; top: 0.35rem; right: 0.35rem; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--brass); box-shadow: 0 0 6px var(--brass); }
+      #feats { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.5rem; }
+      .feat { display: grid; grid-template-columns: 2rem 1fr; grid-template-rows: auto auto; column-gap: 0.6rem; row-gap: 0.3rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--hairline); border-radius: 0.7rem; background: var(--veil); }
+      .feat-seal { grid-row: 1 / span 2; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 50%; border: 1.5px dashed var(--line-strong); color: var(--gold-ink); font-weight: 700; }
+      .feat > div:nth-child(2) { display: grid; gap: 0.05rem; min-width: 0; }
+      .feat b { font: 400 0.98rem/1.2 var(--font-display); color: var(--cream); }
+      .feat span { font-size: 0.76rem; color: var(--muted); }
+      .feat-meter { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+      .feat-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold-b), var(--gold-a)); }
+      .feat small { grid-column: 2; justify-self: end; margin-top: -0.2rem; font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+      .feat .feat-meter { grid-column: 2; }
+      .feat.done { border-color: var(--brass-deep); }
+      .feat.done .feat-seal { border-style: solid; border-color: transparent; background: radial-gradient(circle at 35% 30%, rgb(255, 240, 200), rgb(205, 165, 90) 60%, rgb(140, 100, 40)); }
+      @media (max-width: 620px) {
+        .album-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .album-coat { grid-column: 1 / -1; margin-top: 0.3rem; }
+        .album-slot img { height: 3.4rem; }
+      }
