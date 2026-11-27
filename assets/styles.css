@@ -1994,3 +1994,33 @@
       .birth-naming button { min-height: 40px; }
       .birth-named { flex: 1 1 100%; min-height: 1.1em; font-size: 0.78rem; color: var(--brass); }
       .birth-naming.done label, .birth-naming.done button { display: none; }
+
+      /* ================================================================
+         "Enquanto você esteve fora" (assets/recap.js)
+         ================================================================ */
+      .recap-stage { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 1rem; background: rgba(6, 9, 7, 0.82); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: birth-in 300ms var(--ease) both; }
+      .recap-card { width: min(34rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.4rem 1.4rem 1.2rem; border-radius: 1rem; border: 1px solid var(--brass-deep); background: radial-gradient(120% 70% at 50% 0%, rgba(217, 169, 78, 0.14), transparent 60%), linear-gradient(180deg, var(--ink-3), var(--ink-1)); box-shadow: 0 30px 80px -20px var(--ink-0); text-align: center; animation: rise var(--dur-3) var(--ease) both; }
+      .recap-eyebrow { margin: 0; font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); font-weight: 600; }
+      .recap-card h2 { margin: 0.5rem 0 0.2rem; font: 400 clamp(1.5rem, 5vw, 2.1rem)/1.1 var(--font-display); color: var(--cream); }
+      .recap-sub { margin: 0 0 0.9rem; font-size: 0.84rem; color: var(--muted); }
+      .recap-star { display: grid; grid-template-columns: minmax(7rem, 11rem) 1fr; align-items: center; gap: 0.8rem; margin-bottom: 0.9rem; padding: 0.6rem 0.8rem; border: 1px solid var(--brass); border-radius: 0.8rem; background: rgba(217, 169, 78, 0.08); text-align: left; }
+      .recap-star img { width: 100%; height: 6.2rem; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.45)); }
+      .recap-star-copy { display: grid; gap: 0.25rem; justify-items: start; }
+      .recap-star-copy b { font: 400 1.2rem/1.15 var(--font-display); color: var(--cream); }
+      .recap-star-copy span { font-size: 0.84rem; color: var(--muted); }
+      .recap-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin: 0 0 0.8rem; }
+      .recap-tiles div { padding: 0.5rem 0.2rem; border: 1px solid var(--hairline); border-radius: 0.6rem; background: var(--veil); }
+      .recap-tiles dd { margin: 0; font: 600 1.15rem/1.2 var(--font-num, inherit); color: var(--cream); font-variant-numeric: tabular-nums; }
+      .recap-tiles dt { font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+      .recap-tiles .good dd { color: rgb(170, 235, 185); }
+      .recap-tiles .bad dd { color: rgb(255, 200, 192); }
+      .recap-lines { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.35rem; text-align: left; }
+      .recap-lines li { display: grid; gap: 0.05rem; padding: 0.4rem 0.6rem; border-left: 2px solid var(--line-strong); font-size: 0.84rem; }
+      .recap-lines li.born { border-left-color: var(--brass); }
+      .recap-lines b { color: var(--cream); font-weight: 600; }
+      .recap-lines span { color: var(--muted); }
+      .recap-card > button { min-height: 46px; padding-inline: 1.6rem; }
+      @media (max-width: 480px) {
+        .recap-tiles { grid-template-columns: repeat(2, 1fr); }
+        .recap-star { grid-template-columns: 6rem 1fr; }
+      }
