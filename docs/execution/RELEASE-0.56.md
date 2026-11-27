@@ -1,6 +1,6 @@
 # Release 0.56.0 — official results decided by the race
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `223b40a0ffe0f2b86f344a28fb14e58d0a91dc10`. Pre-deploy backup `20261127T131322Z` (SHA256 `c79be4e8…53be`, matched on the machine), restore tested: 13 accounts, 447 horses, 0 problems. Verified on the machine two minutes after the deploy: `STUDBOOK_RACE_ENGINE=causal`; all 12 rooms switched and each decided its last race by the causal engine; no invalid balance; health answers in 0.2–0.3 s; 127 MB of memory available.
 
 ## The switch
 
