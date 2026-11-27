@@ -1,6 +1,6 @@
 # Release 0.52.0 — the report's cheap P1 items
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `ad17c34a79e6897bf410ecaf06f7d7aaca9853d6`. Pre-deploy backup `20261127T022659Z`, restore tested: 13 accounts, 425 horses, 0 problems.
 
 ## Changes
 

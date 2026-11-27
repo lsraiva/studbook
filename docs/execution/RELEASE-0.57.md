@@ -1,6 +1,6 @@
 # Release 0.57.0 — the first session: fun first, and the foal named in its scene
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `45770b94839d1971fc384bb31f5ffa3ad298f612`. Pre-deploy backup `20261127T133115Z` (SHA256 `6ce0345a…4a4f`, matched on the machine), restore tested: 13 accounts, 449 horses, 0 problems.
 
 ## Changes
 

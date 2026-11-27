@@ -1,6 +1,6 @@
 # Release 0.60.0 — the stable album and the achievements
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `a3260037282adb118b7fd30792b1608ca0219287`. Pre-deploy backup `20261127T211223Z` (SHA256 `2270f880…ecd0`, matched on the machine), restore tested: 13 accounts, 467 horses, 0 problems. Pre-deploy probe on the restored copy: 12 rooms, largest album 16 horses (1.3 KB), most foals bred 15, deepest line 4 generations.
 
 ## Changes
 

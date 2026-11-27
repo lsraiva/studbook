@@ -1,6 +1,6 @@
 # Release 0.59.0 — "Enquanto você esteve fora"
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `1b7394169df8018bd711c55dc3bad1b7526e21c5`. Pre-deploy backup `20261127T144004Z` (SHA256 `ffee7f8a…0f3c`, matched on the machine), restore tested: 13 accounts, 455 horses, 0 problems. The causal engine stays on.
 
 ## Changes
 

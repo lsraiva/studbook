@@ -1,6 +1,6 @@
 # Release 0.58.0 — the shareable card
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `28b1571dd1b553704855786dccde9a66ac8e82a4`. Pre-deploy backup `20261127T135911Z` (SHA256 `0d32855c…1b42`, matched on the machine), restore tested: 13 accounts, 460 horses, 0 problems. The causal engine stays on.
 
 ## Changes
 
