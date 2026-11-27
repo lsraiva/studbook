@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.59.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.60.0";
 
 import {
   applyAction,
@@ -1172,7 +1172,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.59.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.60.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2557,7 +2557,7 @@ async function shareHorse(horse, { tier = null, born = false, button = null } = 
   const online = /^https?:$/.test(location.protocol) && !/^(localhost|127\.|\[::1\])/.test(location.host);
   if (button) button.disabled = true;
   try {
-    const { shareCard } = await import("./share-card.js?v=0.59.0");
+    const { shareCard } = await import("./share-card.js?v=0.60.0");
     const outcome = await shareCard({
       name: horse.name,
       src: portraitOf(horse.lineage, horse.age),
@@ -2593,7 +2593,7 @@ let recapSavedAt = 0;
 function recapTick(v) {
   if (!v || !v.stable) return;
   const key = `studbook:seen:${v.room?.id ?? "offline"}:${v.stable.id}`;
-  recapModule ??= import("./recap.js?v=0.59.0");
+  recapModule ??= import("./recap.js?v=0.60.0");
   recapModule.then(({ snapshotOf, computeRecap, showRecap }) => {
     const now = snapshotOf(v);
     if (!recapChecked) {
@@ -2630,6 +2630,125 @@ function recapTick(v) {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) { recapChecked = false; recapSavedAt = 0; if (view) recapTick(view); }
 });
+
+/**
+ * The album and the achievements (Ranking screen). The album is coat × face marking: eight
+ * coats by four markings, thirty-two places, each filled by the first horse of this yard to
+ * wear it (bred here at any time, or held now). The achievements read the same view: firsts,
+ * the album, how many foals the yard has bred and how deep its own line goes.
+ */
+const ALBUM_COATS = ["bay", "chestnut", "buckskin", "grey", "black", "roan", "palomino", "cremello"];
+const ALBUM_FACES = ["plain", "star", "stripe", "blaze"];
+function albumSlots(v) {
+  const slots = new Map();
+  for (const row of v.stable?.album ?? []) {
+    const look = appearanceFor(row);
+    const key = `${look.coat}|${look.blaze}`;
+    const held = slots.get(key);
+    // a horse bred here takes the place over one merely bought
+    if (!held || (row.bred && !held.row.bred)) slots.set(key, { row, look });
+  }
+  return slots;
+}
+
+function renderAlbum(v) {
+  const box = el("album");
+  if (!box || !v.stable) return;
+  const slots = albumSlots(v);
+  const count = el("album-count");
+  if (count) count.textContent = nf(slots.size);
+  box.innerHTML = "";
+  for (const coat of ALBUM_COATS) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "album-row";
+    let coatName = null;
+    for (const face of ALBUM_FACES) {
+      const slot = slots.get(`${coat}|${face}`);
+      const cell = document.createElement("div");
+      cell.className = "album-slot" + (slot ? " have" : "");
+      const img = document.createElement("img");
+      img.alt = "";
+      img.loading = "lazy";
+      if (slot) {
+        coatName ??= slot.look.labelPt.split(" · ")[0];
+        paintCoat(img, portraitOf(slot.row.lineage, 4), slot.look);
+        const name = document.createElement("span");
+        name.className = "album-name";
+        name.textContent = slot.row.name;
+        const mark = document.createElement("small");
+        mark.textContent = slot.look.labelPt.split(" · ")[1] ?? "";
+        cell.append(img, name, mark);
+        cell.title = slot.look.labelPt;
+        if (slot.row.bred) cell.classList.add("bred");
+      } else {
+        img.src = "assets/art/plate-l1.webp";
+        const q = document.createElement("span");
+        q.className = "album-name";
+        q.textContent = "?";
+        cell.append(img, q);
+      }
+      rowEl.append(cell);
+    }
+    const label = document.createElement("div");
+    label.className = "album-coat";
+    label.setAttribute("data-no-i18n", "");
+    label.textContent = coatName ?? ALBUM_COAT_PT[coat];
+    rowEl.prepend(label);
+    box.append(rowEl);
+  }
+}
+const ALBUM_COAT_PT = { bay: "Castanho", chestnut: "Alazão", buckskin: "Baio", grey: "Tordilho", black: "Preto", roan: "Rosilho", palomino: "Palomino", cremello: "Isabelino" };
+
+function renderFeats(v) {
+  const box = el("feats");
+  if (!box || !v.stable) return;
+  const slots = albumSlots(v);
+  const coats = new Set([...slots.keys()].map((key) => key.split("|")[0])).size;
+  const firsts = v.firsts ?? {};
+  const bred = v.stable.bredCount ?? 0;
+  const depth = v.stable.generations ?? 0;
+  const feats = [
+    ["first win", "win a meeting with a horse of yours", firsts.win ? 1 : 0, 1],
+    // counted from the foals actually bred: the engine's own "first foal" mark is never set
+    ["first foal", "breed a foal in your own yard", bred > 0 ? 1 : 0, 1],
+    ["first sale", "sell a horse or a covering", firsts.sold ? 1 : 0, 1],
+    ["a stakes horse", "own a horse of stakes class", firsts.stakes ? 1 : 0, 1],
+    ["breeder", "breed 5 foals", bred, 5],
+    ["a yard of tradition", "breed 15 foals", bred, 15],
+    ["second generation", "breed a foal out of a horse you bred", depth, 2],
+    ["three generations of one line", "three generations bred in your yard", depth, 3],
+    ["every coat", "have a horse of each of the 8 coats", coats, 8],
+    ["half the album", "fill 16 of the 32 places", slots.size, 16],
+    ["the whole album", "fill all 32 places", slots.size, 32],
+  ];
+  box.innerHTML = "";
+  let done = 0;
+  for (const [title, how, have, need] of feats) {
+    const reached = have >= need;
+    if (reached) done += 1;
+    const item = document.createElement("div");
+    item.className = "feat" + (reached ? " done" : "");
+    const seal = document.createElement("span");
+    seal.className = "feat-seal";
+    seal.textContent = reached ? "✓" : "";
+    const copy = document.createElement("div");
+    const head = document.createElement("b");
+    head.textContent = title;
+    const sub = document.createElement("span");
+    sub.textContent = how;
+    copy.append(head, sub);
+    const meter = document.createElement("div");
+    meter.className = "feat-meter";
+    meter.innerHTML = `<i style="width:${Math.min(100, Math.round((have / need) * 100))}%"></i>`;
+    const tally = document.createElement("small");
+    tally.setAttribute("data-no-i18n", "");
+    tally.textContent = `${nf(Math.min(have, need))} / ${nf(need)}`;
+    item.append(seal, copy, need > 1 ? meter : document.createElement("span"), need > 1 ? tally : document.createElement("span"));
+    box.append(item);
+  }
+  const total = el("feats-count");
+  if (total) total.textContent = `${nf(done)} / ${nf(feats.length)}`;
+}
 
 function openHorse(horseId) {
   const horse = (view?.horses ?? []).find((h) => h.id === horseId);
@@ -3038,7 +3157,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.59.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.60.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -3367,6 +3486,8 @@ function draw() {
   renderNextStep(v);
   renderWorldMarket();
   renderTokens(); // offline too: the section says what it is, instead of standing empty
+  renderAlbum(v);
+  renderFeats(v);
   recapTick(v);
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
