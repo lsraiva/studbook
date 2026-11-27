@@ -5,7 +5,7 @@ import { CloudSocket, apiCall, detectServer, tokenStore } from "./net.js?v=0.9.2
 import { SERVER_URL, HAS_QUERY_SERVER } from "./config.js?v=0.9.2";
 import { appearanceFor, coatSvg } from "./phenotype.js?v=0.33.0";
 import { paintCoat } from "./coat-portrait.js?v=0.38.0";
-import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.49.0";
+import { bank, tabIndicator, eliteStamp } from "./micro.js?v=0.51.0";
 
 import {
   applyAction,
@@ -254,14 +254,9 @@ function connect(makeSocket = () => new LocalSocket()) {
     if (msg.type === "state") onState(msg);
     else if (msg.type === "error") {
       setStatus(msg.error, true);
-      // A refusal that vanishes in 2.8 s reads as "nothing happened". Keep it on screen.
-      const box = el("toasts");
-      if (box) {
-        const node = document.createElement("div");
-        node.className = "toast bad";
-        node.textContent = msg.error;
-        box.append(node);
-      }
+      // A refusal that vanishes in 2.8 s reads as "nothing happened": it stays 8 s, with a close
+      // button, and the same refusal twice is counted rather than stacked.
+      toast(msg.error, true);
     }
   });
   socket.addEventListener("close", () => {
@@ -368,7 +363,7 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (kind === "sell") {
-      act({ type: "sell", horseId: horse.id });
+      confirmSale(horseButton, horse);
       return;
     }
     if (kind === "consign") {
@@ -525,13 +520,87 @@ function net(kind, text) {
   el("net").className = "dot " + (kind === "live" ? "live" : kind === "bad" ? "bad" : "");
   el("nettext").textContent = text;
 }
+/**
+ * The one way a toast reaches the screen. The same message again is not a second toast: the
+ * first one counts it ("×2") and stays a little longer. At most three are shown, oldest first
+ * out. Every toast closes on its own (errors after 8 s, so they can be read) and has a close
+ * button; nothing stacks up over the buttons for minutes any more.
+ */
+const TOAST_LIMIT = 3;
+function showToast(node, ms = 3200) {
+  const box = el("toasts");
+  if (!box || !node) return null;
+  const key = node.dataset.toastKey ?? node.textContent;
+  const same = [...box.children].find((child) => child.dataset.toastKey === key);
+  if (same) {
+    const count = Number(same.dataset.count ?? 1) + 1;
+    same.dataset.count = String(count);
+    let badge = same.querySelector(".toast-count");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "toast-count";
+      badge.setAttribute("data-no-i18n", "");
+      same.insertBefore(badge, same.querySelector(".toast-close"));
+    }
+    badge.textContent = `×${count}`;
+    clearTimeout(Number(same.dataset.timer));
+    same.dataset.timer = String(setTimeout(() => same.remove(), ms));
+    return same;
+  }
+  node.dataset.toastKey = key;
+  node.style.pointerEvents = "auto";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "close");
+  close.textContent = "×";
+  close.addEventListener("click", () => node.remove());
+  node.append(close);
+  box.append(node);
+  while (box.children.length > TOAST_LIMIT) box.firstElementChild.remove();
+  node.dataset.timer = String(setTimeout(() => node.remove(), ms));
+  return node;
+}
 function toast(text, bad = false) {
   const node = document.createElement("div");
   node.className = "toast" + (bad ? " bad" : "");
-  node.textContent = text;
-  el("toasts").append(node);
-  setTimeout(() => node.remove(), bad ? 2800 : 3200);
+  const body = document.createElement("span");
+  body.textContent = text;
+  node.append(body);
+  node.dataset.toastKey = `${bad ? "bad" : "ok"}:${text}`;
+  return showToast(node, bad ? 8000 : 3200);
 }
+/**
+ * Selling to the house cannot be undone, so it takes two presses: the first turns the button
+ * into "confirm sale · ₲ X" for five seconds, the second sells. Survives a redraw in between,
+ * because the pending sale is remembered here rather than on the button.
+ */
+let pendingSale = null;
+function confirmSale(button, horse) {
+  const now = Date.now();
+  if (pendingSale && pendingSale.horseId === horse.id && now - pendingSale.at < 5000) {
+    pendingSale = null;
+    act({ type: "sell", horseId: horse.id });
+    return;
+  }
+  pendingSale = { horseId: horse.id, at: now };
+  const offer = horse.houseOffer ?? Math.round((horse.suggestedPrice ?? 0) * 0.6);
+  if (button) {
+    button.dataset.armed = "1";
+    button.textContent = `confirm sale · ₲ ${nf(offer)}`;
+    button.classList.add("armed");
+  }
+  toast(`Press again to sell ${horse.name} to the house for ₲ ${nf(offer)}.`);
+  setTimeout(() => {
+    if (pendingSale && pendingSale.horseId === horse.id && Date.now() - pendingSale.at >= 5000) pendingSale = null;
+    if (button && button.isConnected && button.dataset.armed === "1") {
+      button.dataset.armed = "";
+      button.textContent = "sell";
+      button.classList.remove("armed");
+    }
+  }, 5000);
+}
+
 function act(action) {
   send({ type: "action", action });
 }
@@ -590,7 +659,7 @@ function onState(msg) {
   seats = msg.seats ?? [];
   me = msg.you;
   // a ?reset=1 link: join is processed by now, so start the run on the chosen bank
-  if (pendingStart && view && view.stable) {
+  if (pendingStart && view && view.stable && !view.cloud && !view.room) {
     pendingStart = false;
     act({ type: "startOver", bank: bankFor(view) });
     const url = new URL(location.href);
@@ -1072,7 +1141,7 @@ const stagedBirths = new Set();
 
 /** The cinematic birth (assets/birth-scene.js): parents in their coats, then the foal in its own. */
 async function stageBirth(foal, v, fanfare) {
-  const { playBirth } = await import("./birth-scene.js?v=0.49.0");
+  const { playBirth } = await import("./birth-scene.js?v=0.51.0");
   const find = (id) => (v.horses ?? []).find((horse) => horse.id === id) ?? null;
   const who = (horse, fallbackName, fallbackSrc, age) => ({
     name: horse?.name ?? fallbackName ?? "",
@@ -2155,6 +2224,11 @@ function renderTokens() {
   const box = el("tokens");
   if (!box) return;
   box.innerHTML = "";
+  // the first thing read in this section: nothing here is on a real chain
+  const sim = document.createElement("p");
+  sim.className = "sim-banner";
+  sim.innerHTML = `<b>SIMULATED</b><span>No token here exists on a real blockchain. Tokens, receipts and claims are a demonstration; nothing can be sold for real money.</span>`;
+  box.append(sim);
 
   if (!CLOUD()) {
     const note = document.createElement("p");
@@ -2791,7 +2865,7 @@ function renderPasture(herd) {
     elite: Boolean(horse.stakes) || horse.band === "near elite",
   }));
   if (pasture) return pasture.set(list);
-  pastureLoading ??= import("./paddock-scene.js?v=0.49.0").then(({ Paddock }) => {
+  pastureLoading ??= import("./paddock-scene.js?v=0.51.0").then(({ Paddock }) => {
     // ?pasture=dusk or ?pasture=day pins the light (previews); otherwise it follows the clock
     const pinned = new URLSearchParams(location.search).get("pasture");
     pasture = new Paddock(host, {
@@ -2922,6 +2996,7 @@ const STEP_LABEL = {
   enter: "enter runners",
   run: "run the meeting",
   buy: "to the market",
+  rebuild: "buy it",
 };
 
 /** A deadline said the way a person reads it. */
@@ -3056,10 +3131,7 @@ function draw() {
   selectedStraw = v.selectedStraw ?? null;
   // the balance rolls to its new value, with coins on a real gain (assets/micro.js)
   bank(el("guineas"), v.stable.guineas, { format: (n) => nf(n), soundOn });
-  eliteStamp(v.horses, (node) => {
-    el("toasts").append(node);
-    setTimeout(() => node.remove(), 4200);
-  });
+  eliteStamp(v.horses, (node) => showToast(node, 4200));
   el("season").textContent = nf(v.season);
   el("condition").textContent = v.conditionLabel ?? v.condition;
   el("condition2").textContent = v.conditionLabel ?? v.condition;
@@ -3098,6 +3170,7 @@ function draw() {
   renderGallery(v);
   renderNextStep(v);
   renderWorldMarket();
+  renderTokens(); // offline too: the section says what it is, instead of standing empty
   maybeReveal(v);
   el("entry-fee").textContent = nf(v.entryFee);
   const advanceButton = el("advance");
@@ -3248,7 +3321,7 @@ function draw() {
       sell.title = horse.soulbound
         ? "A gift horse: she can never be sold or consigned, but her foals can."
         : "Sell to the house at once.";
-      sell.addEventListener("click", () => act({ type: "sell", horseId: horse.id }));
+      sell.addEventListener("click", () => confirmSale(sell, horse));
       row.append(sell);
 
       const consign = document.createElement("button");
@@ -3668,6 +3741,16 @@ function draw() {
     head.className = "name";
     head.textContent = "Testing tools";
     tools.append(head);
+    if (v.cloud || v.room) {
+      // Online the stable is permanent: horses, balance and pedigree are kept, so there is no
+      // start-over button here (the server refuses it). The demo offline keeps the tool.
+      const note = document.createElement("p");
+      note.className = "hint";
+      note.textContent =
+        "Online your stable is permanent: horses, guineas and pedigrees are kept, so there is no starting over. To replay the opening, use the offline demo. If your yard runs out of horses, the next step above names the cheapest way back in.";
+      tools.append(note);
+      account.append(tools);
+    } else {
     const hint = document.createElement("p");
     hint.className = "hint";
     hint.textContent =
@@ -3712,6 +3795,7 @@ function draw() {
     if (v.testGrant > 0) row.append(grant);
     tools.append(row);
     account.append(tools);
+    }
   }
 
   // standings
@@ -3836,6 +3920,9 @@ for (const tab of document.querySelectorAll(".tab")) {
 // 1..6 switch screens, and a dialog owns the keyboard while it is open.
 window.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  // typing a digit into a field (a stable name, a 6-digit code, a price) is typing, not a shortcut
+  const field = event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+  if (field || event.isComposing) return;
   const index = ["1", "2", "3", "4", "5", "6", "7", "8", "9"].indexOf(event.key);
   if (index < 0 || index >= SCREENS.length) return;
   const box = el("reveal");
@@ -4061,13 +4148,13 @@ function surfaceError(where, error) {
     status.textContent = text;
     status.classList.add("bad");
   }
-  const box = el("toasts");
-  if (box) {
-    const node = document.createElement("div");
-    node.className = "toast bad";
-    node.textContent = text;
-    box.append(node); // no timer: a diagnostic must not vanish before it is read
-  }
+  // a diagnostic stays long enough to be read (30 s), can be closed, and does not stack
+  const node = document.createElement("div");
+  node.className = "toast bad";
+  const body = document.createElement("span");
+  body.textContent = text;
+  node.append(body);
+  showToast(node, 30000);
 }
 
 // One listener for the whole document: buttons are rebuilt on every draw, and a handler bound to a

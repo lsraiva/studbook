@@ -16,15 +16,25 @@ test('running a meeting rolls the balance and floats the change off it', async (
   await expect.poll(async () => (await saved(page))?.season, { timeout: 20000 }).toBe(1);
   const before = myGuineas(await saved(page));
   await page.locator('.tab[data-screen="racing"]').click();
+  // record the chip and the glow the instant they appear, whatever the machine's speed
+  await page.evaluate(() => {
+    window.__bank = null;
+    const pill = document.querySelector('.pill.bank');
+    new MutationObserver(() => {
+      const chip = pill.querySelector('.bank-delta');
+      if (chip && !window.__bank) window.__bank = { chip: chip.className, text: chip.textContent, pill: pill.className };
+    }).observe(pill, { childList: true, subtree: true, attributes: true });
+  });
   // the bank moves when the season turns (upkeep) or a runner earns; run meetings until it does
-  const chip = page.locator('.pill.bank .bank-delta');
-  for (let i = 0; i < 8 && !(await chip.count()); i += 1) {
+  for (let i = 0; i < 8 && !(await page.evaluate(() => window.__bank)); i += 1) {
     await page.locator('#advance').click();
     await page.waitForTimeout(500);
   }
-  // a change in either direction shows: the chip floats off the pill and the pill glows
-  await expect(chip).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('.pill.bank')).toHaveClass(/gain|loss/);
+  const seen = await page.evaluate(() => window.__bank);
+  expect(seen, 'a change floated off the balance').toBeTruthy();
+  expect(seen.chip).toMatch(/ (up|down)$/);
+  expect(seen.pill).toMatch(/ (gain|loss)/);
+  expect(seen.text).toMatch(/^[+−]₲ [\d,]+$/);
   if (shots) await page.locator('header.bar').screenshot({ path: `${shots}/bank-roll.png` });
   // the text always carries the real balance, whatever the animation is drawing
   const after = myGuineas(await saved(page));

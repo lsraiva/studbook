@@ -23,6 +23,19 @@ const MIME = {
 };
 const failure = (status) => ({ status, body: status === 400 ? 'bad request' : 'not found', contentType: 'text/plain; charset=utf-8' });
 
+/** A page that is not there still looks like the game, says so in Portuguese and points home. */
+const NOT_FOUND_PAGE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Página não encontrada · Studbook</title><style>
+:root{--ink:#0e1712;--cream:#f1eee4;--gold:#d7b77d;--muted:#a6b0a2}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 30%,#1c2a1f,var(--ink) 70%);color:var(--cream);font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;text-align:center}
+.mark{font:600 22px Georgia,serif;letter-spacing:3px}.mark span{color:var(--gold)}
+h1{font:400 clamp(40px,8vw,72px)/1 Georgia,serif;margin:28px 0 12px}p{color:var(--muted);max-width:420px;margin:0 auto 28px}
+nav{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}a{display:inline-flex;min-height:46px;align-items:center;padding:0 22px;border-radius:4px;font-size:13px;font-weight:600;text-decoration:none}
+.primary{color:#201c13;background:linear-gradient(120deg,#e2c58e,#c7a364)}.secondary{color:var(--cream);border:1px solid #d8dac748}
+</style></head><body><main><div class="mark">STUD<span>BOOK</span></div><h1>Página não encontrada</h1><p>Este endereço não existe no Studbook. O seu estábulo continua onde estava.</p><nav><a class="primary" href="/play">Ir para o estábulo</a><a class="secondary" href="/">Página inicial</a></nav></main></body></html>`;
+const notFoundPage = () => ({ status: 404, body: NOT_FOUND_PAGE, contentType: 'text/html; charset=utf-8' });
+/** A navigation to a page (no extension, or .html), as opposed to a missing file. */
+const isPage = (path) => !/\.[a-z0-9]+$/i.test(path) || /\.html?$/i.test(path);
+
 export async function publicAsset(root, encodedPath) {
   let path;
   try { path = decodeURIComponent(encodedPath); } catch { return failure(400); }
@@ -32,7 +45,7 @@ export async function publicAsset(root, encodedPath) {
   if (path === '/play') path = '/index.html';
   if (path === '/horse-3d') path = '/horse-3d.html';
   const artwork = /^\/assets\/art\/[A-Za-z0-9][A-Za-z0-9_-]*\.(webp|png|jpe?g|svg|gif|mp4|webm)$/.test(path);
-  if (!['/index.html','/welcome.html','/horse-3d.html'].includes(path) && !MODULES.has(path) && !artwork) return failure(404);
+  if (!['/index.html','/welcome.html','/horse-3d.html'].includes(path) && !MODULES.has(path) && !artwork) return isPage(path) ? notFoundPage() : failure(404);
   try {
     const canonicalRoot = await realpath(root);
     const file = join(canonicalRoot, path.slice(1));
