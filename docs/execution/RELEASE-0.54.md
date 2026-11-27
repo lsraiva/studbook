@@ -1,6 +1,6 @@
 # Release 0.54.0 — the causal engine can decide official results (F0-02), behind a flag
 
-State: **in review**, not deployed. **The flag is off**: no room changes how it is decided until it is turned on.
+State: **deployed with 0.55** on 2026-11-27 (revision `38f60b5664069febb577ecceeee9ecf2184aba92`). **The flag is off**: `STUDBOOK_RACE_ENGINE` is unset on the machine and all 12 rooms decide by the legacy rule.
 
 ## Changes
 

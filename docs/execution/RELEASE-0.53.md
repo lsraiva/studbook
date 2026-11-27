@@ -1,6 +1,6 @@
 # Release 0.53.0 — ride the live race
 
-State: **in review**, not deployed.
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `de89c6fd07f1a2b390e6ee31246ebd835d45a109`. Pre-deploy backup `20261127T024852Z`, restore tested: 13 accounts, 448 horses, 0 problems. Verified: the ride endpoint answers 401 without a session.
 
 ## Changes
 

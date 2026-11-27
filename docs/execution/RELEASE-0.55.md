@@ -1,6 +1,6 @@
 # Release 0.55.0 — odds before the off
 
-State: **in review**, not deployed. Built on top of 0.54 (the causal engine behind a flag, still off).
+State: **deployed** 2026-11-27 to `studbook-luann` (gru), revision `38f60b5664069febb577ecceeee9ecf2184aba92`. Pre-deploy backup `20261127T125330Z` (SHA256 `b2e1f709…fe4d`, matched on the machine), restore tested: 13 accounts, 438 horses, 0 problems. Verified on the machine: 12 rooms, none on the causal engine; the room frozen since 2026-11-18 ran its meeting and is now in season 2.
 
 ## Changes
 
